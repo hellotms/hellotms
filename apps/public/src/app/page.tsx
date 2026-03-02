@@ -27,7 +27,7 @@ async function getFeaturedProjects(): Promise<Project[]> {
     .eq('status', 'completed')
     .order('updated_at', { ascending: false })
     .limit(6);
-  return (data ?? []) as Project[];
+  return (data ?? []) as unknown as Project[];
 }
 
 const STATS = [

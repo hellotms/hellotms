@@ -18,7 +18,7 @@ async function getProjects(): Promise<(Project & { companies: { name: string } |
     .select('id, title, cover_image_url, status, created_at, companies(name)')
     .eq('status', 'completed')
     .order('updated_at', { ascending: false });
-  return (data ?? []) as (Project & { companies: { name: string } | null })[];
+  return (data ?? []) as unknown as (Project & { companies: { name: string } | null })[];
 }
 
 export default async function PortfolioPage() {

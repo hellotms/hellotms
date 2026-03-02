@@ -11,13 +11,13 @@ export const metadata: Metadata = {
 
 export const revalidate = 300;
 
-const DEFAULT_SERVICES: ServiceItem[] = [
-  { name: 'Wedding Photography', description: 'Capturing the most important day of your life with elegance and emotion.', icon: '💍' },
-  { name: 'Corporate Events', description: 'Professional coverage for conferences, product launches, and team events.', icon: '🏢' },
-  { name: 'Event Management', description: 'End-to-end event planning and execution for any scale.', icon: '📋' },
-  { name: 'Videography', description: 'Cinematic video production to tell your story beautifully.', icon: '🎬' },
-  { name: 'Brand Activation', description: 'Experiential marketing campaigns that connect brands with audiences.', icon: '✨' },
-  { name: 'Photo Booth', description: 'Fun and interactive photo booths for weddings, parties, and corporate events.', icon: '📸' },
+const DEFAULT_SERVICES: { title: string; description?: string; icon?: string }[] = [
+  { title: 'Wedding Photography', description: 'Capturing the most important day of your life with elegance and emotion.', icon: '💍' },
+  { title: 'Corporate Events', description: 'Professional coverage for conferences, product launches, and team events.', icon: '🏢' },
+  { title: 'Event Management', description: 'End-to-end event planning and execution for any scale.', icon: '📋' },
+  { title: 'Videography', description: 'Cinematic video production to tell your story beautifully.', icon: '🎬' },
+  { title: 'Brand Activation', description: 'Experiential marketing campaigns that connect brands with audiences.', icon: '✨' },
+  { title: 'Photo Booth', description: 'Fun and interactive photo booths for weddings, parties, and corporate events.', icon: '📸' },
 ];
 
 export default async function ServicesPage() {

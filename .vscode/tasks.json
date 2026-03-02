@@ -9,6 +9,42 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "build"
+		},
+		{
+			"label": "Run Public Dev Server",
+			"type": "shell",
+			"command": "pnpm --filter @hellotms/public dev",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Run Public Dev Server",
+			"type": "shell",
+			"command": "pnpm --filter @hellotms/public dev",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Build Public Site",
+			"type": "shell",
+			"command": "pnpm --filter @hellotms/public build",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Build Public Site",
+			"type": "shell",
+			"command": "pnpm --filter @hellotms/public build",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
 		}
 	]
 }
