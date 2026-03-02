@@ -19,6 +19,7 @@ export const projectSchema = z.object({
   slug: z.string().min(1).max(200).optional(),
   status: z.enum(['draft', 'active', 'completed']).default('draft'),
   event_start_date: z.string().min(1, 'Event start date is required'),
+  proposal_date: z.string().optional().nullable(),
   event_end_date: z.string().optional().nullable(),
   location: z.string().max(200).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
