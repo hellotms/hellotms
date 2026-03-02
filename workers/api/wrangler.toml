@@ -1,0 +1,22 @@
+name = "hellotms-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = ["0 8 * * *"]   # daily at 8 AM UTC — keepalive ping
+
+[[routes]]
+pattern = "api.hellotms.com.bd/*"
+zone_name = "hellotms.com.bd"
+
+[vars]
+ENVIRONMENT = "production"
+
+# Secrets set via: wrangler secret put <KEY>
+# SUPABASE_URL
+# SUPABASE_SERVICE_KEY
+# BREVO_API_KEY
+# BREVO_SENDER_EMAIL
+# BREVO_SENDER_NAME
+# JWT_SECRET  (optional, supabase jwt secret for manual jwt verification)

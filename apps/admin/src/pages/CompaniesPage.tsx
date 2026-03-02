@@ -1,0 +1,153 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { DataTable } from '@/components/DataTable';
+import { PageHeader } from '@/components/PageHeader';
+import { Modal } from '@/components/Modal';
+import { formatDate } from '@/lib/utils';
+import { Plus, Building2, Pencil } from 'lucide-react';
+import { companySchema } from '@hellotms/shared';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import type { ColumnDef } from '@tanstack/react-table';
+import type { Company } from '@hellotms/shared';
+import type { CompanyInput } from '@hellotms/shared';
+import { slugify } from '@/lib/utils';
+
+export default function CompaniesPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [isOpen, setIsOpen] = useState(false);
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+
+  const { data: companies = [], isLoading } = useQuery({
+    queryKey: ['companies'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      return data as Company[];
+    },
+  });
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<CompanyInput>({
+    resolver: zodResolver(companySchema),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (values: CompanyInput) => {
+      const payload = { ...values, slug: values.slug || slugify(values.name) };
+      if (editingCompany) {
+        const { error } = await supabase.from('companies').update(payload).eq('id', editingCompany.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('companies').insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+      setIsOpen(false);
+      setEditingCompany(null);
+      reset();
+    },
+  });
+
+  const openCreate = () => { setEditingCompany(null); reset(); setIsOpen(true); };
+  const openEdit = (c: Company) => { setEditingCompany(c); reset(c); setIsOpen(true); };
+
+  const columns: ColumnDef<Company, unknown>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Company Name',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Building2 className="h-4 w-4 text-primary" />
+          </div>
+          <span className="font-medium text-foreground">{row.original.name}</span>
+        </div>
+      ),
+    },
+    { accessorKey: 'email', header: 'Email', cell: ({ getValue }) => getValue() as string || '—' },
+    { accessorKey: 'phone', header: 'Phone', cell: ({ getValue }) => getValue() as string || '—' },
+    { accessorKey: 'address', header: 'Address', cell: ({ getValue }) => (getValue() as string || '—').slice(0, 40) },
+    {
+      accessorKey: 'created_at',
+      header: 'Created',
+      cell: ({ getValue }) => formatDate(getValue() as string),
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <button
+          onClick={(e) => { e.stopPropagation(); openEdit(row.original); }}
+          className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <PageHeader
+        title="Companies"
+        description="Manage client companies and organisations"
+        actions={
+          <button onClick={openCreate} className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+            <Plus className="h-4 w-4" /> New Company
+          </button>
+        }
+      />
+
+      <div className="bg-card border border-border rounded-xl p-4">
+        {isLoading ? (
+          <div className="py-12 text-center text-muted-foreground">Loading...</div>
+        ) : (
+          <DataTable
+            data={companies}
+            columns={columns}
+            searchKey="name"
+            searchPlaceholder="Search companies..."
+            onRowClick={(row) => navigate(`/companies/${row.id}`)}
+          />
+        )}
+      </div>
+
+      <Modal isOpen={isOpen} onClose={() => { setIsOpen(false); reset(); }} title={editingCompany ? 'Edit Company' : 'New Company'}>
+        <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
+          {[
+            { name: 'name', label: 'Company Name', required: true },
+            { name: 'email', label: 'Email', type: 'email' },
+            { name: 'phone', label: 'Phone' },
+            { name: 'address', label: 'Address' },
+          ].map(({ name, label, type = 'text', required }) => (
+            <div key={name}>
+              <label className="block text-sm font-medium text-foreground mb-1">{label}{required && ' *'}</label>
+              <input
+                {...register(name as keyof CompanyInput)}
+                type={type}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              {errors[name as keyof CompanyInput] && (
+                <p className="text-xs text-destructive mt-1">{errors[name as keyof CompanyInput]?.message}</p>
+              )}
+            </div>
+          ))}
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => { setIsOpen(false); reset(); }} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
+            <button type="submit" disabled={saveMutation.isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60">
+              {saveMutation.isPending ? 'Saving...' : 'Save Company'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}

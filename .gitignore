@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.next/
+out/
+.wrangler/
+*.local
+.env
+.env.*
+!.env.example
+.DS_Store
+*.pem
+.vercel
+.turbo
+coverage/
+*.log
+pnpm-debug.log*
