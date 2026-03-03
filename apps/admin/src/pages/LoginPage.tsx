@@ -33,7 +33,7 @@ export default function LoginPage() {
           <div className="inline-flex h-16 w-16 rounded-2xl bg-primary items-center justify-center mb-4 shadow-lg shadow-primary/30">
             <span className="text-white font-bold text-2xl">MS</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">Marketing Solution</h1>
+          <h1 className="text-2xl font-bold text-white">The Marketing Solution</h1>
           <p className="text-blue-300 text-sm mt-1">Admin Panel — hellotms.com.bd</p>
         </div>
 
@@ -101,7 +101,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-blue-400/60 text-xs mt-6">
-          © {new Date().getFullYear()} Marketing Solution · All rights reserved
+          © {new Date().getFullYear()} The Marketing Solution · All rights reserved
         </p>
       </div>
     </div>

@@ -12,6 +12,7 @@ zone_name = "acadome.dev"
 
 [vars]
 ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://acadome.dev,https://ad.acadome.dev"
 
 # Secrets set via: wrangler secret put <KEY>
 # SUPABASE_URL

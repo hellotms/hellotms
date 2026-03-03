@@ -5,6 +5,7 @@ export interface Env {
   BREVO_SENDER_EMAIL: string;
   BREVO_SENDER_NAME: string;
   ENVIRONMENT: string;
+  ALLOWED_ORIGINS: string; // comma-separated list of allowed origins
 }
 
 export type Variables = {

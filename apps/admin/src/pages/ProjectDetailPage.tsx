@@ -1,13 +1,14 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Modal, ConfirmModal } from '@/components/Modal';
+import { ImageUpload } from '@/components/ImageUpload';
 import { formatBDT, formatDate } from '@/lib/utils';
 import { computeProjectDurations } from '@hellotms/shared';
-import { ArrowLeft, Plus, Pencil, Trash2, Calendar, Clock, DollarSign } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Calendar, Clock, DollarSign, Upload, X, ImageIcon } from 'lucide-react';
 import type { Project, LedgerEntry, Collection, Invoice } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
 import type { LedgerEntryInput } from '@hellotms/shared';
@@ -18,6 +19,17 @@ import type { CollectionInput } from '@hellotms/shared';
 const TABS = ['Overview', 'Ledger', 'Collections', 'Invoices', 'Timeline', 'Gallery'] as const;
 type Tab = typeof TABS[number];
 
+type EditProjectInput = {
+  title: string;
+  status: string;
+  location?: string;
+  event_start_date: string;
+  event_end_date?: string;
+  notes?: string;
+  is_featured: boolean;
+  project_completed_at?: string;
+};
+
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -27,6 +39,12 @@ export default function ProjectDetailPage() {
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
   const [isCollectionOpen, setIsCollectionOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [coverImageUrl, setCoverImageUrl] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   const { data: project, isLoading } = useQuery<Project & { companies: { name: string; phone?: string; email?: string } | null }>({
     queryKey: ['project', id],
@@ -75,6 +93,23 @@ export default function ProjectDetailPage() {
 
   // Timeline durations
   const durations = project ? computeProjectDurations(project, collections, totalInvoiced) : null;
+
+  // Edit project form
+  const editProjectForm = useForm<EditProjectInput>();
+
+  // Gallery: fetch images from project_media table
+  const { data: gallery = [], refetch: refetchGallery } = useQuery<{ id: string; url: string; path: string }[]>({
+    queryKey: ['gallery', id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('project_media')
+        .select('id, url, path')
+        .eq('project_id', id!)
+        .order('created_at', { ascending: false });
+      return (data ?? []) as { id: string; url: string; path: string }[];
+    },
+    enabled: !!id,
+  });
 
   // Ledger form
   const ledgerForm = useForm<LedgerEntryInput>({
@@ -147,6 +182,47 @@ export default function ProjectDetailPage() {
     queryClient.invalidateQueries({ queryKey: ['project', id] });
   };
 
+  // Save edited project
+  const saveProjectMutation = useMutation({
+    mutationFn: async (values: EditProjectInput) => {
+      const { error } = await supabase.from('projects').update(values).eq('id', id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
+      setIsEditOpen(false);
+    },
+  });
+
+  // Gallery upload
+  const handleGalleryUpload = async (files: FileList | null) => {
+    if (!files || !id) return;
+    setIsUploading(true);
+    setUploadError('');
+    try {
+      for (const file of Array.from(files)) {
+        const ext = file.name.split('.').pop();
+        const path = `projects/${id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: uploadErr } = await supabase.storage.from('project-media').upload(path, file);
+        if (uploadErr) throw uploadErr;
+        const { data: urlData } = supabase.storage.from('project-media').getPublicUrl(path);
+        await supabase.from('project_media').insert({ project_id: id, path, url: urlData.publicUrl });
+      }
+      refetchGallery();
+    } catch (e) {
+      setUploadError((e as Error).message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Gallery delete
+  const deletePhoto = async (photo: { id: string; path: string }) => {
+    await supabase.storage.from('project-media').remove([photo.path]);
+    await supabase.from('project_media').delete().eq('id', photo.id);
+    refetchGallery();
+  };
+
   if (isLoading) return <div className="py-20 text-center text-muted-foreground">Loading...</div>;
   if (!project) return <div className="py-20 text-center text-muted-foreground">Project not found</div>;
 
@@ -162,10 +238,27 @@ export default function ProjectDetailPage() {
         </div>
         <StatusBadge status={project.status} />
         <button
+          onClick={() => {
+            editProjectForm.reset({
+              title: project.title,
+              status: project.status,
+              location: project.location ?? '',
+              event_start_date: project.event_start_date,
+              event_end_date: project.event_end_date ?? '',
+              notes: project.notes ?? '',
+              is_featured: project.is_featured ?? false,
+              project_completed_at: project.project_completed_at ?? '',
+            });
+            setIsEditOpen(true);
+          }}
+          className="flex items-center gap-1.5 text-xs border border-border px-3 py-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+        >
+          <Pencil className="h-3.5 w-3.5" /> Edit
+        </button>
+        <button
           onClick={togglePublished}
-          className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
-            project.is_published ? 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'border-border text-muted-foreground hover:text-foreground'
-          }`}
+          className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${project.is_published ? 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'border-border text-muted-foreground hover:text-foreground'
+            }`}
         >
           {project.is_published ? '● Published' : '○ Unpublished'}
         </button>
@@ -194,9 +287,8 @@ export default function ProjectDetailPage() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                activeTab === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
+              className={`pb-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
             >
               {tab}
             </button>
@@ -429,8 +521,52 @@ export default function ProjectDetailPage() {
 
       {/* Gallery tab */}
       {activeTab === 'Gallery' && (
-        <div className="text-center py-12 text-muted-foreground">
-          <p className="text-sm">Photo gallery coming soon — upload photos via Supabase Storage</p>
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold text-foreground">Photo Gallery</h3>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {isUploading ? 'Uploading...' : 'Upload Photos'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => handleGalleryUpload(e.target.files)}
+            />
+          </div>
+          {uploadError && (
+            <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2 mb-4">{uploadError}</p>
+          )}
+          {gallery.length === 0 ? (
+            <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
+              <ImageIcon className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">No photos yet. Click "Upload Photos" to add images.</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Photos are stored in Supabase Storage (project-media bucket)</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {gallery.map((photo) => (
+                <div key={photo.id} className="relative group aspect-square rounded-lg overflow-hidden border border-border">
+                  <img src={photo.url} alt="" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <button
+                      onClick={() => deletePhoto(photo)}
+                      className="p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -530,6 +666,59 @@ export default function ProjectDetailPage() {
         danger
         loading={deleteLedgerMutation.isPending}
       />
+
+      {/* Edit Project Modal */}
+      <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Project">
+        <form onSubmit={editProjectForm.handleSubmit((v) => saveProjectMutation.mutate(v))} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Project Title *</label>
+            <input {...editProjectForm.register('title', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Status</label>
+              <select {...editProjectForm.register('status')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Location</label>
+              <input {...editProjectForm.register('location')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="Dhaka, Bangladesh" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Event Start Date *</label>
+              <input type="date" {...editProjectForm.register('event_start_date', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Event End Date</label>
+              <input type="date" {...editProjectForm.register('event_end_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Project Completed At</label>
+            <input type="date" {...editProjectForm.register('project_completed_at')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Notes</label>
+            <textarea {...editProjectForm.register('notes')} rows={3} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="is_featured" {...editProjectForm.register('is_featured')} className="rounded" />
+            <label htmlFor="is_featured" className="text-sm font-medium">Mark as Featured</label>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setIsEditOpen(false)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
+            <button type="submit" disabled={saveProjectMutation.isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
+              {saveProjectMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

@@ -1,91 +1,133 @@
-import { supabase } from '@/lib/supabase';
 import type { Metadata } from 'next';
-import type { SiteSettings } from '@hellotms/shared';
 import Link from 'next/link';
-import { ArrowRight, Star } from 'lucide-react';
+import { ArrowRight, Heart, Target, Sparkles, Users } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'About Us',
-  description: 'Learn about Hello TMS and our journey in professional event management.',
+  description: 'Learn about The Marketing Solution — Bangladesh\'s premier event management and marketing agency.',
 };
 
-export const revalidate = 300;
-
-const TEAM_HIGHLIGHTS = [
-  { stat: '8+', label: 'Years in Business' },
-  { stat: '500+', label: 'Events Delivered' },
-  { stat: '300+', label: 'Satisfied Clients' },
-  { stat: '99%', label: 'Client Satisfaction' },
+const TEAM_VALUES = [
+  { icon: Heart, title: 'Passion-Driven', text: 'Every event is a labor of love. We pour our hearts into every detail from the first meeting to the final curtain call.' },
+  { icon: Target, title: 'Results-Focused', text: 'We don\'t just plan events — we create experiences that meet your goals, exceed expectations, and measure success.' },
+  { icon: Sparkles, title: 'Creative Excellence', text: 'Innovation is at our core. We bring fresh ideas and creative solutions to every brief, no matter the scale.' },
+  { icon: Users, title: 'Client-Centric', text: 'Your vision is our mission. We listen, we collaborate, and we build something extraordinary together.' },
 ];
 
-export default async function AboutPage() {
-  const { data } = await supabase.from('site_settings').select('about_content').eq('id', 1).single();
-  const settings = data as Pick<SiteSettings, 'about_content'> | null;
+const MILESTONES = [
+  { year: '2016', title: 'Founded', text: 'Started as a small photography studio in Dhaka.' },
+  { year: '2018', title: 'First Major Event', text: 'Managed our first 1,000-guest corporate gala.' },
+  { year: '2020', title: 'Full-Service Agency', text: 'Expanded to full event management and brand activations.' },
+  { year: '2024', title: 'Industry Leader', text: '500+ events, 300+ clients, and still growing.' },
+];
 
+export default function AboutPage() {
   return (
-    <div>
+    <div className="pt-16">
       {/* Hero */}
-      <section className="bg-gradient-to-br from-gray-900 to-brand-900 text-white py-20 sm:py-28">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-brand-400 text-sm font-semibold tracking-widest uppercase mb-4">Our Story</p>
-          <h1 className="text-4xl sm:text-5xl font-black leading-tight">We Are Hello TMS</h1>
-          <p className="mt-5 text-gray-300 text-lg max-w-2xl mx-auto leading-relaxed">
-            A passionate team dedicated to making every event unforgettable through creativity, professionalism, and heart.
+      <section className="relative py-20 sm:py-28 hero-gradient overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/8 rounded-full blur-3xl" />
+        <div className="container relative z-10 text-center">
+          <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">Our Story</p>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[var(--foreground)] mb-5">
+            About <span className="gradient-text">The Marketing Solution</span>
+          </h1>
+          <p className="text-[var(--muted)] text-lg max-w-2xl mx-auto leading-relaxed">
+            We are Bangladesh's premier event management and marketing agency — a team of passionate creatives, strategic planners, and relentless executors.
           </p>
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="py-12 bg-white border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {TEAM_HIGHLIGHTS.map(({ stat, label }) => (
-              <div key={label}>
-                <p className="text-4xl font-black text-brand-700">{stat}</p>
-                <p className="text-sm text-gray-500 mt-1">{label}</p>
+      {/* Mission / Split */}
+      <section className="section">
+        <div className="container">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Visual */}
+            <div className="relative">
+              <div className="aspect-[4/3] rounded-3xl bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-950 flex items-center justify-center overflow-hidden border border-indigo-500/20">
+                <div className="text-center p-8">
+                  <div className="text-7xl mb-5">🎯</div>
+                  <p className="text-white/60 text-sm max-w-xs mx-auto leading-relaxed">
+                    "Our mission is to transform ordinary moments into extraordinary memories."
+                  </p>
+                </div>
+              </div>
+              {/* Floating card */}
+              <div className="absolute -bottom-5 -right-5 bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 shadow-xl">
+                <p className="text-2xl font-black text-[var(--foreground)]">500+</p>
+                <p className="text-xs text-[var(--muted)]">Events Executed</p>
+              </div>
+            </div>
+
+            {/* Text */}
+            <div>
+              <p className="text-amber-500 text-xs font-bold tracking-widest uppercase mb-3">Our Mission</p>
+              <h2 className="text-3xl sm:text-4xl font-black text-[var(--foreground)] mb-5 leading-tight">
+                Transforming Visions Into <span className="gradient-text">Unforgettable Experiences</span>
+              </h2>
+              <p className="text-[var(--muted)] leading-relaxed mb-4">
+                Founded in 2016, The Marketing Solution began as a small photography studio with a big dream: to redefine event experiences in Bangladesh. Today, we've grown into a full-service agency trusted by leading corporations, celebrities, and families alike.
+              </p>
+              <p className="text-[var(--muted)] leading-relaxed mb-8">
+                From intimate gatherings to large-scale productions, we bring the same level of passion, professionalism, and creative excellence to every project. Our team of 20+ specialists ensures no detail is overlooked.
+              </p>
+              <Link
+                href="/contact"
+                className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-semibold transition-all hover:shadow-lg hover:shadow-indigo-500/25"
+              >
+                Work With Us <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Values */}
+      <section className="section bg-[var(--surface)]">
+        <div className="container">
+          <div className="text-center mb-12">
+            <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">Our Values</p>
+            <h2 className="text-3xl sm:text-4xl font-black text-[var(--foreground)]">
+              What <span className="gradient-text">Drives Us</span>
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {TEAM_VALUES.map(({ icon: Icon, title, text }) => (
+              <div key={title} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 card-hover">
+                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-4">
+                  <Icon className="h-6 w-6 text-indigo-400" />
+                </div>
+                <h3 className="font-bold text-[var(--foreground)] mb-2">{title}</h3>
+                <p className="text-sm text-[var(--muted)] leading-relaxed">{text}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* About content */}
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="prose prose-lg max-w-none text-gray-600">
-          {settings?.about_content ? (
-            settings.about_content.split('\n').filter(Boolean).map((para, i) => (
-              <p key={i} className="mb-4 leading-relaxed">{para}</p>
-            ))
-          ) : (
-            <p>Hello TMS is a leading event management and marketing solutions company based in Bangladesh. We specialise in corporate events, weddings, product launches, and brand activations. From intimate gatherings to large-scale productions, our experienced team delivers flawless execution every time.</p>
-          )}
-        </div>
-
-        {/* Values */}
-        <div className="mt-14 grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {[
-            { icon: '🎯', title: 'Our Mission', text: 'To deliver memorable experiences that reflect our clients\' vision with precision and creativity.' },
-            { icon: '🌟', title: 'Our Vision', text: 'To be the most trusted event management partner in Bangladesh.' },
-            { icon: '💡', title: 'Our Values', text: 'Integrity, creativity, dedication, and a relentless focus on client satisfaction.' },
-          ].map(v => (
-            <div key={v.title} className="bg-gray-50 rounded-2xl p-6">
-              <div className="text-3xl mb-3">{v.icon}</div>
-              <h3 className="font-bold text-gray-900 mb-2">{v.title}</h3>
-              <p className="text-sm text-gray-500 leading-relaxed">{v.text}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="bg-brand-50 py-12">
-        <div className="max-w-3xl mx-auto px-4 text-center">
-          <Star className="h-10 w-10 text-brand-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-black text-gray-900">Ready to work with us?</h2>
-          <p className="text-gray-500 mt-2 mb-6">Let's create something extraordinary together.</p>
-          <Link href="/contact" className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-7 py-3.5 rounded-full font-bold transition-colors">
-            Start a Conversation <ArrowRight className="h-4 w-4" />
-          </Link>
+      {/* Timeline / Milestones */}
+      <section className="section">
+        <div className="container max-w-3xl">
+          <div className="text-center mb-12">
+            <p className="text-amber-500 text-xs font-bold tracking-widest uppercase mb-3">Our Journey</p>
+            <h2 className="text-3xl sm:text-4xl font-black text-[var(--foreground)]">
+              Key <span className="gradient-text">Milestones</span>
+            </h2>
+          </div>
+          <div className="relative space-y-6">
+            <div className="absolute left-8 top-0 bottom-0 w-px bg-[var(--border)] hidden sm:block" />
+            {MILESTONES.map((m) => (
+              <div key={m.year} className="flex gap-5 items-start">
+                <div className="shrink-0 w-16 h-16 rounded-2xl bg-indigo-600 flex items-center justify-center text-white text-xs font-black">
+                  {m.year}
+                </div>
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 flex-1 card-hover">
+                  <h3 className="font-bold text-[var(--foreground)] mb-1">{m.title}</h3>
+                  <p className="text-sm text-[var(--muted)]">{m.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
     </div>

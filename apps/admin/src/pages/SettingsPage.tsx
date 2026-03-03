@@ -85,7 +85,7 @@ export default function SettingsPage() {
                 <img src={profile.avatar_url} alt="Avatar" className="w-16 h-16 rounded-full object-cover" />
               ) : (
                 <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl font-bold">
-                {(profile?.name ?? 'U')[0].toUpperCase()}
+                  {(profile?.name ?? 'U')[0].toUpperCase()}
                 </div>
               )}
               <div>
@@ -167,7 +167,7 @@ export default function SettingsPage() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between items-center py-1.5 border-b border-border/50">
                 <span className="text-muted-foreground">App Name</span>
-                <span>Marketing Solution</span>
+                <span>The Marketing Solution</span>
               </div>
               <div className="flex justify-between items-center py-1.5 border-b border-border/50">
                 <span className="text-muted-foreground">Domain</span>

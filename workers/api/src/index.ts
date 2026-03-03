@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
-import { createClient } from '@supabase/supabase-js';
+
 import type { Env, Variables } from './types.js';
 import { leadsRoute } from './routes/leads.js';
 import { staffRoute } from './routes/staff.js';
@@ -16,12 +16,15 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 app.use('*', logger());
 app.use('*', prettyJSON());
 app.use('*', cors({
-  origin: [
-    'https://hellotms.com.bd',
-    'https://admin.hellotms.com.bd',
-    'http://localhost:3000',
-    'http://localhost:5173',
-  ],
+  origin: (origin, c) => {
+    const allowedRaw = c.env.ALLOWED_ORIGINS ?? '';
+    const allowed = [
+      ...allowedRaw.split(',').map((o: string) => o.trim()).filter(Boolean),
+      'http://localhost:3000',
+      'http://localhost:5173',
+    ];
+    return allowed.includes(origin) ? origin : allowed[0];
+  },
   allowHeaders: ['Content-Type', 'Authorization'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   maxAge: 86400,

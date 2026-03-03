@@ -1,176 +1,266 @@
-import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
-import Image from 'next/image';
-import type { Metadata } from 'next';
-import type { SiteSettings, Project } from '@hellotms/shared';
-import { ArrowRight, Camera, Users, Star, Award } from 'lucide-react';
+import { ArrowRight, Camera, Users, Star, Award, Play, CheckCircle, Sparkles, TrendingUp, Globe } from 'lucide-react';
 
-export const revalidate = 300; // ISR: revalidate every 5 minutes
-
-export async function generateMetadata(): Promise<Metadata> {
-  const { data } = await supabase.from('site_settings').select('hero_title, hero_subtitle').eq('id', 1).single();
-  return {
-    title: data?.hero_title ?? 'Hello TMS | Marketing Solution',
-    description: data?.hero_subtitle ?? 'Professional event management in Bangladesh',
-  };
-}
-
-async function getSiteSettings(): Promise<SiteSettings | null> {
-  const { data } = await supabase.from('site_settings').select('*').eq('id', 1).single();
-  return data as SiteSettings | null;
-}
-
-async function getFeaturedProjects(): Promise<Project[]> {
-  const { data } = await supabase
-    .from('projects')
-    .select('id, title, cover_image_url, status, companies(name)')
-    .eq('status', 'completed')
-    .order('updated_at', { ascending: false })
-    .limit(6);
-  return (data ?? []) as unknown as Project[];
-}
-
-const STATS = [
-  { icon: Camera, value: '500+', label: 'Events Captured' },
+// ── Demo data (replace with Supabase queries after domain setup) ─────────────
+const DEMO_STATS = [
+  { icon: Camera, value: '500+', label: 'Events Executed' },
   { icon: Users, value: '300+', label: 'Happy Clients' },
   { icon: Star, value: '4.9', label: 'Average Rating' },
-  { icon: Award, value: '8+', label: 'Years Experience' },
+  { icon: Award, value: '8+', label: 'Years of Excellence' },
 ];
 
-export default async function HomePage() {
-  const [settings, projects] = await Promise.all([getSiteSettings(), getFeaturedProjects()]);
+const DEMO_SERVICES = [
+  { icon: '🎪', title: 'Event Management', description: 'End-to-end event planning and execution — from concept to standing ovation.' },
+  { icon: '📸', title: 'Photography', description: 'Cinematic photography that captures every emotion and detail of your event.' },
+  { icon: '🎬', title: 'Videography', description: 'Professional video production with cinematic storytelling and post-production.' },
+  { icon: '🎤', title: 'Corporate Events', description: 'Conferences, seminars, product launches — we deliver on brand, always.' },
+  { icon: '🌹', title: 'Wedding Planning', description: 'Your dream wedding, flawlessly curated with love and precision.' },
+  { icon: '📊', title: 'Brand Activations', description: 'Immersive campaigns that connect your brand to the right audience.' },
+];
 
-  const services = (settings?.services ?? []) as { title: string; description?: string; icon?: string }[];
+const DEMO_PROJECTS = [
+  { id: 'demo-1', title: 'Grand Corporate Summit 2024', company: 'Apex Group', image: null, category: 'Corporate' },
+  { id: 'demo-2', title: 'Luxury Wedding — Bashundhara', company: 'Private Client', image: null, category: 'Wedding' },
+  { id: 'demo-3', title: 'Product Launch — Tech Expo', company: 'StartupBD', image: null, category: 'Corporate' },
+  { id: 'demo-4', title: 'Music Festival Dhaka 2024', company: 'EventCo', image: null, category: 'Festival' },
+  { id: 'demo-5', title: 'Fashion Week Bangladesh', company: 'StyleHouse', image: null, category: 'Fashion' },
+  { id: 'demo-6', title: 'NGO Annual Gala Dinner', company: 'HopeFoundation', image: null, category: 'Charity' },
+];
 
+const GRADIENT_BG_CLASSES = [
+  'from-indigo-900 to-purple-900',
+  'from-rose-900 to-pink-900',
+  'from-cyan-900 to-teal-900',
+  'from-amber-900 to-orange-900',
+  'from-emerald-900 to-green-900',
+  'from-violet-900 to-indigo-900',
+];
+
+const WHY_US = [
+  { icon: TrendingUp, title: '8+ Years of Expertise', text: 'Decade of delivering premium events with unmatched quality.' },
+  { icon: Globe, title: 'Pan-Bangladesh Reach', text: 'We operate across Dhaka, Chittagong, Sylhet and beyond.' },
+  { icon: CheckCircle, title: 'End-to-End Service', text: 'Concept, logistics, execution — one team handles it all.' },
+  { icon: Sparkles, title: 'Award-Winning Team', text: 'A passionate crew of creatives, planners, and storytellers.' },
+];
+
+export const revalidate = 300;
+
+export default function HomePage() {
   return (
-    <div>
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-brand-900 via-brand-700 to-purple-900 text-white py-24 sm:py-32">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-brand-500/20 via-transparent to-transparent" />
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-brand-300 text-sm font-semibold tracking-widest uppercase mb-4">Marketing Solution</p>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black leading-tight">
-            {settings?.hero_title ?? 'Capturing Every Moment'}
-          </h1>
-          <p className="mt-6 text-lg sm:text-xl text-brand-100 max-w-2xl mx-auto leading-relaxed">
-            {settings?.hero_subtitle ?? 'Professional event photography and management services across Bangladesh.'}
-          </p>
-          <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/contact" className="bg-white text-brand-800 hover:bg-brand-50 px-8 py-3.5 rounded-full font-bold text-base transition-all hover:shadow-lg hover:-translate-y-0.5">
-              {settings?.hero_cta_primary_label ?? 'Get a Free Quote'} →
-            </Link>
-            <Link href="/portfolio" className="border-2 border-brand-300 text-white hover:bg-brand-800/50 px-8 py-3.5 rounded-full font-semibold text-base transition-all">
-              View Our Work
-            </Link>
-          </div>
-        </div>
-      </section>
+    <div className="overflow-x-hidden">
 
-      {/* Stats */}
-      <section className="bg-white border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {STATS.map(({ icon: Icon, value, label }) => (
-              <div key={label} className="text-center">
-                <div className="flex items-center justify-center w-12 h-12 bg-brand-50 rounded-xl mx-auto mb-3">
-                  <Icon className="h-6 w-6 text-brand-600" />
+      {/* ── Hero ─────────────────────────────────────────── */}
+      <section className="relative min-h-screen flex items-center hero-gradient pt-16">
+        {/* Ambient orbs */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-amber-500/8 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="container relative z-10 py-20">
+          <div className="max-w-4xl mx-auto text-center">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold tracking-wide mb-6">
+              <Sparkles className="h-3.5 w-3.5" />
+              Bangladesh's Premier Marketing Agency
+            </div>
+
+            {/* Heading */}
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight text-[var(--foreground)] mb-6">
+              We Create{' '}
+              <span className="gradient-text">Unforgettable</span>
+              <br />Experiences
+            </h1>
+
+            <p className="text-lg sm:text-xl text-[var(--muted)] max-w-2xl mx-auto leading-relaxed mb-10">
+              From intimate gatherings to grand spectacles — The Marketing Solution delivers events that leave lasting impressions. Let us bring your vision to life.
+            </p>
+
+            {/* CTAs */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                href="/contact"
+                className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold text-base transition-all hover:shadow-xl hover:shadow-indigo-500/25 hover:-translate-y-0.5"
+              >
+                Start Your Project <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/portfolio"
+                className="inline-flex items-center justify-center gap-2 bg-[var(--surface)] border border-[var(--border)] hover:border-indigo-500/40 text-[var(--foreground)] px-8 py-4 rounded-xl font-semibold text-base transition-all hover:-translate-y-0.5"
+              >
+                <Play className="h-4 w-4 fill-current text-indigo-500" /> View Portfolio
+              </Link>
+            </div>
+          </div>
+
+          {/* Floating stat chips */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-16 max-w-3xl mx-auto">
+            {DEMO_STATS.map(({ icon: Icon, value, label }) => (
+              <div key={label} className="glass rounded-2xl p-4 text-center card-hover border border-[var(--border)]">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center mx-auto mb-2">
+                  <Icon className="h-5 w-5 text-indigo-400" />
                 </div>
-                <p className="text-3xl font-black text-gray-900">{value}</p>
-                <p className="text-sm text-gray-500 mt-1">{label}</p>
+                <p className="text-2xl font-black text-[var(--foreground)]">{value}</p>
+                <p className="text-xs text-[var(--muted)] mt-0.5">{label}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Services */}
-      {services.length > 0 && (
-        <section className="py-16 sm:py-24 bg-gray-50">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl sm:text-4xl font-black text-gray-900">Our Services</h2>
-              <p className="mt-3 text-gray-500 max-w-xl mx-auto">End-to-end event management and creative services</p>
+      {/* ── Services ─────────────────────────────────────── */}
+      <section className="section bg-[var(--surface)]">
+        <div className="container">
+          <div className="text-center mb-14">
+            <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">What We Do</p>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[var(--foreground)]">
+              Our <span className="gradient-text">Services</span>
+            </h2>
+            <p className="mt-4 text-[var(--muted)] max-w-xl mx-auto">
+              Comprehensive solutions for every event need — creative, strategic, and flawlessly executed.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {DEMO_SERVICES.map((service) => (
+              <div
+                key={service.title}
+                className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 card-hover group"
+              >
+                <div className="text-4xl mb-4">{service.icon}</div>
+                <h3 className="font-bold text-[var(--foreground)] text-lg mb-2 group-hover:text-indigo-500 transition-colors">
+                  {service.title}
+                </h3>
+                <p className="text-sm text-[var(--muted)] leading-relaxed">{service.description}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="text-center mt-10">
+            <Link
+              href="/services"
+              className="inline-flex items-center gap-2 text-indigo-500 font-semibold hover:text-indigo-400 transition-colors"
+            >
+              Explore all services <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Portfolio Preview ─────────────────────────────── */}
+      <section className="section">
+        <div className="container">
+          <div className="text-center mb-14">
+            <p className="text-amber-500 text-xs font-bold tracking-widest uppercase mb-3">Our Work</p>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[var(--foreground)]">
+              Recent <span className="gradient-text">Projects</span>
+            </h2>
+            <p className="mt-4 text-[var(--muted)] max-w-xl mx-auto">
+              A glimpse into our finest events — each one a story of passion, precision, and creativity.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {DEMO_PROJECTS.map((project, i) => (
+              <Link
+                key={project.id}
+                href={`/portfolio/${project.id}`}
+                className="group relative rounded-2xl overflow-hidden border border-[var(--border)] card-hover bg-[var(--card)]"
+              >
+                {/* Image / gradient placeholder */}
+                <div className={`relative h-52 bg-gradient-to-br ${GRADIENT_BG_CLASSES[i % GRADIENT_BG_CLASSES.length]} flex items-center justify-center`}>
+                  <Camera className="h-12 w-12 text-white/20 group-hover:text-white/30 transition-colors" />
+                  {/* Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                  <div className="absolute bottom-3 left-4 right-4">
+                    <span className="inline-block px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-[10px] text-white/80 font-medium backdrop-blur-sm">
+                      {project.category}
+                    </span>
+                  </div>
+                </div>
+                {/* Content */}
+                <div className="p-4 bg-[var(--card)]">
+                  <h3 className="font-bold text-[var(--foreground)] group-hover:text-indigo-500 transition-colors line-clamp-1">
+                    {project.title}
+                  </h3>
+                  <p className="text-xs text-[var(--muted)] mt-1">{project.company}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          <div className="text-center mt-10">
+            <Link
+              href="/portfolio"
+              className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-semibold transition-all hover:shadow-lg hover:shadow-indigo-500/25"
+            >
+              View Full Portfolio <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Why Us ───────────────────────────────────────── */}
+      <section className="section bg-[var(--surface)]">
+        <div className="container">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">Why Choose Us</p>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[var(--foreground)] leading-tight mb-6">
+                Excellence in Every <span className="gradient-text">Detail</span>
+              </h2>
+              <p className="text-[var(--muted)] leading-relaxed mb-8 max-w-lg">
+                With 8+ years of experience and hundreds of successful events, The Marketing Solution
+                is the trusted partner for brands and individuals who refuse to settle for ordinary.
+              </p>
+              <Link
+                href="/about"
+                className="inline-flex items-center gap-2 text-indigo-500 font-semibold hover:text-indigo-400 transition-colors"
+              >
+                Learn more about us <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {services.map((service) => (
-                <div key={service.title} className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-brand-200 hover:shadow-lg transition-all group">
-                  {service.icon && <div className="text-4xl mb-4">{service.icon}</div>}
-                  <h3 className="font-bold text-gray-900 text-lg group-hover:text-brand-700 transition-colors">{service.title}</h3>
-                  {service.description && <p className="mt-2 text-sm text-gray-500 leading-relaxed">{service.description}</p>}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {WHY_US.map(({ icon: Icon, title, text }) => (
+                <div key={title} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 card-hover">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-3">
+                    <Icon className="h-5 w-5 text-indigo-400" />
+                  </div>
+                  <h4 className="font-bold text-[var(--foreground)] text-sm mb-1.5">{title}</h4>
+                  <p className="text-xs text-[var(--muted)] leading-relaxed">{text}</p>
                 </div>
               ))}
             </div>
-            <div className="text-center mt-10">
-              <Link href="/services" className="inline-flex items-center gap-2 text-brand-600 font-semibold hover:text-brand-700">
-                View all services <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
           </div>
-        </section>
-      )}
-
-      {/* Featured Portfolio */}
-      {projects.length > 0 && (
-        <section className="py-16 sm:py-24 bg-white">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl sm:text-4xl font-black text-gray-900">Recent Work</h2>
-              <p className="mt-3 text-gray-500 max-w-xl mx-auto">A glimpse of our finest events and productions</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {projects.map((project) => (
-                <Link key={project.id} href={`/portfolio/${project.id}`} className="group rounded-2xl overflow-hidden border border-gray-100 hover:shadow-xl transition-all">
-                  <div className="relative h-52 bg-gradient-to-br from-brand-100 to-purple-100">
-                    {project.cover_image_url ? (
-                      <Image src={project.cover_image_url} alt={project.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Camera className="h-12 w-12 text-brand-300" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                  <div className="p-4 bg-white">
-                    <h3 className="font-bold text-gray-900 group-hover:text-brand-700 transition-colors">{project.title}</h3>
-                    {(project as Project & { companies?: { name: string } | null }).companies && (
-                      <p className="text-xs text-gray-400 mt-1">{((project as Project & { companies?: { name: string } | null }).companies as { name: string }).name}</p>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-            <div className="text-center mt-10">
-              <Link href="/portfolio" className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-full font-semibold transition-colors">
-                View Full Portfolio <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* About Teaser */}
-      {settings?.about_content && (
-        <section className="py-16 sm:py-24 bg-gray-50">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl font-black text-gray-900 mb-6">About Us</h2>
-            <p className="text-lg text-gray-600 leading-relaxed">{settings.about_content}</p>
-            <Link href="/about" className="inline-flex items-center gap-2 mt-8 text-brand-600 font-semibold hover:text-brand-700">
-              Read more <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </section>
-      )}
-
-      {/* CTA Banner */}
-      <section className="bg-gradient-to-r from-brand-700 to-purple-700 text-white py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-black">Ready to plan your event?</h2>
-          <p className="mt-3 text-brand-100">Let's discuss how we can make your vision a reality.</p>
-          <Link href="/contact" className="mt-8 inline-flex items-center gap-2 bg-white text-brand-700 hover:bg-brand-50 px-8 py-3.5 rounded-full font-bold transition-colors">
-            Contact Us <ArrowRight className="h-4 w-4" />
-          </Link>
         </div>
       </section>
+
+      {/* ── CTA Banner ───────────────────────────────────── */}
+      <section className="section">
+        <div className="container">
+          <div className="relative rounded-3xl overflow-hidden border border-indigo-500/20 bg-gradient-to-br from-indigo-950 via-[#0f0f23] to-purple-950 p-8 sm:p-14 text-center">
+            {/* Ambient */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-32 bg-indigo-600/20 rounded-full blur-3xl" />
+            <div className="relative z-10">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60 text-xs font-medium mb-5">
+                <Sparkles className="h-3 w-3" /> Limited bookings this quarter
+              </div>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mb-4 leading-tight">
+                Ready to Create Something <span className="gradient-text-cool">Extraordinary?</span>
+              </h2>
+              <p className="text-white/60 max-w-xl mx-auto mb-8 text-lg">
+                Let's talk about your event. Our team is ready to make it the best day of your life.
+              </p>
+              <Link
+                href="/contact"
+                className="inline-flex items-center gap-2 bg-white text-indigo-900 hover:bg-indigo-50 px-8 py-4 rounded-xl font-bold text-base transition-all hover:shadow-xl hover:-translate-y-0.5"
+              >
+                Get a Free Consultation <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </div>
   );
 }

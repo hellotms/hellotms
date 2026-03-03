@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { DataTable } from '@/components/DataTable';
 import { PageHeader } from '@/components/PageHeader';
 import { Modal } from '@/components/Modal';
+import { ImageUpload } from '@/components/ImageUpload';
 import { formatDate } from '@/lib/utils';
 import { Plus, Building2, Pencil } from 'lucide-react';
 import { companySchema } from '@hellotms/shared';
@@ -20,6 +21,7 @@ export default function CompaniesPage() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string>('');
 
   const { data: companies = [], isLoading } = useQuery({
     queryKey: ['companies'],
@@ -39,7 +41,7 @@ export default function CompaniesPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (values: CompanyInput) => {
-      const payload = { ...values, slug: values.slug || slugify(values.name) };
+      const payload = { ...values, slug: values.slug || slugify(values.name), logo_url: logoUrl || undefined };
       if (editingCompany) {
         const { error } = await supabase.from('companies').update(payload).eq('id', editingCompany.id);
         if (error) throw error;
@@ -56,8 +58,8 @@ export default function CompaniesPage() {
     },
   });
 
-  const openCreate = () => { setEditingCompany(null); reset(); setIsOpen(true); };
-  const openEdit = (c: Company) => { setEditingCompany(c); reset(c); setIsOpen(true); };
+  const openCreate = () => { setEditingCompany(null); reset(); setLogoUrl(''); setIsOpen(true); };
+  const openEdit = (c: Company) => { setEditingCompany(c); reset(c); setLogoUrl(c.logo_url ?? ''); setIsOpen(true); };
 
   const columns: ColumnDef<Company, unknown>[] = [
     {
@@ -122,6 +124,15 @@ export default function CompaniesPage() {
 
       <Modal isOpen={isOpen} onClose={() => { setIsOpen(false); reset(); }} title={editingCompany ? 'Edit Company' : 'New Company'}>
         <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
+          {/* Logo upload */}
+          <ImageUpload
+            bucket="company-logos"
+            folder="logos"
+            currentUrl={logoUrl || null}
+            onUploaded={(url) => setLogoUrl(url)}
+            label="Company Logo"
+          />
+
           {[
             { name: 'name', label: 'Company Name', required: true },
             { name: 'email', label: 'Email', type: 'email' },

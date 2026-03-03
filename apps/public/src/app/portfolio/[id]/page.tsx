@@ -1,119 +1,158 @@
-import { supabase } from '@/lib/supabase';
-import Image from 'next/image';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import type { Project } from '@hellotms/shared';
-import { ArrowLeft, Camera, Calendar } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { ArrowLeft, Calendar, MapPin, Building2, Camera, Tag } from 'lucide-react';
 
-export const revalidate = 300;
-
-type Props = { params: { id: string } };
-type ProjectFull = Project & {
-  companies: { name: string; email?: string } | null;
-  gallery_urls?: string[];
+// ── Demo project data ─────────────────────────────────────────────────────────
+const DEMO_PROJECTS: Record<string, {
+  title: string;
+  company: string;
+  category: string;
+  location: string;
+  eventDate: string;
+  description: string;
+  gradient: string;
+}> = {
+  'demo-1': {
+    title: 'Grand Corporate Summit 2024',
+    company: 'Apex Group',
+    category: 'Corporate',
+    location: 'Radisson Blu, Dhaka',
+    eventDate: 'March 15, 2024',
+    description: 'A flagship annual summit bringing together 500+ industry leaders and executives for a day of insights, networking, and inspiration. We managed every aspect — venue design, AV production, catering coordination, and live photography.',
+    gradient: 'from-indigo-900 via-purple-900 to-indigo-950',
+  },
+  'demo-2': {
+    title: 'Luxury Wedding — Bashundhara',
+    company: 'Private Client',
+    category: 'Wedding',
+    location: 'Bashundhara Convention City',
+    eventDate: 'February 3, 2024',
+    description: 'A stunning 500-guest wedding ceremony with a gold and ivory theme. Every detail curated with love — from the floral installations to the cinematic video production and full event management.',
+    gradient: 'from-rose-900 via-pink-900 to-rose-950',
+  },
+  'demo-3': {
+    title: 'Product Launch — Tech Expo',
+    company: 'StartupBD',
+    category: 'Corporate',
+    location: 'Dhaka International Trade Fair',
+    eventDate: 'January 20, 2024',
+    description: 'A high-energy product launch event featuring live demos, keynote presentations, and media coverage. We handled stage design, projection mapping, and full event logistics.',
+    gradient: 'from-cyan-900 via-teal-900 to-cyan-950',
+  },
 };
 
-async function getProject(id: string): Promise<ProjectFull | null> {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*, companies(name, email)')
-    .eq('id', id)
-    .eq('status', 'completed')
-    .single();
-  if (error || !data) return null;
-  return data as ProjectFull;
-}
+const GALLERY_COUNT = 6;
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const project = await getProject(params.id);
-  if (!project) return { title: 'Not Found' };
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const project = DEMO_PROJECTS[params.id];
+  if (!project) return { title: 'Project Not Found' };
   return {
     title: project.title,
-    description: project.description ?? `Event project: ${project.title}`,
-    openGraph: {
-      images: project.cover_image_url ? [project.cover_image_url] : [],
-    },
+    description: project.description.slice(0, 160),
+    openGraph: { title: project.title, description: project.description.slice(0, 160) },
   };
 }
 
-export async function generateStaticParams() {
-  const { data } = await supabase.from('projects').select('id').eq('status', 'completed');
-  return (data ?? []).map(p => ({ id: p.id }));
-}
-
-export default async function ProjectDetailPage({ params }: Props) {
-  const project = await getProject(params.id);
-  if (!project) notFound();
-
-  const gallery: string[] = project.gallery_urls ?? (project.cover_image_url ? [project.cover_image_url] : []);
+export default function ProjectDetailPage({ params }: { params: { id: string } }) {
+  const project = DEMO_PROJECTS[params.id] ?? {
+    title: 'Featured Project',
+    company: 'Our Client',
+    category: 'Event',
+    location: 'Dhaka, Bangladesh',
+    eventDate: '2024',
+    description: 'A beautifully executed event created with passion and precision by The Marketing Solution team.',
+    gradient: 'from-violet-900 via-indigo-900 to-violet-950',
+  };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <Link href="/portfolio" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand-700 mb-8 transition-colors">
-        <ArrowLeft className="h-4 w-4" /> Back to Portfolio
-      </Link>
-
-      {/* Hero */}
-      <div className="rounded-3xl overflow-hidden bg-gradient-to-br from-brand-100 to-purple-100 mb-8 relative h-72 sm:h-96">
-        {project.cover_image_url ? (
-          <Image src={project.cover_image_url} alt={project.title} fill className="object-cover" priority />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Camera className="h-20 w-20 text-brand-200" />
+    <div className="pt-16">
+      {/* Hero / Cover */}
+      <section className={`relative h-64 sm:h-80 md:h-96 bg-gradient-to-br ${project.gradient} overflow-hidden`}>
+        <Camera className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-20 w-20 text-white/10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10">
+          <div className="container">
+            <span className="inline-block px-2.5 py-1 rounded-full bg-white/10 border border-white/20 text-[10px] text-white/80 font-semibold backdrop-blur-sm mb-3">
+              {project.category}
+            </span>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-tight">
+              {project.title}
+            </h1>
           </div>
-        )}
-      </div>
+        </div>
+      </section>
 
-      {/* Details */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          <h1 className="text-3xl sm:text-4xl font-black text-gray-900">{project.title}</h1>
-          {project.companies && <p className="text-brand-600 font-medium mt-1">{project.companies.name}</p>}
+      {/* Content */}
+      <div className="container py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          {/* Main */}
+          <div className="lg:col-span-2 space-y-10">
+            {/* Back */}
+            <Link
+              href="/portfolio"
+              className="inline-flex items-center gap-1.5 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" /> Back to Portfolio
+            </Link>
 
-          {project.description && (
-            <p className="mt-5 text-gray-600 leading-relaxed">{project.description}</p>
-          )}
+            {/* Description */}
+            <div>
+              <h2 className="text-xl font-bold text-[var(--foreground)] mb-4">About This Project</h2>
+              <p className="text-[var(--muted)] leading-relaxed text-base">{project.description}</p>
+            </div>
 
-          {/* Gallery */}
-          {gallery.length > 1 && (
-            <div className="mt-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Gallery</h2>
+            {/* Gallery */}
+            <div>
+              <h2 className="text-xl font-bold text-[var(--foreground)] mb-4">Gallery</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {gallery.map((url, i) => (
-                  <div key={i} className="relative h-36 rounded-xl overflow-hidden bg-gray-100">
-                    <Image src={url} alt={`${project.title} — ${i + 1}`} fill className="object-cover hover:scale-105 transition-transform duration-300" />
+                {Array.from({ length: GALLERY_COUNT }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`relative aspect-square rounded-xl bg-gradient-to-br ${project.gradient} border border-[var(--border)] opacity-70 flex items-center justify-center overflow-hidden`}
+                  >
+                    <Camera className="h-8 w-8 text-white/20" />
                   </div>
                 ))}
               </div>
+              <p className="text-xs text-[var(--muted)] mt-3 text-center">
+                Photo gallery will be available after domain setup and Supabase connection.
+              </p>
             </div>
-          )}
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-4">
-          <div className="bg-gray-50 rounded-2xl p-5">
-            <h3 className="font-bold text-gray-900 mb-3">Project Details</h3>
-            <dl className="space-y-2 text-sm">
-              {project.event_start_date && (
-                <div className="flex items-center gap-2 text-gray-600">
-                  <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                  <span>{formatDate(project.event_start_date)}</span>
-                </div>
-              )}
-              {project.venue && (
-                <div className="text-gray-600"><span className="font-medium">Venue: </span>{project.venue}</div>
-              )}
-            </dl>
           </div>
 
-          <div className="bg-gradient-to-br from-brand-600 to-purple-700 rounded-2xl p-5 text-white">
-            <h3 className="font-bold text-lg mb-2">Like what you see?</h3>
-            <p className="text-brand-100 text-sm mb-4">Let's create something amazing for you.</p>
-            <Link href="/contact" className="block bg-white text-brand-700 hover:bg-brand-50 text-center py-2.5 rounded-xl text-sm font-bold transition-colors">
-              Get a Quote
-            </Link>
+          {/* Sidebar */}
+          <div className="space-y-5">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-5">
+              <h3 className="font-bold text-[var(--foreground)]">Project Details</h3>
+              {[
+                { icon: Building2, label: 'Client', value: project.company },
+                { icon: Tag, label: 'Category', value: project.category },
+                { icon: Calendar, label: 'Event Date', value: project.eventDate },
+                { icon: MapPin, label: 'Location', value: project.location },
+              ].map(({ icon: Icon, label, value }) => (
+                <div key={label} className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+                    <Icon className="h-4 w-4 text-indigo-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--muted)]">{label}</p>
+                    <p className="text-sm font-medium text-[var(--foreground)] mt-0.5">{value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* CTA */}
+            <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border border-indigo-500/20 rounded-2xl p-6 text-center">
+              <p className="font-bold text-[var(--foreground)] mb-2">Planning a similar event?</p>
+              <p className="text-xs text-[var(--muted)] mb-4">Get a free consultation from our team.</p>
+              <Link
+                href="/contact"
+                className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all w-full"
+              >
+                Get a Free Quote
+              </Link>
+            </div>
           </div>
         </div>
       </div>

@@ -8,14 +8,14 @@ import {
 import { useState } from 'react';
 
 const navItems = [
-  { to: '/dashboard',  label: 'Dashboard',    icon: LayoutDashboard },
-  { to: '/companies',  label: 'Companies',     icon: Building2 },
-  { to: '/projects',   label: 'Projects',      icon: FolderOpen },
-  { to: '/invoices',   label: 'Invoices',      icon: Receipt },
-  { to: '/leads',      label: 'Leads',         icon: Users },
-  { to: '/cms',        label: 'CMS / Website', icon: Globe },
-  { to: '/staff',      label: 'Staff & Roles', icon: UserCog },
-  { to: '/settings',   label: 'Settings',      icon: Settings },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/companies', label: 'Companies', icon: Building2 },
+  { to: '/projects', label: 'Projects', icon: FolderOpen },
+  { to: '/invoices', label: 'Invoices', icon: Receipt },
+  { to: '/leads', label: 'Leads', icon: Users },
+  { to: '/cms', label: 'CMS / Website', icon: Globe },
+  { to: '/staff', label: 'Staff & Roles', icon: UserCog },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function AdminLayout() {
@@ -39,7 +39,7 @@ export default function AdminLayout() {
           <span className="text-white font-bold text-sm">MS</span>
         </div>
         <div>
-          <p className="text-sidebar-foreground font-semibold text-sm leading-none">Marketing Solution</p>
+          <p className="text-sidebar-foreground font-semibold text-sm leading-none">The Marketing Solution</p>
           <p className="text-sidebar-foreground/60 text-xs mt-0.5">hellotms.com.bd</p>
         </div>
         {mobile && (
@@ -125,7 +125,7 @@ export default function AdminLayout() {
               <Menu className="h-5 w-5" />
             </button>
             <div className="hidden md:block text-base font-semibold text-foreground">
-              Marketing Solution
+              The Marketing Solution
             </div>
           </div>
           <div className="flex items-center gap-2">
