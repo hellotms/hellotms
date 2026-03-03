@@ -41,6 +41,12 @@ const DEMO_PROJECTS: Record<string, {
   },
 };
 
+export function generateStaticParams() {
+  return Object.keys(DEMO_PROJECTS).map((id) => ({
+    id,
+  }));
+}
+
 const GALLERY_COUNT = 6;
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
