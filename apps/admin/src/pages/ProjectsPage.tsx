@@ -92,7 +92,6 @@ export default function ProjectsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      setDeletingProject(null);
       toast('Project deleted successfully!', 'success');
     },
     onError: (error: any) => {
