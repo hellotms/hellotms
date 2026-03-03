@@ -6,6 +6,8 @@ export interface Env {
   BREVO_SENDER_NAME: string;
   ENVIRONMENT: string;
   ALLOWED_ORIGINS: string; // comma-separated list of allowed origins
+  R2_PUBLIC_URL: string;
+  MEDIA_BUCKET: R2Bucket;
 }
 
 export type Variables = {

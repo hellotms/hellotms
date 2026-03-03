@@ -16,6 +16,8 @@ export interface Profile {
   role_id: string;
   role?: Role;
   avatar_url?: string | null;
+  phone?: string | null;
+  address?: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -53,6 +55,8 @@ export interface Project {
   is_featured: boolean;
   project_created_at?: string | null;
   project_completed_at?: string | null;
+  budget?: number | null;
+  advance_received?: number | null;
   created_by?: string | null;
   created_at: string;
 }

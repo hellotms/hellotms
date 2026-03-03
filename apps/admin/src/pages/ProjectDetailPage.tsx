@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { staffApi, mediaApi } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Modal, ConfirmModal } from '@/components/Modal';
@@ -11,6 +12,7 @@ import { computeProjectDurations } from '@hellotms/shared';
 import { ArrowLeft, Plus, Pencil, Trash2, Calendar, Clock, DollarSign, Upload, X, ImageIcon } from 'lucide-react';
 import type { Project, LedgerEntry, Collection, Invoice } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
+import { toast } from '@/components/Toast';
 import type { LedgerEntryInput } from '@hellotms/shared';
 import { ledgerEntrySchema, collectionSchema } from '@hellotms/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -42,7 +44,7 @@ export default function ProjectDetailPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const [coverImageUrl, setCoverImageUrl] = useState<string>('');
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
 
@@ -50,7 +52,10 @@ export default function ProjectDetailPage() {
     queryKey: ['project', id],
     queryFn: async () => {
       const { data, error } = await supabase.from('projects').select('*, companies(name, phone, email)').eq('id', id!).single();
-      if (error) throw error;
+      if (error) {
+        toast(`Project load failed: ${error.message}`, 'error');
+        throw error;
+      }
       return data;
     },
     enabled: !!id,
@@ -84,12 +89,14 @@ export default function ProjectDetailPage() {
   });
 
   // Financials
-  const totalIncome = ledger.filter(e => e.type === 'income').reduce((s, e) => s + Number(e.amount), 0);
   const totalExpense = ledger.filter(e => e.type === 'expense').reduce((s, e) => s + Number(e.amount), 0);
-  const profit = totalIncome - totalExpense;
+  const totalIncome = ledger.filter(e => e.type === 'income').reduce((s, e) => s + Number(e.amount), 0);
   const totalCollected = collections.reduce((s, c) => s + Number(c.amount), 0);
   const totalInvoiced = invoices.reduce((s, i) => s + Number(i.total_amount), 0);
-  const due = totalInvoiced - totalCollected;
+  // Balance = money received from client - expenses
+  const balance = totalCollected - totalExpense;
+  // Due: only meaningful when invoices exist  
+  const due = invoices.length > 0 ? Math.max(0, totalInvoiced - totalCollected) : null;
 
   // Timeline durations
   const durations = project ? computeProjectDurations(project, collections, totalInvoiced) : null;
@@ -111,10 +118,10 @@ export default function ProjectDetailPage() {
     enabled: !!id,
   });
 
-  // Ledger form
+  // Ledger form — default to expense (only expenses tracked here)
   const ledgerForm = useForm<LedgerEntryInput>({
     resolver: zodResolver(ledgerEntrySchema),
-    defaultValues: { project_id: id!, type: 'income', paid_status: 'unpaid' },
+    defaultValues: { project_id: id!, type: 'expense', paid_status: 'unpaid' },
   });
 
   const saveLedgerMutation = useMutation({
@@ -131,8 +138,12 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['ledger', id] });
       setIsLedgerOpen(false);
       setEditingEntry(null);
-      ledgerForm.reset({ project_id: id!, type: 'income', paid_status: 'unpaid' });
+      ledgerForm.reset({ project_id: id!, type: 'expense', paid_status: 'unpaid' });
+      toast('Entry saved successfully', 'success');
     },
+    onError: (error: any) => {
+      toast(`Failed to save entry: ${error.message}`, 'error');
+    }
   });
 
   const deleteLedgerMutation = useMutation({
@@ -143,7 +154,11 @@ export default function ProjectDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ledger', id] });
       setDeleteTarget(null);
+      toast('Entry deleted', 'success');
     },
+    onError: (error: any) => {
+      toast(`Failed to delete: ${error.message}`, 'error');
+    }
   });
 
   // Collection form
@@ -172,7 +187,11 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['collections', id] });
       setIsCollectionOpen(false);
       collectionForm.reset({ project_id: id! });
+      toast('Payment recorded', 'success');
     },
+    onError: (error: any) => {
+      toast(`Failed to record payment: ${error.message}`, 'error');
+    }
   });
 
   // Toggle published
@@ -191,26 +210,42 @@ export default function ProjectDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', id] });
       setIsEditOpen(false);
+      toast('Project updated', 'success');
     },
+    onError: (error: any) => {
+      toast(`Failed to update project: ${error.message}`, 'error');
+    }
   });
 
-  // Gallery upload
-  const handleGalleryUpload = async (files: FileList | null) => {
-    if (!files || !id) return;
+  // Gallery upload — stage first, upload on confirm
+  const stageFiles = (files: FileList | null) => {
+    if (!files) return;
+    setStagedFiles(prev => [...prev, ...Array.from(files)]);
+    // Reset input so same files can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const uploadStagedFiles = async () => {
+    if (!stagedFiles.length || !id) return;
     setIsUploading(true);
     setUploadError('');
     try {
-      for (const file of Array.from(files)) {
-        const ext = file.name.split('.').pop();
-        const path = `projects/${id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: uploadErr } = await supabase.storage.from('project-media').upload(path, file);
-        if (uploadErr) throw uploadErr;
-        const { data: urlData } = supabase.storage.from('project-media').getPublicUrl(path);
-        await supabase.from('project_media').insert({ project_id: id, path, url: urlData.publicUrl });
+      for (const file of stagedFiles) {
+        const res = await mediaApi.upload(file);
+        if (res.success) {
+          await supabase.from('project_media').insert({
+            project_id: id,
+            path: res.key,
+            url: res.url
+          });
+        }
       }
+      setStagedFiles([]);
       refetchGallery();
+      toast(`${stagedFiles.length} photo(s) uploaded`, 'success');
     } catch (e) {
       setUploadError((e as Error).message);
+      toast('Upload failed', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -218,9 +253,13 @@ export default function ProjectDetailPage() {
 
   // Gallery delete
   const deletePhoto = async (photo: { id: string; path: string }) => {
-    await supabase.storage.from('project-media').remove([photo.path]);
-    await supabase.from('project_media').delete().eq('id', photo.id);
-    refetchGallery();
+    try {
+      await mediaApi.delete(photo.path);
+      await supabase.from('project_media').delete().eq('id', photo.id);
+      refetchGallery();
+    } catch (e) {
+      console.error('Delete error:', e);
+    }
   };
 
   if (isLoading) return <div className="py-20 text-center text-muted-foreground">Loading...</div>;
@@ -267,15 +306,17 @@ export default function ProjectDetailPage() {
       {/* Finance summary bar */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          { label: 'Revenue', value: totalIncome, color: 'emerald' },
-          { label: 'Expense', value: totalExpense, color: 'red' },
-          { label: 'Profit', value: profit, color: 'blue' },
-          { label: 'Collected', value: totalCollected, color: 'teal' },
-          { label: 'Due', value: due, color: 'orange' },
-        ].map(({ label, value, color }) => (
+          { label: 'Budget', value: project.budget ? formatBDT(Number(project.budget)) : '—', color: 'indigo', raw: true },
+          { label: 'Total Expenses', value: totalExpense, color: 'red', raw: false },
+          { label: 'Balance', value: balance, color: balance >= 0 ? 'emerald' : 'red', raw: false },
+          { label: 'Received', value: totalCollected, color: 'teal', raw: false },
+          { label: due !== null ? 'Due' : 'Invoiced', value: due !== null ? due : totalInvoiced, color: 'orange', raw: false },
+        ].map(({ label, value, color, raw }) => (
           <div key={label} className="bg-card border border-border rounded-xl p-4">
             <p className="text-xs text-muted-foreground">{label}</p>
-            <p className={`text-lg font-bold mt-1 text-${color}-600`}>{formatBDT(value)}</p>
+            <p className={`text-lg font-bold mt-1 text-${color}-600`}>
+              {raw ? value : formatBDT(value as number)}
+            </p>
           </div>
         ))}
       </div>
@@ -308,6 +349,8 @@ export default function ProjectDetailPage() {
               { label: 'Event End', value: project.event_end_date ? formatDate(project.event_end_date) : 'Same day' },
               { label: 'Location', value: project.location },
               { label: 'Status', value: project.status },
+              { label: 'Budget', value: project.budget ? formatBDT(Number(project.budget)) : '—' },
+              { label: 'Advance Paid', value: project.advance_received ? formatBDT(Number(project.advance_received)) : '—' },
               { label: 'Featured', value: project.is_featured ? 'Yes' : 'No' },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-start gap-2">
@@ -338,18 +381,18 @@ export default function ProjectDetailPage() {
                 const mm = String(today.getMonth() + 1).padStart(2, '0');
                 const dd = String(today.getDate()).padStart(2, '0');
                 const todayStr = `${yyyy}-${mm}-${dd}`;
-                ledgerForm.reset({ project_id: id!, type: 'income', paid_status: 'unpaid', entry_date: todayStr });
+                ledgerForm.reset({ project_id: id!, type: 'expense', paid_status: 'unpaid', entry_date: todayStr });
                 setIsLedgerOpen(true);
               }}
               className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
             >
-              <Plus className="h-3.5 w-3.5" /> Add Entry
+              <Plus className="h-3.5 w-3.5" /> Add Expense
             </button>
             <button
               onClick={openCollectionModal}
               className="flex items-center gap-1.5 text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors ml-2"
             >
-              <Plus className="h-3.5 w-3.5" /> Add Payment
+              <Plus className="h-3.5 w-3.5" /> Received from Client
             </button>
           </div>
           <div className="border border-border rounded-xl overflow-hidden">
@@ -487,7 +530,7 @@ export default function ProjectDetailPage() {
               { label: 'Days from Event End to Full Collection', value: durations.days_to_full_collection_from_end !== null ? `${durations.days_to_full_collection_from_end} days` : 'Not fully collected' },
               { label: 'Total Invoiced', value: formatBDT(totalInvoiced) },
               { label: 'Total Collected', value: formatBDT(totalCollected) },
-              { label: 'Outstanding Due', value: formatBDT(due) },
+              { label: 'Outstanding Due', value: due !== null ? formatBDT(due) : invoices.length === 0 ? 'No invoices' : formatBDT(0) },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
                 <span className="text-sm text-muted-foreground">{label}</span>
@@ -524,31 +567,66 @@ export default function ProjectDetailPage() {
         <div>
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold text-foreground">Photo Gallery</h3>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              {isUploading ? 'Uploading...' : 'Upload Photos'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
+                <Upload className="h-3.5 w-3.5" /> Select Photos
+              </button>
+              {stagedFiles.length > 0 && (
+                <button
+                  onClick={uploadStagedFiles}
+                  disabled={isUploading}
+                  className="flex items-center gap-1.5 text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                >
+                  <Upload className="h-3.5 w-3.5" /> {isUploading ? 'Uploading...' : `Upload ${stagedFiles.length} Photo(s)`}
+                </button>
+              )}
+            </div>
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
               multiple
               className="hidden"
-              onChange={(e) => handleGalleryUpload(e.target.files)}
+              onChange={(e) => stageFiles(e.target.files)}
             />
           </div>
           {uploadError && (
             <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2 mb-4">{uploadError}</p>
           )}
+
+          {/* Upload preview / staging area */}
+          {stagedFiles.length > 0 && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <p className="text-xs font-medium text-amber-800 mb-2">{stagedFiles.length} photo(s) staged for upload — click "Upload" to confirm</p>
+              <div className="flex gap-2 flex-wrap">
+                {stagedFiles.map((file, i) => (
+                  <div key={i} className="relative group">
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt=""
+                      className="w-20 h-20 object-cover rounded-lg border border-amber-300"
+                    />
+                    <button
+                      onClick={() => setStagedFiles(prev => prev.filter((_, j) => j !== i))}
+                      className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {gallery.length === 0 ? (
             <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
               <ImageIcon className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">No photos yet. Click "Upload Photos" to add images.</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Photos are stored in Supabase Storage (project-media bucket)</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Photos are stored in R2 Cloudflare Storage ({project.companies?.name})</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">

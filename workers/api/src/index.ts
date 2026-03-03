@@ -8,6 +8,8 @@ import { leadsRoute } from './routes/leads.js';
 import { staffRoute } from './routes/staff.js';
 import { invoicesRoute } from './routes/invoices.js';
 import { keepaliveRoute } from './routes/keepalive.js';
+import { contactRoute } from './routes/contact.js';
+import { mediaRoute } from './routes/media.js';
 import { scheduledHandler } from './cron.js';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -39,6 +41,8 @@ app.route('/leads', leadsRoute);
 app.route('/staff', staffRoute);
 app.route('/invoices', invoicesRoute);
 app.route('/keepalive', keepaliveRoute);
+app.route('/contact', contactRoute);
+app.route('/media', mediaRoute);
 
 // ─── 404 handler ─────────────────────────────────────────────────────────────
 app.notFound((c) => c.json({ error: 'Not Found' }, 404));

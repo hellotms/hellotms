@@ -3,7 +3,8 @@ import { useAuth } from '@/context/AuthContext';
 import { cn, getInitials } from '@/lib/utils';
 import {
   LayoutDashboard, Building2, FolderOpen, Receipt, Users,
-  Globe, UserCog, Settings, LogOut, Menu, X, Bell, ChevronRight
+  Globe, UserCog, Settings, LogOut, Menu, X, Bell, ChevronRight,
+  MessageSquare, ClipboardList
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -13,8 +14,10 @@ const navItems = [
   { to: '/projects', label: 'Projects', icon: FolderOpen },
   { to: '/invoices', label: 'Invoices', icon: Receipt },
   { to: '/leads', label: 'Leads', icon: Users },
+  { to: '/contacts', label: 'Contact Forms', icon: MessageSquare },
   { to: '/cms', label: 'CMS / Website', icon: Globe },
   { to: '/staff', label: 'Staff & Roles', icon: UserCog },
+  { to: '/work-logs', label: 'Work Logs', icon: ClipboardList },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

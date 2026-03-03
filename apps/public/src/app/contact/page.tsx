@@ -2,9 +2,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Send, CheckCircle, Phone, Mail, MapPin, MessageSquare, Clock } from 'lucide-react';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8787';
-
+import { supabase } from '@/lib/supabase';
 const BUDGET_OPTIONS = [
   '৳ 10,000 – 25,000',
   '৳ 25,000 – 50,000',
@@ -14,10 +12,10 @@ const BUDGET_OPTIONS = [
 ];
 
 type LeadFormValues = {
-  full_name: string;
+  name: string;
   email: string;
   phone?: string;
-  company_name?: string;
+  company?: string;
   event_date?: string;
   budget_range?: string;
   message?: string;
@@ -34,16 +32,38 @@ export default function ContactPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${API_BASE_URL}/leads`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error ?? 'Submission failed');
+      // 1. Insert into Contact Submissions directly to bypass Worker setup if not running
+      const { error: contactError } = await supabase.from('contact_submissions').insert([
+        {
+          name: values.name,
+          email: values.email,
+          phone: values.phone || undefined,
+          company: values.company || undefined,
+          service: values.budget_range || undefined,
+          message: values.message || '(No message provided)',
+        }
+      ]);
+
+      if (contactError) throw contactError;
+
+      // 2. Also put into Leads as it previously attempted parallel APIs
+      const { error: leadError } = await supabase.from('leads').insert([
+        {
+          name: values.name,
+          email: values.email,
+          phone: values.phone || undefined,
+          event_date: values.event_date || undefined,
+          budget_range: values.budget_range || undefined,
+          message: values.message || undefined,
+          status: 'new'
+        }
+      ]);
+
+      if (leadError) console.warn('[leads] secondary sync missed'); // Only best effort
+
       setSubmitted(true);
-    } catch (e) {
-      setError((e as Error).message);
+    } catch (e: any) {
+      setError(e.message ?? 'Submission failed');
     } finally {
       setLoading(false);
     }
@@ -135,7 +155,7 @@ export default function ContactPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">Full Name *</label>
-                      <input {...form.register('full_name', { required: true })} placeholder="Your full name" className={inputCls} />
+                      <input {...form.register('name', { required: true })} placeholder="Your full name" className={inputCls} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">Email Address *</label>
@@ -147,7 +167,7 @@ export default function ContactPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">Company / Organization</label>
-                      <input {...form.register('company_name')} placeholder="Your company" className={inputCls} />
+                      <input {...form.register('company')} placeholder="Your company" className={inputCls} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">Event Date</label>

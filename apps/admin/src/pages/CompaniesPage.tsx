@@ -11,10 +11,12 @@ import { Plus, Building2, Pencil } from 'lucide-react';
 import { companySchema } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from '@/components/Toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { Company } from '@hellotms/shared';
 import type { CompanyInput } from '@hellotms/shared';
 import { slugify } from '@/lib/utils';
+import { Trash } from 'lucide-react';
 
 export default function CompaniesPage() {
   const navigate = useNavigate();
@@ -30,7 +32,10 @@ export default function CompaniesPage() {
         .from('companies')
         .select('*')
         .order('name');
-      if (error) throw error;
+      if (error) {
+        toast(`কোম্পানি লিস্ট লোড করা যায়নি: ${error.message}`, 'error');
+        throw error;
+      }
       return data as Company[];
     },
   });
@@ -55,8 +60,32 @@ export default function CompaniesPage() {
       setIsOpen(false);
       setEditingCompany(null);
       reset();
+      toast('Company saved successfully!', 'success');
     },
+    onError: (error: any) => {
+      toast(`Failed to save company: ${error.message || 'Unknown error'}`, 'error');
+    }
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('companies').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+      toast('Company deleted successfully!', 'success');
+    },
+    onError: (error: any) => {
+      toast(`Failed to delete company: ${error.message || 'Unknown error'}`, 'error');
+    }
+  });
+
+  const handleDelete = (c: Company) => {
+    if (window.confirm(`Are you absolutely sure?\nThis will permanently delete the company "${c.name}" and might affect associated projects or invoices.`)) {
+      deleteMutation.mutate(c.id);
+    }
+  };
 
   const openCreate = () => { setEditingCompany(null); reset(); setLogoUrl(''); setIsOpen(true); };
   const openEdit = (c: Company) => { setEditingCompany(c); reset(c); setLogoUrl(c.logo_url ?? ''); setIsOpen(true); };
@@ -86,12 +115,22 @@ export default function CompaniesPage() {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
-        <button
-          onClick={(e) => { e.stopPropagation(); openEdit(row.original); }}
-          className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center gap-1 justify-end">
+          <button
+            onClick={(e) => { e.stopPropagation(); openEdit(row.original); }}
+            className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
+            title="Edit Company"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDelete(row.original); }}
+            className="p-1.5 rounded-md hover:bg-red-50 transition-colors text-muted-foreground hover:text-destructive"
+            title="Delete Company"
+          >
+            <Trash className="h-4 w-4" />
+          </button>
+        </div>
       ),
     },
   ];
@@ -126,8 +165,6 @@ export default function CompaniesPage() {
         <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
           {/* Logo upload */}
           <ImageUpload
-            bucket="company-logos"
-            folder="logos"
             currentUrl={logoUrl || null}
             onUploaded={(url) => setLogoUrl(url)}
             label="Company Logo"

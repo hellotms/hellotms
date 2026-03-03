@@ -10,9 +10,11 @@ import { formatDate, slugify } from '@/lib/utils';
 import { Plus, FolderOpen } from 'lucide-react';
 import { projectSchema } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
+import { toast } from '@/components/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { Project, Company, ProjectInput } from '@hellotms/shared';
+import { MoreHorizontal, Trash, Pencil } from 'lucide-react';
 
 const STATUS_OPTIONS = ['all', 'draft', 'active', 'completed'];
 
@@ -31,36 +33,78 @@ export default function ProjectsPage() {
     },
   });
 
-  const { data: projects = [], isLoading } = useQuery<(Project & { companies: { name: string } | null })[]>({
+  const { data: projects = [], isLoading, error: queryError } = useQuery<(Project & { companies: { name: string } | null })[]>({
     queryKey: ['projects', statusFilter],
     queryFn: async () => {
       let q = supabase.from('projects').select('*, companies(name)').order('event_start_date', { ascending: false });
       if (statusFilter !== 'all') q = q.eq('status', statusFilter);
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        toast(`ডেটা লোড করা যায়নি: ${error.message}`, 'error');
+        throw error;
+      }
       return data ?? [];
     },
   });
 
+  const today = new Date().toISOString().split('T')[0];
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ProjectInput>({
     resolver: zodResolver(projectSchema),
-    defaultValues: { status: 'draft', is_published: false, is_featured: false },
+    defaultValues: {
+      status: 'draft',
+      is_published: false,
+      is_featured: false,
+      proposal_date: today,
+      event_start_date: today
+    },
   });
 
   const createMutation = useMutation({
     mutationFn: async (values: ProjectInput) => {
-      const { error } = await supabase.from('projects').insert({
+      // Default event_end_date to event_start_date if not provided
+      const payload = {
         ...values,
         slug: slugify(values.title),
-      });
+        event_end_date: values.event_end_date || values.event_start_date,
+        proposal_date: values.proposal_date || null,
+        budget: values.budget || null,
+        advance_received: values.advance_received ?? 0,
+      };
+      const { error } = await supabase.from('projects').insert(payload);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       setIsOpen(false);
       reset();
+      toast('Project created successfully!', 'success');
     },
+    onError: (error: any) => {
+      console.error('[ProjectsPage] Create error:', error);
+      toast(`Failed to create project: ${error.message || 'Unknown error'}`, 'error');
+    }
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('projects').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      setDeletingProject(null);
+      toast('Project deleted successfully!', 'success');
+    },
+    onError: (error: any) => {
+      toast(`Failed to delete project: ${error.message || 'Unknown error'}`, 'error');
+    }
+  });
+
+  const handleDelete = (p: Project) => {
+    if (window.confirm(`Are you sure?\nThis will permanently delete the project "${p.title}".\nThis action cannot be undone and will also remove all associated financials, media, and invoices.`)) {
+      deleteMutation.mutate(p.id);
+    }
+  };
 
   const columns: ColumnDef<Project & { companies: { name: string } | null }, unknown>[] = [
     {
@@ -90,6 +134,28 @@ export default function ProjectsPage() {
         </span>
       ),
     },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-1 justify-end">
+          <button
+            onClick={(e) => { e.stopPropagation(); navigate(`/projects/${row.original.id}`); }}
+            className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
+            title="Edit / View Project"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDelete(row.original); }}
+            className="p-1.5 rounded-md hover:bg-red-50 transition-colors text-muted-foreground hover:text-destructive"
+            title="Delete Project"
+          >
+            <Trash className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -98,7 +164,19 @@ export default function ProjectsPage() {
         title="Projects & Events"
         description="Manage all client projects and events"
         actions={
-          <button onClick={() => setIsOpen(true)} className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+          <button
+            onClick={() => {
+              setIsOpen(true);
+              reset({
+                status: 'draft',
+                is_published: false,
+                is_featured: false,
+                proposal_date: today,
+                event_start_date: today
+              });
+            }}
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
             <Plus className="h-4 w-4" /> New Project
           </button>
         }
@@ -110,9 +188,8 @@ export default function ProjectsPage() {
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-colors ${
-              statusFilter === s ? 'bg-primary text-white' : 'border border-border text-muted-foreground hover:text-foreground'
-            }`}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-colors ${statusFilter === s ? 'bg-primary text-white' : 'border border-border text-muted-foreground hover:text-foreground'
+              }`}
           >
             {s}
           </button>
@@ -154,7 +231,7 @@ export default function ProjectsPage() {
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Proposal Date *</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Proposal Date</label>
               <input type="date" {...register('proposal_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
             <div>
@@ -162,8 +239,19 @@ export default function ProjectsPage() {
               <input type="date" {...register('event_start_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Event End Date</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Event End Date <span className="text-muted-foreground font-normal text-xs">(defaults to start date)</span></label>
               <input type="date" {...register('event_end_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Project Budget (৳)</label>
+              <input type="number" step="0.01" min="0" {...register('budget', { valueAsNumber: true })} placeholder="e.g. 150000" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Advance Received (৳)</label>
+              <input type="number" step="0.01" min="0" {...register('advance_received', { valueAsNumber: true })} placeholder="e.g. 50000" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
           </div>
 

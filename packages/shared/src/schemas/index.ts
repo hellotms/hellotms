@@ -27,6 +27,10 @@ export const projectSchema = z.object({
   is_featured: z.boolean().default(false),
   project_created_at: z.string().optional().nullable(),
   project_completed_at: z.string().optional().nullable(),
+  budget: z.number().positive().optional().nullable(),
+  advance_received: z.number().min(0).optional().nullable(),
+  description: z.string().max(3000).optional().nullable(),
+  cover_image_url: z.string().url().optional().nullable(),
 });
 
 export type ProjectInput = z.infer<typeof projectSchema>;

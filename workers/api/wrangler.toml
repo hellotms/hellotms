@@ -1,18 +1,22 @@
 name = "hellotms-api"
 main = "src/index.ts"
+account_id = "2271facaa2656caa939f28c9bfcef50e"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
 [triggers]
 crons = ["0 8 * * *"]   # daily at 8 AM UTC — keepalive ping
 
-[[routes]]
-pattern = "api.acadome.dev/*"
-zone_name = "acadome.dev"
+# No custom routes for now, will use workers.dev substring
 
 [vars]
 ENVIRONMENT = "production"
-ALLOWED_ORIGINS = "https://acadome.dev,https://ad.acadome.dev"
+ALLOWED_ORIGINS = "https://hellotms.pages.dev,http://localhost:5173,http://localhost:3000"
+R2_PUBLIC_URL = "https://pub-d74fef399a584bd1a3f644d818273e03.r2.dev"
+
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "hellotms-media"
 
 # Secrets set via: wrangler secret put <KEY>
 # SUPABASE_URL

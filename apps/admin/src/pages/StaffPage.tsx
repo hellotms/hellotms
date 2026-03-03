@@ -45,6 +45,7 @@ const ALL_PERMISSIONS: { key: string; label: string; group: string }[] = [
   { key: 'manage_cms', label: 'Manage CMS', group: 'Settings' },
   { key: 'manage_settings', label: 'Manage Settings', group: 'Settings' },
   { key: 'view_audit_logs', label: 'View Audit Logs', group: 'Settings' },
+  { key: 'manage_contact_submissions', label: 'Manage Contact Forms', group: 'Settings' },
 ];
 
 const PERMISSION_GROUPS = Array.from(new Set(ALL_PERMISSIONS.map((p) => p.group)));
@@ -61,9 +62,11 @@ export default function StaffPage() {
 
   // Staff modals
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [tempPasswordModal, setTempPasswordModal] = useState<{ name: string; email: string; password: string } | null>(null);
   const [roleChangeTarget, setRoleChangeTarget] = useState<StaffMember | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<StaffMember | null>(null);
   const [activateTarget, setActivateTarget] = useState<StaffMember | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
   const [inviteError, setInviteError] = useState('');
 
   // Role modals
@@ -86,6 +89,7 @@ export default function StaffPage() {
       if (error) throw error;
       return (data ?? []) as unknown as StaffMember[];
     },
+    refetchInterval: 2000,
   });
 
   const { data: roles = [], isLoading: rolesLoading } = useQuery<Role[]>({
@@ -99,10 +103,18 @@ export default function StaffPage() {
   // ── Staff mutations ────────────────────────────────────────────────────────
   const inviteMutation = useMutation({
     mutationFn: async (values: { email: string; full_name: string; role_id: string }) => {
-      const result = await staffApi.invite(values) as { success?: boolean; error?: string };
+      const result = await staffApi.invite({ email: values.email, name: values.full_name, role_id: values.role_id, format: 'extended' }) as { success?: boolean; error?: string; tempPassword?: string; userId?: string };
       if (!result.success) throw new Error(result.error ?? 'Failed to send invite');
+      return { tempPassword: result.tempPassword, email: values.email, name: values.full_name };
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['staff'] }); setIsInviteOpen(false); inviteForm.reset(); },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      setIsInviteOpen(false);
+      inviteForm.reset();
+      if (data?.tempPassword) {
+        setTempPasswordModal({ name: data.name, email: data.email, password: data.tempPassword });
+      }
+    },
     onError: (e: Error) => setInviteError(e.message),
   });
 
@@ -128,6 +140,14 @@ export default function StaffPage() {
       if (!result.success) throw new Error(result.error ?? 'Failed to activate');
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['staff'] }); setActivateTarget(null); },
+  });
+
+  const deleteStaffMutation = useMutation({
+    mutationFn: async (staffId: string) => {
+      const { error } = await supabase.rpc('delete_user_by_id', { user_id: staffId });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['staff'] }); setDeleteTarget(null); },
   });
 
   // ── Role mutations ─────────────────────────────────────────────────────────
@@ -184,6 +204,14 @@ export default function StaffPage() {
       return;
     }
     setRoleChangeTarget(member);
+  };
+
+  const handleDeleteClick = (member: StaffMember) => {
+    if (member.roles?.name === 'super_admin' && activeSuperAdminsCount <= 1) {
+      alert("Cannot delete the last active Super Admin.");
+      return;
+    }
+    setDeleteTarget(member);
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -291,6 +319,7 @@ export default function StaffPage() {
                           ) : (
                             <button onClick={() => setActivateTarget(member)} className="text-xs text-green-600 hover:underline">Activate</button>
                           )}
+                          <button onClick={() => handleDeleteClick(member)} className="text-xs text-red-500 hover:underline">Delete</button>
                         </div>
                       )}
                     </td>
@@ -511,6 +540,59 @@ export default function StaffPage() {
         danger
         loading={deleteRoleMutation.isPending}
       />
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteStaffMutation.mutate(deleteTarget.id)}
+        title="Delete Staff Member"
+        message={`Are you sure you want to permanently delete ${deleteTarget?.name}? This action cannot be undone.`}
+        confirmLabel="Delete Permanently"
+        danger
+        loading={deleteStaffMutation.isPending}
+      />
+
+      {/* ── Temp Password Modal ───────────────────────────────────────────────── */}
+      {tempPasswordModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="p-6 text-center space-y-4">
+              <div className="h-14 w-14 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
+                <UserPlus className="h-7 w-7 text-green-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Staff Invited Successfully!</h2>
+                <p className="text-muted-foreground text-sm mt-1">
+                  An invitation email has been sent to <strong>{tempPasswordModal.email}</strong>
+                </p>
+              </div>
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-left">
+                <p className="text-xs font-bold text-amber-400 mb-2 uppercase tracking-wide">⚠ Temporary Password — Share Securely</p>
+                <p className="text-sm text-muted-foreground mb-3">
+                  The staff member will be required to change this on first login.
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-background rounded-lg px-4 py-3 font-mono text-lg font-bold text-foreground tracking-widest border border-border select-all">
+                    {tempPasswordModal.password}
+                  </code>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(tempPasswordModal.password)}
+                    className="px-3 py-3 rounded-lg border border-border hover:bg-muted transition-colors text-xs"
+                    title="Copy to clipboard"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={() => setTempPasswordModal(null)}
+                className="w-full bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors"
+              >
+                Done — I've noted the password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

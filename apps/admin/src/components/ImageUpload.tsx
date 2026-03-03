@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
-import { Upload, X, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { useRef, useState, useCallback } from 'react';
+import { Upload, X, Loader2, Crop as CropIcon } from 'lucide-react';
+import { mediaApi } from '@/lib/api';
+import Cropper from 'react-easy-crop';
+import getCroppedImg from '@/lib/cropImage';
+import { Modal } from '@/components/Modal';
 
 interface ImageUploadProps {
-    bucket: string;           // e.g. 'project-media' or 'company-logos'
-    folder: string;           // e.g. `projects/${projectId}`
     currentUrl?: string | null;
     onUploaded: (url: string) => void;
     label?: string;
@@ -12,8 +13,6 @@ interface ImageUploadProps {
 }
 
 export function ImageUpload({
-    bucket,
-    folder,
     currentUrl,
     onUploaded,
     label = 'Upload Image',
@@ -24,27 +23,51 @@ export function ImageUpload({
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
 
-    const handleFile = async (file: File) => {
-        setError('');
-        setUploading(true);
+    const [cropModalSrc, setCropModalSrc] = useState<string | null>(null);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+    const [isCropping, setIsCropping] = useState(false);
 
-        // Local preview
-        const objectUrl = URL.createObjectURL(file);
-        setPreview(objectUrl);
+    const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    }, []);
+
+    const processAndUpload = async () => {
+        if (!cropModalSrc || !croppedAreaPixels) return;
+        setIsCropping(true);
+        setError('');
 
         try {
-            const ext = file.name.split('.').pop();
-            const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-            const { error: uploadErr } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
-            if (uploadErr) throw uploadErr;
-            const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-            onUploaded(data.publicUrl);
+            const croppedImageFile = await getCroppedImg(cropModalSrc, croppedAreaPixels);
+            if (!croppedImageFile) throw new Error("Could not process cropping");
+
+            setUploading(true);
+            setCropModalSrc(null); // Close modal
+
+            const objectUrl = URL.createObjectURL(croppedImageFile);
+            setPreview(objectUrl);
+
+            const res = await mediaApi.upload(croppedImageFile as File);
+            if (res.success) {
+                onUploaded(res.url);
+                setPreview(res.url);
+            } else {
+                throw new Error("Upload response not successful");
+            }
         } catch (e) {
             setError((e as Error).message);
             setPreview(currentUrl ?? null);
         } finally {
             setUploading(false);
+            setIsCropping(false);
         }
+    };
+
+    const handleFile = (file: File) => {
+        setError('');
+        const objectUrl = URL.createObjectURL(file);
+        setCropModalSrc(objectUrl);
     };
 
     const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -117,10 +140,47 @@ export function ImageUpload({
                 onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) handleFile(file);
+                    e.target.value = '';
                 }}
             />
 
             {error && <p className="text-xs text-destructive">{error}</p>}
+
+            <Modal isOpen={!!cropModalSrc} onClose={() => setCropModalSrc(null)} title="Crop Image" size="xl">
+                <div className="space-y-4">
+                    <div className="relative h-[400px] w-full bg-black/10 rounded-xl overflow-hidden">
+                        {cropModalSrc && (
+                            <Cropper
+                                image={cropModalSrc}
+                                crop={crop}
+                                zoom={zoom}
+                                aspect={1} // Assuming 1:1 ratio for avatars
+                                onCropChange={setCrop}
+                                onCropComplete={onCropComplete}
+                                onZoomChange={setZoom}
+                            />
+                        )}
+                    </div>
+                    <div>
+                        <input
+                            type="range"
+                            value={zoom}
+                            min={1}
+                            max={3}
+                            step={0.1}
+                            aria-labelledby="Zoom"
+                            onChange={(e) => setZoom(Number(e.target.value))}
+                            className="w-full"
+                        />
+                    </div>
+                    <div className="flex justify-end gap-3 pt-2">
+                        <button type="button" onClick={() => setCropModalSrc(null)} disabled={isCropping} className="px-4 py-2 border border-border rounded-lg text-sm">Cancel</button>
+                        <button type="button" onClick={processAndUpload} disabled={isCropping} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">
+                            {isCropping ? 'Cropping...' : 'Crop & Upload'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

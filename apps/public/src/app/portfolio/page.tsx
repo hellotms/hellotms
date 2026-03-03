@@ -1,20 +1,8 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Camera } from 'lucide-react';
-
-// ── Demo data ────────────────────────────────────────────────
-const DEMO_PROJECTS = [
-  { id: 'demo-1', title: 'Grand Corporate Summit 2024', company: 'Apex Group', category: 'Corporate', year: '2024' },
-  { id: 'demo-2', title: 'Luxury Wedding — Bashundhara', company: 'Private Client', category: 'Wedding', year: '2024' },
-  { id: 'demo-3', title: 'Product Launch — Tech Expo', company: 'StartupBD', category: 'Corporate', year: '2024' },
-  { id: 'demo-4', title: 'Music Festival Dhaka 2024', company: 'EventCo', category: 'Festival', year: '2024' },
-  { id: 'demo-5', title: 'Fashion Week Bangladesh', company: 'StyleHouse', category: 'Fashion', year: '2023' },
-  { id: 'demo-6', title: 'NGO Annual Gala Dinner', company: 'HopeFoundation', category: 'Charity', year: '2023' },
-  { id: 'demo-7', title: 'University Convocation', company: 'BUET', category: 'Academic', year: '2023' },
-  { id: 'demo-8', title: 'International Trade Fair', company: 'BGMEA', category: 'Corporate', year: '2023' },
-  { id: 'demo-9', title: 'Celebrity Birthday Gala', company: 'Private Client', category: 'Social', year: '2023' },
-];
+import { supabase } from '@/lib/supabase';
 
 const GRADIENT_CLASSES = [
   'from-indigo-900 via-purple-900 to-indigo-950',
@@ -28,16 +16,32 @@ const GRADIENT_CLASSES = [
   'from-lime-900 via-green-900 to-lime-950',
 ];
 
-// Unique categories derived from data
-const CATEGORIES = ['All', ...Array.from(new Set(DEMO_PROJECTS.map((p) => p.category)))];
+type Project = {
+  id: string;
+  slug: string;
+  title: string;
+  location: string | null;
+  event_start_date: string;
+  cover_image_url: string | null;
+  companies: { name: string } | null;
+};
 
 export default function PortfolioPage() {
-  const [activeCategory, setActiveCategory] = useState('All');
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered =
-    activeCategory === 'All'
-      ? DEMO_PROJECTS
-      : DEMO_PROJECTS.filter((p) => p.category === activeCategory);
+  useEffect(() => {
+    async function fetchProjects() {
+      const { data } = await supabase
+        .from('projects')
+        .select('id, slug, title, location, event_start_date, cover_image_url, companies(name)')
+        .eq('is_published', true)
+        .order('event_start_date', { ascending: false });
+      setProjects((data ?? []) as unknown as Project[]);
+      setLoading(false);
+    }
+    fetchProjects();
+  }, []);
 
   return (
     <div className="pt-16">
@@ -55,66 +59,66 @@ export default function PortfolioPage() {
         </div>
       </section>
 
-      {/* Category filter */}
-      <div className="sticky top-16 z-30 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--border)]">
-        <div className="container">
-          <div className="flex items-center gap-2 overflow-x-auto py-3 scrollbar-none">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${activeCategory === cat
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20'
-                  : 'bg-[var(--surface)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--foreground)] hover:border-indigo-500/40'
-                  }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* Grid */}
       <section className="section">
         <div className="container">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--card)] animate-pulse">
+                  <div className="h-56 bg-[var(--muted)]/20" />
+                  <div className="p-5 space-y-2">
+                    <div className="h-4 bg-[var(--muted)]/20 rounded w-3/4" />
+                    <div className="h-3 bg-[var(--muted)]/10 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : projects.length === 0 ? (
             <div className="text-center py-20 text-[var(--muted)]">
               <Camera className="h-12 w-12 mx-auto mb-3 opacity-20" />
-              <p>No projects in this category yet.</p>
+              <p>No published projects yet. Check back soon!</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filtered.map((project) => {
-                // Keep original index for consistent gradient colour
-                const gradientIdx = DEMO_PROJECTS.indexOf(project) % GRADIENT_CLASSES.length;
+              {projects.map((project, i) => {
+                const gradientIdx = i % GRADIENT_CLASSES.length;
+                const year = new Date(project.event_start_date).getFullYear();
                 return (
                   <Link
                     key={project.id}
-                    href={`/portfolio/${project.id}`}
+                    href={`/portfolio/${project.slug}`}
                     className="group rounded-2xl overflow-hidden border border-[var(--border)] card-hover bg-[var(--card)]"
                   >
-                    {/* Image area */}
                     <div className={`relative h-56 bg-gradient-to-br ${GRADIENT_CLASSES[gradientIdx]} overflow-hidden`}>
-                      <Camera className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-12 w-12 text-white/15 group-hover:text-white/25 transition-colors" />
+                      {project.cover_image_url ? (
+                        <img
+                          src={project.cover_image_url}
+                          alt={project.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <Camera className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-12 w-12 text-white/15 group-hover:text-white/25 transition-colors" />
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                       <div className="absolute top-3 right-3">
                         <span className="px-2 py-1 rounded-full bg-black/30 border border-white/10 text-[10px] text-white/80 font-medium backdrop-blur-sm">
-                          {project.year}
+                          {year}
                         </span>
                       </div>
-                      <div className="absolute bottom-3 left-4">
-                        <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-[10px] text-white/80 font-medium backdrop-blur-sm">
-                          {project.category}
-                        </span>
-                      </div>
+                      {project.location && (
+                        <div className="absolute bottom-3 left-4">
+                          <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-[10px] text-white/80 font-medium backdrop-blur-sm">
+                            {project.location}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    {/* Content */}
                     <div className="p-5">
                       <h2 className="font-bold text-[var(--foreground)] group-hover:text-indigo-500 transition-colors line-clamp-1 mb-1">
                         {project.title}
                       </h2>
-                      <p className="text-sm text-[var(--muted)]">{project.company}</p>
+                      <p className="text-sm text-[var(--muted)]">{project.companies?.name ?? 'The Marketing Solution'}</p>
                     </div>
                   </Link>
                 );

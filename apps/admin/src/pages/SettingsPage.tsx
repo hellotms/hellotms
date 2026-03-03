@@ -4,11 +4,12 @@ import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useForm } from 'react-hook-form';
-import { User, Lock, Database, Bell } from 'lucide-react';
+import { User, Lock, Database, Bell, CheckCircle2, Sliders, Hash } from 'lucide-react';
+import { ImageUpload } from '@/components/ImageUpload';
 
 export default function SettingsPage() {
   const { user, profile, refreshProfile } = useAuth();
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'system'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'system' | 'invoice'>('profile');
   const [profileSaved, setProfileSaved] = useState(false);
   const [pwSaved, setPwSaved] = useState(false);
   const [pwError, setPwError] = useState('');
@@ -17,6 +18,8 @@ export default function SettingsPage() {
     defaultValues: {
       name: profile?.name ?? '',
       avatar_url: profile?.avatar_url ?? '',
+      phone: profile?.phone ?? '',
+      address: profile?.address ?? '',
     },
   });
 
@@ -25,10 +28,10 @@ export default function SettingsPage() {
   });
 
   const updateProfileMutation = useMutation({
-    mutationFn: async (values: { name: string; avatar_url?: string }) => {
+    mutationFn: async (values: { name: string; avatar_url?: string; phone?: string; address?: string }) => {
       const { error } = await supabase
         .from('profiles')
-        .update({ name: values.name, avatar_url: values.avatar_url })
+        .update({ name: values.name, avatar_url: values.avatar_url, phone: values.phone, address: values.address })
         .eq('id', user!.id);
       if (error) throw error;
     },
@@ -58,6 +61,7 @@ export default function SettingsPage() {
   const TABS = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'password', label: 'Password', icon: Lock },
+    { id: 'invoice', label: 'Invoice Pad', icon: Sliders },
     { id: 'system', label: 'System', icon: Database },
   ] as const;
 
@@ -97,11 +101,27 @@ export default function SettingsPage() {
             <form onSubmit={profileForm.handleSubmit((v) => updateProfileMutation.mutate(v))} className="space-y-4 pt-4 border-t border-border">
               <div>
                 <label className="block text-sm font-medium mb-1">Full Name</label>
-                <input {...profileForm.register('name')} className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+                <input {...profileForm.register('name')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Mobile No.</label>
+                  <input {...profileForm.register('phone')} placeholder="+8801..." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Address</label>
+                  <input {...profileForm.register('address')} placeholder="123 Dhaka, BD..." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Avatar URL</label>
-                <input {...profileForm.register('avatar_url')} placeholder="https://..." className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+                <label className="block text-sm font-medium mb-2">Profile Photo</label>
+                <div className="w-full max-w-sm">
+                  <ImageUpload
+                    currentUrl={profileForm.watch('avatar_url')}
+                    onUploaded={(url) => profileForm.setValue('avatar_url', url, { shouldDirty: true })}
+                    label=""
+                  />
+                </div>
               </div>
 
               <div className="flex items-center justify-between pt-2">
@@ -137,6 +157,25 @@ export default function SettingsPage() {
                 {updatePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice settings Stub Tab */}
+      {activeTab === 'invoice' && (
+        <div className="max-w-xl space-y-4">
+          <div className="bg-card border border-border rounded-xl p-6">
+            <h3 className="font-semibold mb-4 flex items-center gap-2"><Sliders className="h-4 w-4" /> Invoice Pad Config</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              You can upload a pad JPG/PNG or set up future UI logic templates here.
+            </p>
+            <div className="space-y-4 text-sm mt-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Upload Default Invoice/Pad Background (Stub)</label>
+                <input type="file" disabled className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-muted/20 text-muted-foreground border-dashed focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all opacity-50 cursor-not-allowed" />
+                <span className="text-xs text-muted-foreground mt-1">Image uploads will be enabled here when the DB layout mappings permit templates parsing in PDF/Print Views natively.</span>
+              </div>
+            </div>
           </div>
         </div>
       )}

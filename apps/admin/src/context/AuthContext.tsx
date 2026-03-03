@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { Profile, Role } from '@hellotms/shared';
+import { toast } from '@/components/Toast';
 
 interface AuthContextValue {
   user: User | null;
@@ -25,13 +26,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*, roles(*)')
       .eq('id', userId)
       .single();
 
+    if (error) {
+      console.error('[AuthContext] Profile fetch error:', error);
+      if (error.code === 'PGRST116') {
+        toast('আপনার অ্যাকাউন্টে কোনো প্রোফাইল পাওয়া যায়নি। অ্যাডমিনকে জানান।', 'error');
+      } else {
+        toast(`প্রোফাইল লোড করা যায়নি: ${error.message}`, 'error');
+      }
+      return;
+    }
+
     if (data) {
+      if (!data.roles) {
+        toast('আপনার অ্যাকাউন্টে কোনো রোল সেট করা নেই। অ্যাডমিনকে জানান।', 'error');
+      }
       setProfile(data as Profile);
       setRole(data.roles as Role ?? null);
     }

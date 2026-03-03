@@ -14,6 +14,8 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { ColumnDef } from '@tanstack/react-table';
 import { generateInvoiceNumber } from '@hellotms/shared';
+import { Trash, Pencil } from 'lucide-react';
+import { toast } from '@/components/Toast';
 
 const STATUS_OPTIONS = ['all', 'draft', 'sent', 'paid', 'overdue'];
 
@@ -102,7 +104,30 @@ export default function InvoicesPage() {
       setIsOpen(false);
       navigate(`/invoices/${inv.id}`);
     },
+    onError: (error: any) => {
+      toast(`Failed to create invoice: ${error.message || 'Unknown error'}`, 'error');
+    }
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('invoices').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      toast('Invoice deleted successfully!', 'success');
+    },
+    onError: (error: any) => {
+      toast(`Failed to delete invoice: ${error.message || 'Unknown error'}`, 'error');
+    }
+  });
+
+  const handleDelete = (inv: Invoice) => {
+    if (window.confirm(`Are you sure you want to permanently delete Invoice ${inv.invoice_number}?\nThis cannot be undone.`)) {
+      deleteMutation.mutate(inv.id);
+    }
+  };
 
   const columns: ColumnDef<Invoice & { companies: { name: string } | null; projects: { title: string } | null }, unknown>[] = [
     {
@@ -122,6 +147,28 @@ export default function InvoicesPage() {
     { accessorKey: 'total_amount', header: 'Amount', cell: ({ getValue }) => <span className="font-semibold">{formatBDT(Number(getValue()))}</span> },
     { accessorKey: 'due_date', header: 'Due Date', cell: ({ getValue }) => getValue() ? formatDate(getValue() as string) : '—' },
     { accessorKey: 'created_at', header: 'Created', cell: ({ getValue }) => formatDate(getValue() as string) },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-1 justify-end">
+          <button
+            onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${row.original.id}`); }}
+            className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
+            title="Edit / View Invoice"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDelete(row.original); }}
+            className="p-1.5 rounded-md hover:bg-red-50 transition-colors text-muted-foreground hover:text-destructive"
+            title="Delete Invoice"
+          >
+            <Trash className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -271,7 +318,7 @@ export default function InvoicesPage() {
 function Trash2icon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+      <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
     </svg>
   );
 }
