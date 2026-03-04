@@ -8,6 +8,7 @@ import { User, Lock, Database, Bell, Sliders } from 'lucide-react';
 import { toast } from '@/components/Toast';
 import { ImageUpload } from '@/components/ImageUpload';
 import { getInitials } from '@/lib/utils';
+import { mediaApi } from '@/lib/api';
 
 export default function SettingsPage() {
   const { user, profile, refreshProfile } = useAuth();
@@ -33,10 +34,13 @@ export default function SettingsPage() {
   });
 
   const updateProfileMutation = useMutation({
-    mutationFn: async (values: { name: string; avatar_url?: string; phone?: string; address?: string }) => {
+    mutationFn: async (values: { name: string; avatar_url: string | File | null; phone?: string; address?: string }) => {
+      // Handle potential image upload
+      const finalAvatarUrl = await mediaApi.uploadAndCleanMedia(values.avatar_url, profile?.avatar_url);
+
       const { error } = await supabase
         .from('profiles')
-        .update({ name: values.name, avatar_url: values.avatar_url, phone: values.phone, address: values.address })
+        .update({ name: values.name, avatar_url: finalAvatarUrl, phone: values.phone, address: values.address })
         .eq('id', user!.id);
       if (error) throw error;
     },
@@ -62,9 +66,13 @@ export default function SettingsPage() {
   });
 
   const updatePadMutation = useMutation({
-    mutationFn: async (payload: { url?: string; top?: number; bottom?: number }) => {
+    mutationFn: async (payload: { url?: string | File | null; top?: number; bottom?: number }) => {
       const updateData: any = {};
-      if (payload.url !== undefined) updateData.invoice_pad_url = payload.url;
+
+      if (payload.url !== undefined) {
+        updateData.invoice_pad_url = await mediaApi.uploadAndCleanMedia(payload.url, siteSettings?.invoice_pad_url);
+      }
+
       if (payload.top !== undefined) updateData.pad_margin_top = payload.top;
       if (payload.bottom !== undefined) updateData.pad_margin_bottom = payload.bottom;
 
@@ -154,8 +162,8 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium mb-2">Profile Photo</label>
                 <div className="w-full max-w-sm">
                   <ImageUpload
-                    currentUrl={profileForm.watch('avatar_url')}
-                    onUploaded={(url) => profileForm.setValue('avatar_url', url, { shouldDirty: true })}
+                    value={profileForm.watch('avatar_url')}
+                    onChange={(val) => profileForm.setValue('avatar_url', val as string, { shouldDirty: true })}
                     label=""
                     disabled={!isEditingProfile}
                   />
@@ -240,8 +248,8 @@ export default function SettingsPage() {
                 <div>
                   <label className="block text-sm font-medium mb-2">Pad Background Image</label>
                   <ImageUpload
-                    currentUrl={siteSettings?.invoice_pad_url || null}
-                    onUploaded={(url) => updatePadMutation.mutate({ url })}
+                    value={siteSettings?.invoice_pad_url || null}
+                    onChange={(val) => updatePadMutation.mutate({ url: val, top: padMarginTop, bottom: padMarginBottom })}
                     label=""
                     disabled={!isEditingInvoice}
                   />

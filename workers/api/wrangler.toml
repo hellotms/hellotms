@@ -11,7 +11,7 @@ crons = ["0 8 * * *"]   # daily at 8 AM UTC — keepalive ping
 
 [vars]
 ENVIRONMENT = "production"
-ALLOWED_ORIGINS = "https://hellotms.pages.dev,http://localhost:5173,http://localhost:3000"
+ALLOWED_ORIGINS = "https://hellotms.pages.dev,https://hellotms-admin.pages.dev,http://localhost:5173,http://localhost:3000"
 R2_PUBLIC_URL = "https://pub-d74fef399a584bd1a3f644d818273e03.r2.dev"
 
 [[r2_buckets]]

@@ -10,27 +10,28 @@ export const invoicesRoute = new Hono<{ Bindings: Env; Variables: Variables }>()
 
 invoicesRoute.use('*', authMiddleware);
 
-// POST /invoices/:id/send — generate PDF, store to Supabase Storage, send email
-invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => {
-  const { id } = c.req.param();
-  const { recipientEmail, recipientName } = await c.req.json();
+// ─── Shared helper: fetch invoice, generate PDF, store in /generated-invoices/<id>.pdf ──
 
-  if (!recipientEmail) return c.json({ error: 'recipientEmail is required' }, 400);
-
-  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
-
-  // Fetch invoice + items + project + company
+async function buildAndStorePdf(
+  supabase: ReturnType<typeof createClient>,
+  id: string,
+  supabaseUrl: string,
+): Promise<{ pdfUrl: string; pdfBytes: Uint8Array; pdfBase64: string } | { error: string }> {
   const { data: invoice, error: invoiceError } = await supabase
     .from('invoices')
     .select('*, invoice_items(*), projects(*), companies(*)')
     .eq('id', id)
     .single();
 
-  if (invoiceError || !invoice) {
-    return c.json({ error: 'Invoice not found' }, 404);
-  }
+  if (invoiceError || !invoice) return { error: 'Invoice not found' };
 
-  // Build PDF data
+  // Fetch pad background from site_settings
+  const { data: settings } = await supabase
+    .from('site_settings')
+    .select('invoice_pad_url, pad_margin_top, pad_margin_bottom')
+    .eq('id', 1)
+    .single();
+
   const pdfData: InvoicePdfData = {
     invoiceNumber: invoice.invoice_number,
     invoiceDate: new Date(invoice.created_at).toLocaleDateString('en-BD'),
@@ -54,14 +55,16 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       amount: item.amount,
     })),
     totalAmount: invoice.total_amount,
+    padImageUrl: settings?.invoice_pad_url ?? undefined,
+    padMarginTop: settings?.pad_margin_top ?? 150,
+    padMarginBottom: settings?.pad_margin_bottom ?? 100,
   };
 
-  // Generate PDF
   const pdfBytes = await generateInvoicePdf(pdfData);
   const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
 
-  // Upload to Supabase Storage
-  const storagePath = `invoices/${invoice.company_id}/${invoice.project_id}/${id}.pdf`;
+  // Store in a predictable, CDN-friendly folder: generated-invoices/<invoice-id>.pdf
+  const storagePath = `generated-invoices/${id}.pdf`;
   const { error: uploadError } = await supabase.storage
     .from('invoices')
     .upload(storagePath, pdfBytes, {
@@ -70,31 +73,71 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
     });
 
   if (uploadError) {
-    console.error('[invoices/send] Upload error:', uploadError);
-    return c.json({ error: 'Failed to upload PDF' }, 500);
+    console.error('[invoices] PDF upload error:', uploadError);
+    return { error: 'Failed to upload PDF to storage' };
   }
 
-  // Get signed URL (7-day expiry)
-  const { data: signedUrl } = await supabase.storage
+  // Use public CDN URL — works forever, no expiry
+  const pdfUrl = `${supabaseUrl}/storage/v1/object/public/invoices/${storagePath}`;
+
+  // Persist the PDF URL on the invoice record
+  await supabase.from('invoices').update({ pdf_url: pdfUrl }).eq('id', id);
+
+  return { pdfUrl, pdfBytes, pdfBase64 };
+}
+
+// ─── GET /invoices/:id/pdf — generate PDF on demand (always fresh) ────────────
+
+invoicesRoute.get('/:id/pdf', async (c) => {
+  const { id } = c.req.param();
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+
+  const result = await buildAndStorePdf(supabase, id, c.env.SUPABASE_URL);
+  if ('error' in result) {
+    return c.json({ error: result.error }, result.error === 'Invoice not found' ? 404 : 500);
+  }
+
+  return c.json({ pdfUrl: result.pdfUrl, success: true });
+});
+
+// ─── POST /invoices/:id/send — generate PDF, store, email it ─────────────────
+
+invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => {
+  const { id } = c.req.param();
+  const { recipientEmail, recipientName } = await c.req.json();
+
+  if (!recipientEmail) return c.json({ error: 'recipientEmail is required' }, 400);
+
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+
+  const pdfResult = await buildAndStorePdf(supabase, id, c.env.SUPABASE_URL);
+  if ('error' in pdfResult) {
+    return c.json({ error: pdfResult.error }, pdfResult.error === 'Invoice not found' ? 404 : 500);
+  }
+
+  // Fetch invoice metadata for email
+  const { data: invoice } = await supabase
     .from('invoices')
-    .createSignedUrl(storagePath, 7 * 24 * 3600);
+    .select('invoice_number, total_amount, due_date, companies(name), projects(title)')
+    .eq('id', id)
+    .single();
 
-  const downloadUrl = signedUrl?.signedUrl ?? `https://supabase-project.supabase.co/storage/v1/object/public/invoices/${storagePath}`;
+  if (!invoice) return c.json({ error: 'Invoice not found after PDF gen' }, 404);
 
-  // Update invoice with pdf_url and sent_at
+  // Update sent_at and status
   await supabase
     .from('invoices')
-    .update({ pdf_url: downloadUrl, sent_at: new Date().toISOString(), status: 'sent' })
+    .update({ sent_at: new Date().toISOString(), status: 'sent' })
     .eq('id', id);
 
-  // Send email via Brevo (with PDF attachment)
+  // Build and send email with PDF attachment
   const html = buildInvoiceEmailHtml({
-    recipientName: recipientName ?? invoice.companies?.name ?? 'Client',
+    recipientName: recipientName ?? (invoice.companies as any)?.name ?? 'Client',
     invoiceNumber: invoice.invoice_number,
-    projectTitle: invoice.projects?.title ?? 'Project',
+    projectTitle: (invoice.projects as any)?.title ?? 'Project',
     totalAmount: `৳ ${Number(invoice.total_amount).toLocaleString('en-IN')}`,
     dueDate: invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-BD') : 'Please see invoice',
-    downloadUrl,
+    downloadUrl: pdfResult.pdfUrl,
   });
 
   const emailResult = await sendEmail(
@@ -105,7 +148,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       to: [{ email: recipientEmail, name: recipientName }],
       subject: `Invoice ${invoice.invoice_number} from Marketing Solution`,
       htmlContent: html,
-      attachments: [{ name: `${invoice.invoice_number}.pdf`, content: pdfBase64, contentType: 'application/pdf' }],
+      attachments: [{ name: `${invoice.invoice_number}.pdf`, content: pdfResult.pdfBase64, contentType: 'application/pdf' }],
     }
   );
 
@@ -119,34 +162,9 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
   });
 
   return c.json({
+    success: true,
     message: 'Invoice sent successfully',
-    pdfUrl: downloadUrl,
+    pdfUrl: pdfResult.pdfUrl,
     emailSent: emailResult.success,
   });
-});
-
-// GET /invoices/:id/pdf — return signed URL or regenerate
-invoicesRoute.get('/:id/pdf', async (c) => {
-  const { id } = c.req.param();
-  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
-
-  const { data: invoice } = await supabase
-    .from('invoices')
-    .select('pdf_url, company_id, project_id')
-    .eq('id', id)
-    .single();
-
-  if (!invoice) return c.json({ error: 'Invoice not found' }, 404);
-
-  if (invoice.pdf_url) {
-    return c.json({ pdfUrl: invoice.pdf_url });
-  }
-
-  // If no PDF yet, return storage path hint
-  const storagePath = `invoices/${invoice.company_id}/${invoice.project_id}/${id}.pdf`;
-  const { data: signedUrl } = await supabase.storage
-    .from('invoices')
-    .createSignedUrl(storagePath, 3600);
-
-  return c.json({ pdfUrl: signedUrl?.signedUrl ?? null, message: 'PDF not yet generated' });
 });

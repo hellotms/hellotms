@@ -24,6 +24,12 @@ export interface InvoicePdfData {
   }[];
   totalAmount: number;
   notes?: string;
+  /** Optional: URL of the invoice pad background image (from site_settings) */
+  padImageUrl?: string;
+  /** Top content margin in points when padImageUrl is set (default: 150) */
+  padMarginTop?: number;
+  /** Bottom content margin in points when padImageUrl is set (default: 100) */
+  padMarginBottom?: number;
 }
 
 export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Array> {

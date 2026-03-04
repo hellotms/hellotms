@@ -16,6 +16,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { Project, Company, ProjectInput } from '@hellotms/shared';
 import { MoreHorizontal, Trash, Pencil } from 'lucide-react';
+import { mediaApi } from '@/lib/api';
 
 const STATUS_OPTIONS = ['all', 'draft', 'active', 'completed'];
 
@@ -67,6 +68,9 @@ export default function ProjectsPage() {
 
   const createMutation = useMutation({
     mutationFn: async (values: ProjectInput) => {
+      // 1. Upload Cover Image Document if a crop happened
+      const finalCoverUrl = await mediaApi.uploadAndCleanMedia(coverImageUrl as string | File | null, null); // No old URL since this is creation
+
       // Default event_end_date to event_start_date if not provided
       const payload = {
         ...values,
@@ -77,7 +81,7 @@ export default function ProjectsPage() {
         advance_received: values.advance_received ?? 0,
         category: values.category === 'Others' ? customCategory : (values.category || null),
         description: values.description || null,
-        cover_image_url: values.cover_image_url || null,
+        cover_image_url: finalCoverUrl || null,
         notes: values.notes || null,
         location: values.location || null,
       };
@@ -310,8 +314,8 @@ export default function ProjectsPage() {
           <div>
             <ImageUpload
               label="Cover Photo"
-              currentUrl={coverImageUrl}
-              onUploaded={(url) => setValue('cover_image_url', url)}
+              value={coverImageUrl}
+              onChange={(val) => setValue('cover_image_url', val as string)}
               aspect={16 / 9}
               guide="Recommended ratio 16:9 (e.g. 1920x1080)"
             />

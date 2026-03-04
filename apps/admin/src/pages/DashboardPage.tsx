@@ -26,7 +26,7 @@ export default function DashboardPage() {
   const { data: kpis, isLoading: kpisLoading } = useQuery({
     queryKey: ['dashboard-kpis', fromISO, toISO],
     queryFn: async () => {
-      const [incomeRes, expenseRes, projectsRes, collectionsRes, leadsRes] = await Promise.all([
+      const [incomeRes, expenseRes, projectsRes, collectionsRes, leadsRes, dueInvoicesRes] = await Promise.all([
         supabase
           .from('ledger_entries')
           .select('amount')
@@ -56,11 +56,17 @@ export default function DashboardPage() {
           .select('id, status')
           .gte('created_at', fromISO)
           .lte('created_at', toISO),
+        // Due = sum of sent/overdue invoices total - total collected
+        supabase
+          .from('invoices')
+          .select('total_amount, project_id')
+          .in('status', ['sent', 'overdue']),
       ]);
 
       const totalRevenue = (incomeRes.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
       const totalExpense = (expenseRes.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
       const totalCollected = (collectionsRes.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
+      const totalInvoicedDue = (dueInvoicesRes.data ?? []).reduce((s, r) => s + Number(r.total_amount), 0);
       const activeProjects = (projectsRes.data ?? []).filter(p => p.status === 'active').length;
       const completedProjects = (projectsRes.data ?? []).filter(p => p.status === 'completed').length;
 
@@ -68,7 +74,8 @@ export default function DashboardPage() {
         totalRevenue,
         totalExpense,
         netProfit: totalRevenue - totalExpense,
-        totalDue: Math.max(0, totalRevenue - totalCollected),
+        // Due = total outstanding invoices (sent/overdue) - what's already been paid
+        totalDue: Math.max(0, totalInvoicedDue - totalCollected),
         activeProjects,
         completedProjects,
         leadsCount: leadsRes.data?.length ?? 0,

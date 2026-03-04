@@ -84,4 +84,49 @@ export const mediaApi = {
     });
   },
   delete: (key: string) => apiFetch('/media/' + key, { method: 'DELETE' }),
+
+  /**
+   * Uploads a new file (if a File is provided) and cleans up the old media from R2 (if oldUrl is provided).
+   * Returns the new URL (or the existing URL if no new File was provided).
+   */
+  uploadAndCleanMedia: async (newFileOrUrl: File | string | null, oldUrl?: string | null): Promise<string | null> => {
+    let finalUrl: string | null = null;
+    let didUploadNew = false;
+
+    // 1. If it's a File, upload it
+    if (newFileOrUrl instanceof File) {
+      const res = await mediaApi.upload(newFileOrUrl);
+      if (!res.success) throw new Error("Failed to upload image");
+      finalUrl = res.url;
+      didUploadNew = true;
+    }
+    // 2. If it's still a string, it means the user didn't change the image
+    else if (typeof newFileOrUrl === 'string') {
+      finalUrl = newFileOrUrl;
+    }
+    // 3. Otherwise, it's null (user cleared the image)
+    else {
+      finalUrl = null;
+    }
+
+    // Process old media cleanup
+    // We delete the oldUrl IF:
+    // a) A new upload occurred, and oldUrl is a valid URL.
+    // b) Or the user explicitly cleared the image, and oldUrl is a valid URL.
+    // Basically, if oldUrl exists AND it is different from finalUrl, delete oldUrl.
+    if (oldUrl && oldUrl !== finalUrl) {
+      try {
+        // Extract the filename/key from the URL (everything after the last slash)
+        const parts = oldUrl.split('/');
+        const key = parts[parts.length - 1];
+        if (key) {
+          await mediaApi.delete(key);
+        }
+      } catch (err) {
+        console.warn('Failed to delete old media during cleanup:', err);
+      }
+    }
+
+    return finalUrl;
+  }
 };

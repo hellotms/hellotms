@@ -1,13 +1,12 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { Upload, X, Loader2, Crop as CropIcon } from 'lucide-react';
-import { mediaApi } from '@/lib/api';
 import Cropper from 'react-easy-crop';
 import getCroppedImg from '@/lib/cropImage';
 import { Modal } from '@/components/Modal';
 
 interface ImageUploadProps {
-    currentUrl?: string | null;
-    onUploaded: (url: string) => void;
+    value?: string | File | null;
+    onChange: (value: string | File | null) => void;
     label?: string;
     className?: string;
     disabled?: boolean;
@@ -16,8 +15,8 @@ interface ImageUploadProps {
 }
 
 export function ImageUpload({
-    currentUrl,
-    onUploaded,
+    value,
+    onChange,
     label = 'Upload Image',
     className = '',
     disabled = false,
@@ -25,9 +24,21 @@ export function ImageUpload({
     guide,
 }: ImageUploadProps) {
     const inputRef = useRef<HTMLInputElement>(null);
-    const [preview, setPreview] = useState<string | null>(currentUrl ?? null);
+    const [preview, setPreview] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
+
+    useEffect(() => {
+        if (!value) {
+            setPreview(null);
+        } else if (typeof value === 'string') {
+            setPreview(value);
+        } else if (value instanceof File) {
+            const objectUrl = URL.createObjectURL(value);
+            setPreview(objectUrl);
+            return () => URL.revokeObjectURL(objectUrl);
+        }
+    }, [value]);
 
     const [cropModalSrc, setCropModalSrc] = useState<string | null>(null);
     const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -39,7 +50,7 @@ export function ImageUpload({
         setCroppedAreaPixels(croppedAreaPixels);
     }, []);
 
-    const processAndUpload = async () => {
+    const handleCropComplete = async () => {
         if (!cropModalSrc || !croppedAreaPixels) return;
         setIsCropping(true);
         setError('');
@@ -48,24 +59,17 @@ export function ImageUpload({
             const croppedImageFile = await getCroppedImg(cropModalSrc, croppedAreaPixels);
             if (!croppedImageFile) throw new Error("Could not process cropping");
 
-            setUploading(true);
+            // We generate a proper File object instead of a Blob
+            const file = new File([croppedImageFile], "cropped_image.jpeg", {
+                type: croppedImageFile.type,
+                lastModified: Date.now(),
+            });
+
+            onChange(file);
             setCropModalSrc(null); // Close modal
-
-            const objectUrl = URL.createObjectURL(croppedImageFile);
-            setPreview(objectUrl);
-
-            const res = await mediaApi.upload(croppedImageFile as File);
-            if (res.success) {
-                onUploaded(res.url);
-                setPreview(res.url);
-            } else {
-                throw new Error("Upload response not successful");
-            }
         } catch (e) {
             setError((e as Error).message);
-            setPreview(currentUrl ?? null);
         } finally {
-            setUploading(false);
             setIsCropping(false);
         }
     };
@@ -83,8 +87,7 @@ export function ImageUpload({
     };
 
     const handleClear = () => {
-        setPreview(null);
-        onUploaded('');
+        onChange(null);
         if (inputRef.current) inputRef.current.value = '';
     };
 
@@ -184,8 +187,8 @@ export function ImageUpload({
                     </div>
                     <div className="flex justify-end gap-3 pt-2">
                         <button type="button" onClick={() => setCropModalSrc(null)} disabled={isCropping} className="px-4 py-2 border border-border rounded-lg text-sm">Cancel</button>
-                        <button type="button" onClick={processAndUpload} disabled={isCropping} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">
-                            {isCropping ? 'Cropping...' : 'Crop & Upload'}
+                        <button type="button" onClick={handleCropComplete} disabled={isCropping} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">
+                            {isCropping ? 'Cropping...' : 'Crop & Save'}
                         </button>
                     </div>
                 </div>

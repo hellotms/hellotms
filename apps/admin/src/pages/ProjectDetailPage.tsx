@@ -97,10 +97,14 @@ export default function ProjectDetailPage() {
   const totalIncome = ledger.filter(e => e.type === 'income').reduce((s, e) => s + Number(e.amount), 0);
   const totalCollected = collections.reduce((s, c) => s + Number(c.amount), 0);
   const totalInvoiced = invoices.reduce((s, i) => s + Number(i.total_amount), 0);
-  // Balance = money received from client - expenses
-  const balance = totalCollected - totalExpense;
-  // Due: only meaningful when invoices exist  
-  const due = invoices.length > 0 ? Math.max(0, totalInvoiced - totalCollected) : null;
+  // advance_received is an upfront payment recorded on the project itself
+  const advanceReceived = Number(project?.advance_received ?? 0);
+  // totalReceived = all collections + upfront advance
+  const totalReceived = totalCollected + advanceReceived;
+  // Balance = total money received from client - total expenses
+  const balance = totalReceived - totalExpense;
+  // Due: invoice total minus everything received (collections + advance)
+  const due = invoices.length > 0 ? Math.max(0, totalInvoiced - totalReceived) : null;
 
   // Timeline durations
   const durations = project ? computeProjectDurations(project, collections, totalInvoiced) : null;
@@ -211,6 +215,9 @@ export default function ProjectDetailPage() {
 
   const saveProjectMutation = useMutation({
     mutationFn: async (values: EditProjectInput) => {
+      // 1. Handle potential cover image change
+      const finalCoverUrl = await mediaApi.uploadAndCleanMedia(editCoverImageUrl as string | File | null, project?.cover_image_url);
+
       const payload = {
         ...values,
         event_end_date: values.event_end_date || values.event_start_date || null,
@@ -218,7 +225,7 @@ export default function ProjectDetailPage() {
         location: values.location || null,
         notes: values.notes || null,
         description: values.description || null,
-        cover_image_url: values.cover_image_url || null,
+        cover_image_url: finalCoverUrl || null,
         category: values.category === 'Others' ? customCategory : (values.category || null),
       };
       const { error } = await supabase.from('projects').update(payload).eq('id', id!);
@@ -330,8 +337,13 @@ export default function ProjectDetailPage() {
           { label: 'Budget', value: project.budget ? formatBDT(Number(project.budget)) : '—', color: 'indigo', raw: true },
           { label: 'Total Expenses', value: totalExpense, color: 'red', raw: false },
           { label: 'Balance', value: balance, color: balance >= 0 ? 'emerald' : 'red', raw: false },
-          { label: 'Received', value: totalCollected, color: 'teal', raw: false },
-          { label: due !== null ? 'Due' : 'Invoiced', value: due !== null ? due : totalInvoiced, color: 'orange', raw: false },
+          {
+            label: advanceReceived > 0 ? `Received (adv. incl.)` : 'Received',
+            value: totalReceived,
+            color: 'teal',
+            raw: false,
+          },
+          { label: due !== null ? 'Due' : 'Invoiced', value: due !== null ? due : totalInvoiced, color: due !== null && due > 0 ? 'orange' : 'emerald', raw: false },
         ].map(({ label, value, color, raw }) => (
           <div key={label} className="bg-card border border-border rounded-xl p-4">
             <p className="text-xs text-muted-foreground">{label}</p>
@@ -843,8 +855,8 @@ export default function ProjectDetailPage() {
           </div>
           <ImageUpload
             label="Cover Photo"
-            currentUrl={editCoverImageUrl}
-            onUploaded={(url) => setValueEdit('cover_image_url', url)}
+            value={editCoverImageUrl}
+            onChange={(val) => setValueEdit('cover_image_url', val as string)}
             aspect={16 / 9}
             guide="Recommended ratio 16:9 (e.g. 1920x1080)"
           />

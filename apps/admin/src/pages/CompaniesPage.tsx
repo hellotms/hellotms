@@ -17,6 +17,7 @@ import type { Company } from '@hellotms/shared';
 import type { CompanyInput } from '@hellotms/shared';
 import { slugify } from '@/lib/utils';
 import { Trash } from 'lucide-react';
+import { mediaApi } from '@/lib/api';
 
 export default function CompaniesPage() {
   const navigate = useNavigate();
@@ -46,7 +47,10 @@ export default function CompaniesPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (values: CompanyInput) => {
-      const payload = { ...values, slug: values.slug || slugify(values.name), logo_url: logoUrl || undefined };
+      // 1. Upload new logo if needed, and clean up the old one
+      const finalLogoUrl = await mediaApi.uploadAndCleanMedia(logoUrl, editingCompany?.logo_url);
+
+      const payload = { ...values, slug: values.slug || slugify(values.name), logo_url: finalLogoUrl || undefined };
       if (editingCompany) {
         const { error } = await supabase.from('companies').update(payload).eq('id', editingCompany.id);
         if (error) throw error;
@@ -169,8 +173,8 @@ export default function CompaniesPage() {
         <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
           {/* Logo upload */}
           <ImageUpload
-            currentUrl={logoUrl || null}
-            onUploaded={(url) => setLogoUrl(url)}
+            value={logoUrl || null}
+            onChange={(val) => setLogoUrl(val as string)}
             label="Company Logo"
           />
 
