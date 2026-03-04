@@ -13,11 +13,12 @@ invoicesRoute.use('*', authMiddleware);
 // ─── Shared helper: fetch invoice, generate PDF, store in /generated-invoices/<id>.pdf ──
 
 async function buildAndStorePdf(
-  supabase: ReturnType<typeof createClient>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
   id: string,
   supabaseUrl: string,
 ): Promise<{ pdfUrl: string; pdfBytes: Uint8Array; pdfBase64: string } | { error: string }> {
-  const { data: invoice, error: invoiceError } = await supabase
+  const { data: invoice, error: invoiceError } = await (supabase as any)
     .from('invoices')
     .select('*, invoice_items(*), projects(*), companies(*)')
     .eq('id', id)
@@ -26,7 +27,7 @@ async function buildAndStorePdf(
   if (invoiceError || !invoice) return { error: 'Invoice not found' };
 
   // Fetch pad background from site_settings
-  const { data: settings } = await supabase
+  const { data: settings } = await (supabase as any)
     .from('site_settings')
     .select('invoice_pad_url, pad_margin_top, pad_margin_bottom')
     .eq('id', 1)
@@ -81,7 +82,7 @@ async function buildAndStorePdf(
   const pdfUrl = `${supabaseUrl}/storage/v1/object/public/invoices/${storagePath}`;
 
   // Persist the PDF URL on the invoice record
-  await supabase.from('invoices').update({ pdf_url: pdfUrl }).eq('id', id);
+  await (supabase as any).from('invoices').update({ pdf_url: pdfUrl }).eq('id', id);
 
   return { pdfUrl, pdfBytes, pdfBase64 };
 }
@@ -116,7 +117,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
   }
 
   // Fetch invoice metadata for email
-  const { data: invoice } = await supabase
+  const { data: invoice } = await (supabase as any)
     .from('invoices')
     .select('invoice_number, total_amount, due_date, companies(name), projects(title)')
     .eq('id', id)
@@ -125,7 +126,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
   if (!invoice) return c.json({ error: 'Invoice not found after PDF gen' }, 404);
 
   // Update sent_at and status
-  await supabase
+  await (supabase as any)
     .from('invoices')
     .update({ sent_at: new Date().toISOString(), status: 'sent' })
     .eq('id', id);

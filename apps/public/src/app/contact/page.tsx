@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Send, CheckCircle, Phone, Mail, MapPin, MessageSquare, Clock } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -25,8 +25,17 @@ export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [settings, setSettings] = useState<any>(null);
 
   const form = useForm<LeadFormValues>();
+
+  useEffect(() => {
+    async function fetchSettings() {
+      const { data } = await supabase.from('site_settings').select('*').eq('id', 1).single();
+      if (data) setSettings(data);
+    }
+    fetchSettings();
+  }, []);
 
   const onSubmit = async (values: LeadFormValues) => {
     setLoading(true);
@@ -69,6 +78,15 @@ export default function ContactPage() {
     }
   };
 
+  const contactInfo = settings?.contact_info as any;
+
+  const CONTACT_CARDS = [
+    { icon: Phone, label: 'Phone / WhatsApp', value: contactInfo?.phone || '+880 1700 000 000', href: contactInfo?.phone ? `tel:${contactInfo.phone.replace(/\s/g, '')}` : 'tel:+8801700000000' },
+    { icon: Mail, label: 'Email', value: contactInfo?.email || 'hello@themarketingsolution.com', href: contactInfo?.email ? `mailto:${contactInfo.email}` : 'mailto:hello@themarketingsolution.com' },
+    { icon: MapPin, label: 'Location', value: contactInfo?.address || 'Dhaka, Bangladesh', href: undefined },
+    { icon: Clock, label: 'Office Hours', value: 'Sat – Thu, 9 AM – 7 PM', href: undefined },
+  ];
+
   const inputCls = 'w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all';
 
   return (
@@ -94,12 +112,7 @@ export default function ContactPage() {
             <div className="lg:col-span-2 space-y-5">
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-5">
                 <h2 className="font-bold text-[var(--foreground)] text-lg">Contact Info</h2>
-                {[
-                  { icon: Phone, label: 'Phone / WhatsApp', value: '+880 1700 000 000', href: 'tel:+8801700000000' },
-                  { icon: Mail, label: 'Email', value: 'hello@themarketingsolution.com', href: 'mailto:hello@themarketingsolution.com' },
-                  { icon: MapPin, label: 'Location', value: 'Dhaka, Bangladesh', href: undefined },
-                  { icon: Clock, label: 'Office Hours', value: 'Sat – Thu, 9 AM – 7 PM', href: undefined },
-                ].map(({ icon: Icon, label, value, href }) => (
+                {CONTACT_CARDS.map(({ icon: Icon, label, value, href }) => (
                   <div key={label} className="flex items-start gap-3">
                     <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
                       <Icon className="h-4 w-4 text-indigo-400" />
@@ -213,3 +226,4 @@ export default function ContactPage() {
     </div>
   );
 }
+

@@ -205,7 +205,7 @@ export default function HomePage() {
                     <h3 className="font-bold text-[var(--foreground)] group-hover:text-indigo-500 transition-colors line-clamp-1">
                       {project.title}
                     </h3>
-                    <p className="text-xs text-[var(--muted)] mt-1">{project.companies?.name ?? 'The Marketing Solution'}</p>
+                    <p className="text-xs text-[var(--muted)] mt-1">{project.companies?.name ?? '—'}</p>
                   </div>
                 </Link>
               ))}

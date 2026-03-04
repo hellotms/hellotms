@@ -152,7 +152,7 @@ export default function PortfolioPage() {
                       <h2 className="font-bold text-[var(--foreground)] group-hover:text-indigo-500 transition-colors line-clamp-1 mb-1">
                         {project.title}
                       </h2>
-                      <p className="text-sm text-[var(--muted)]">{project.companies?.name ?? 'The Marketing Solution'}</p>
+                      <p className="text-sm text-[var(--muted)]">{project.companies?.name ?? '—'}</p>
                     </div>
                   </Link>
                 );

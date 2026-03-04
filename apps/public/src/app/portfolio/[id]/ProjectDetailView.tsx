@@ -149,7 +149,7 @@ export function ProjectDetailView({ slug }: { slug: string }) {
                             )}
                             <h3 className="font-bold text-[var(--foreground)]">Event Details</h3>
                             {[
-                                { icon: Building2, label: 'Client', value: project.companies?.name ?? 'The Marketing Solution' },
+                                { icon: Building2, label: 'Client', value: project.companies?.name ?? '—' },
                                 { icon: Calendar, label: 'Event Date', value: eventDateStr },
                                 { icon: Tag, label: 'Category', value: project.category ?? '—' },
                                 { icon: Tag, label: 'Year', value: String(eventYear) },

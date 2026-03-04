@@ -18,9 +18,10 @@ import SettingsPage from '@/pages/SettingsPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import WorkLogsPage from '@/pages/WorkLogsPage';
 import { ToastContainer } from '@/components/Toast';
+import SetupPage from '@/pages/SetupPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
@@ -30,6 +31,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     </div>
   );
   if (!user) return <Navigate to="/login" replace />;
+  // If the user was assigned a temp password, force setup
+  if ((profile as any)?.force_password_change) return <Navigate to="/setup" replace />;
   return <>{children}</>;
 }
 
@@ -38,6 +41,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/setup" element={user ? <SetupPage /> : <Navigate to="/login" replace />} />
       <Route
         path="/"
         element={

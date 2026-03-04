@@ -19,6 +19,8 @@ export interface Profile {
   phone?: string | null;
   address?: string | null;
   is_active: boolean;
+  /** When true, user must complete /setup before accessing the admin panel */
+  force_password_change?: boolean;
   created_at: string;
 }
 

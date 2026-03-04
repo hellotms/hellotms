@@ -51,13 +51,13 @@ staffRoute.post('/invite', requirePermission('manage_staff'), async (c) => {
     return c.json({ error: createError.message }, 500);
   }
 
-  await supabase.from('profiles').upsert({
+  await (supabase as any).from('profiles').upsert({
     id: createdUser.user.id,
     name,
     email,
     role_id,
     is_active: true,
-    must_change_password: true,
+    force_password_change: true,
   });
 
   const loginUrl = `https://ad.acadome.dev`;
@@ -171,8 +171,8 @@ staffRoute.put('/:id/reset-password', async (c) => {
 
   if (updateAuthErr) return c.json({ error: updateAuthErr.message }, 500);
 
-  // Mark needs pass reset
-  await supabase.from('profiles').update({ must_change_password: true }).eq('id', id);
+  // Mark as needing password change so they get redirected to /setup
+  await (supabase as any).from('profiles').update({ force_password_change: true }).eq('id', id);
 
   // Send Email
   const loginUrl = `https://ad.acadome.dev`; // Adjust via env if needed
@@ -210,7 +210,7 @@ staffRoute.put('/:id/profile', async (c) => {
       phone: body.phone,
       bio: body.bio,
       avatar_url: body.avatar_url,
-      must_change_password: false,
+      force_password_change: false,
     })
     .eq('id', id);
 

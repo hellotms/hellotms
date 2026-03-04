@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Zap, Mail, Phone, MapPin, Instagram, Facebook, Youtube, ArrowUpRight } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 const LINKS = {
   company: [
@@ -17,7 +18,24 @@ const LINKS = {
   ],
 };
 
-export function Footer() {
+export async function Footer() {
+  const { data: settings } = await supabase.from('site_settings').select('*').eq('id', 1).single();
+
+  const socials = settings?.socials as any;
+  const contact = settings?.contact_info as any;
+
+  const socialLinks = [
+    { href: socials?.facebook || '#', icon: Facebook, label: 'Facebook', active: !!socials?.facebook },
+    { href: socials?.instagram || '#', icon: Instagram, label: 'Instagram', active: !!socials?.instagram },
+    { href: socials?.youtube || '#', icon: Youtube, label: 'YouTube', active: !!socials?.youtube },
+  ].filter(s => s.active);
+
+  const contactItems = [
+    { icon: Phone, text: contact?.phone || '+880 1700 000 000', href: contact?.phone ? `tel:${contact.phone.replace(/\s/g, '')}` : undefined },
+    { icon: Mail, text: contact?.email || 'hello@themarketingsolution.com', href: contact?.email ? `mailto:${contact.email}` : undefined },
+    { icon: MapPin, text: contact?.address || 'Dhaka, Bangladesh', href: undefined },
+  ];
+
   return (
     <footer className="bg-[var(--surface)] border-t border-[var(--border)]">
       {/* Main grid */}
@@ -34,17 +52,15 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-sm text-[var(--muted)] leading-relaxed mb-6">
-              Bangladesh's premier event management and marketing agency. We turn your vision into unforgettable experiences.
+              {settings?.hero_subtitle || "Bangladesh's premier event management and marketing agency. We turn your vision into unforgettable experiences."}
             </p>
             <div className="flex items-center gap-2">
-              {[
-                { href: '#', icon: Facebook, label: 'Facebook' },
-                { href: '#', icon: Instagram, label: 'Instagram' },
-                { href: '#', icon: Youtube, label: 'YouTube' },
-              ].map(({ href, icon: Icon, label }) => (
+              {socialLinks.map(({ href, icon: Icon, label }) => (
                 <a
                   key={label}
                   href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   aria-label={label}
                   className="w-9 h-9 rounded-lg bg-[var(--surface-2)] hover:bg-indigo-600 text-[var(--muted)] hover:text-white flex items-center justify-center transition-all"
                 >
@@ -94,11 +110,7 @@ export function Footer() {
           <div>
             <h4 className="font-semibold text-sm text-[var(--foreground)] mb-4 uppercase tracking-wider">Contact</h4>
             <ul className="space-y-3">
-              {[
-                { icon: Phone, text: '+880 1700 000 000', href: 'tel:+8801700000000' },
-                { icon: Mail, text: 'hello@themarketingsolution.com', href: 'mailto:hello@themarketingsolution.com' },
-                { icon: MapPin, text: 'Dhaka, Bangladesh', href: undefined },
-              ].map(({ icon: Icon, text, href }) => (
+              {contactItems.map(({ icon: Icon, text, href }) => (
                 <li key={text} className="flex items-start gap-3">
                   <div className="w-7 h-7 rounded-md bg-indigo-500/10 flex items-center justify-center shrink-0 mt-0.5">
                     <Icon className="h-3.5 w-3.5 text-indigo-400" />
@@ -129,3 +141,4 @@ export function Footer() {
     </footer>
   );
 }
+
