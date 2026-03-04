@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { Menu, X, Sun, Moon } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { supabase } from '@/lib/supabase';
+import type { SiteSettings } from '@hellotms/shared';
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
@@ -17,6 +19,15 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
+  const [settings, setSettings] = useState<SiteSettings | null>(null);
+
+  useEffect(() => {
+    async function loadSettings() {
+      const { data } = await supabase.from('site_settings').select('*').eq('id', 1).single();
+      if (data) setSettings(data as SiteSettings);
+    }
+    loadSettings();
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -45,9 +56,16 @@ export function Navbar() {
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
               </svg>
             </div>
-            <span className="font-bold text-base md:text-lg text-[var(--foreground)] tracking-tight">
-              The <span className="text-indigo-500">Marketing</span> Solution
-            </span>
+            <div className="flex flex-col">
+              <span className="font-bold text-sm md:text-lg text-[var(--foreground)] tracking-tight leading-none">
+                The <span className="text-indigo-500">Marketing</span> Solution
+              </span>
+              {settings?.site_motto && (
+                <span className="text-[10px] md:text-xs text-[var(--muted)] font-medium leading-tight">
+                  {settings.site_motto}
+                </span>
+              )}
+            </div>
           </Link>
 
           {/* Desktop nav */}

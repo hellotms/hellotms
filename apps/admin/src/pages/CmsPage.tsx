@@ -4,11 +4,13 @@ import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { Modal, ConfirmModal } from '@/components/Modal';
 import { Plus, Save, Trash2, Globe, Phone, Mail, LayoutDashboard } from 'lucide-react';
+import { toast } from '@/components/Toast';
 import { useForm, useFieldArray } from 'react-hook-form';
 import type { SiteSettings } from '@hellotms/shared';
 
 type CmsFormValues = {
   hero_title: string;
+  site_motto: string;
   hero_subtitle: string;
   about_text: string;
   contact_phone: string;
@@ -26,14 +28,17 @@ type CmsFormValues = {
 export default function CmsPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'general' | 'services' | 'contact'>('general');
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [isEditing, setIsEditing] = useState(false);
   const [deleteIdx, setDeleteIdx] = useState<number | null>(null);
   const [isAddingService, setIsAddingService] = useState(false);
   const newServiceForm = useForm({ defaultValues: { title: '', description: '', icon: '' } });
 
   const form = useForm<CmsFormValues>({
     defaultValues: {
-      hero_title: '', hero_subtitle: '', about_text: '',
+      hero_title: '',
+      site_motto: '',
+      hero_subtitle: '',
+      about_text: '',
       contact_phone: '', contact_email: '', contact_address: '',
       facebook_url: '', instagram_url: '', youtube_url: '', whatsapp_number: '',
       cta_label: '', cta_url: '',
@@ -56,6 +61,7 @@ export default function CmsPage() {
     if (settings) {
       form.reset({
         hero_title: settings.hero_title ?? '',
+        site_motto: settings.site_motto ?? '',
         hero_subtitle: settings.hero_subtitle ?? '',
         about_text: settings.about_content ?? '',
         contact_phone: (settings.contact_info as { phone?: string })?.phone ?? '',
@@ -80,6 +86,7 @@ export default function CmsPage() {
     mutationFn: async (values: CmsFormValues) => {
       const payload = {
         hero_title: values.hero_title,
+        site_motto: values.site_motto,
         hero_subtitle: values.hero_subtitle,
         about_content: values.about_text,
         hero_cta_primary_label: values.cta_label,
@@ -103,12 +110,11 @@ export default function CmsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site-settings'] });
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 3000);
+      setIsEditing(false);
+      toast('Website content updated successfully!', 'success');
     },
-    onError: () => {
-      setSaveStatus('error');
-      setTimeout(() => setSaveStatus('idle'), 3000);
+    onError: (e: Error) => {
+      toast(e.message || 'Failed to save changes', 'error');
     },
   });
 
@@ -127,16 +133,34 @@ export default function CmsPage() {
         description="Manage public website content"
         actions={
           <div className="flex items-center gap-2">
-            {saveStatus === 'saved' && <span className="text-sm text-green-600 font-medium">✓ Saved</span>}
-            {saveStatus === 'error' && <span className="text-sm text-destructive">Save failed</span>}
-            <button
-              onClick={form.handleSubmit((v) => saveMutation.mutate(v))}
-              disabled={saveMutation.isPending}
-              className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-60"
-            >
-              <Save className="h-4 w-4" />
-              {saveMutation.isPending ? 'Saving...' : 'Save Changes'}
-            </button>
+            {!isEditing ? (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-2 border border-border bg-card px-4 py-2 rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+              >
+                Edit Website Content
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => {
+                    setIsEditing(false);
+                    form.reset();
+                  }}
+                  className="px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={form.handleSubmit((v) => saveMutation.mutate(v))}
+                  disabled={saveMutation.isPending}
+                  className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-60"
+                >
+                  <Save className="h-4 w-4" />
+                  {saveMutation.isPending ? 'Saving...' : 'Save Changes'}
+                </button>
+              </>
+            )}
           </div>
         }
       />
@@ -160,20 +184,24 @@ export default function CmsPage() {
             <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Hero Section</h3>
             <div>
               <label className="block text-sm font-medium mb-1">Hero Title</label>
-              <input {...form.register('hero_title')} placeholder="Capture Every Moment" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+              <input {...form.register('hero_title')} disabled={!isEditing} placeholder="Capture Every Moment" className="w-full border border-border rounded-lg px-3 py-2 text-sm disabled:bg-muted/30" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Site Motto (Tagline)</label>
+              <input {...form.register('site_motto')} disabled={!isEditing} placeholder="Creative Solution for Your Business" className="w-full border border-border rounded-lg px-3 py-2 text-sm disabled:bg-muted/30" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Hero Subtitle</label>
-              <textarea {...form.register('hero_subtitle')} rows={2} placeholder="Professional event photography and management..." className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
+              <textarea {...form.register('hero_subtitle')} disabled={!isEditing} rows={2} placeholder="Professional event photography and management..." className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none disabled:bg-muted/30" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">CTA Button Label</label>
-                <input {...form.register('cta_label')} placeholder="Get a Quote" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+                <input {...form.register('cta_label')} disabled={!isEditing} placeholder="Get a Quote" className="w-full border border-border rounded-lg px-3 py-2 text-sm disabled:bg-muted/30" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">CTA Button URL</label>
-                <input {...form.register('cta_url')} placeholder="/contact" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+                <input {...form.register('cta_url')} disabled={!isEditing} placeholder="/contact" className="w-full border border-border rounded-lg px-3 py-2 text-sm disabled:bg-muted/30" />
               </div>
             </div>
 
@@ -181,7 +209,7 @@ export default function CmsPage() {
             <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">About Section</h3>
             <div>
               <label className="block text-sm font-medium mb-1">About Text</label>
-              <textarea {...form.register('about_text')} rows={5} placeholder="Write about your company..." className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
+              <textarea {...form.register('about_text')} disabled={!isEditing} rows={5} placeholder="Write about your company..." className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none disabled:bg-muted/30" />
             </div>
           </div>
         )}
@@ -191,7 +219,7 @@ export default function CmsPage() {
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h3 className="font-semibold">Services</h3>
-              <button type="button" onClick={() => setIsAddingService(true)} className="flex items-center gap-1 text-sm text-primary hover:underline">
+              <button type="button" onClick={() => setIsAddingService(true)} disabled={!isEditing} className="flex items-center gap-1 text-sm text-primary hover:underline disabled:opacity-50 disabled:no-underline">
                 <Plus className="h-3 w-3" /> Add Service
               </button>
             </div>
@@ -200,18 +228,18 @@ export default function CmsPage() {
                 <div key={field.id} className="p-4 grid grid-cols-[1fr_1fr_auto_auto] gap-4 items-start">
                   <div>
                     <label className="block text-xs text-muted-foreground mb-1">Title</label>
-                    <input {...form.register(`services.${i}.title`)} className="w-full border border-border rounded px-2 py-1.5 text-sm" />
+                    <input {...form.register(`services.${i}.title`)} disabled={!isEditing} className="w-full border border-border rounded px-2 py-1.5 text-sm disabled:bg-muted/30" />
                   </div>
                   <div>
                     <label className="block text-xs text-muted-foreground mb-1">Description</label>
-                    <input {...form.register(`services.${i}.description`)} className="w-full border border-border rounded px-2 py-1.5 text-sm" />
+                    <input {...form.register(`services.${i}.description`)} disabled={!isEditing} className="w-full border border-border rounded px-2 py-1.5 text-sm disabled:bg-muted/30" />
                   </div>
                   <div>
                     <label className="block text-xs text-muted-foreground mb-1">Icon / Emoji</label>
-                    <input {...form.register(`services.${i}.icon`)} placeholder="📸" className="w-16 border border-border rounded px-2 py-1.5 text-sm text-center" />
+                    <input {...form.register(`services.${i}.icon`)} disabled={!isEditing} placeholder="📸" className="w-16 border border-border rounded px-2 py-1.5 text-sm text-center disabled:bg-muted/30" />
                   </div>
                   <div className="pt-5">
-                    <button type="button" onClick={() => setDeleteIdx(i)} className="text-muted-foreground hover:text-destructive">
+                    <button type="button" onClick={() => setDeleteIdx(i)} disabled={!isEditing} className="text-muted-foreground hover:text-destructive disabled:opacity-50 disabled:cursor-not-allowed">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -232,19 +260,19 @@ export default function CmsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Phone Number</label>
-                  <div className="relative"><Phone className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><input {...form.register('contact_phone')} placeholder="+880 1XXX XXXXXX" className="w-full border border-border rounded-lg pl-9 pr-3 py-2 text-sm" /></div>
+                  <div className="relative"><Phone className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><input {...form.register('contact_phone')} disabled={!isEditing} placeholder="+880 1XXX XXXXXX" className="w-full border border-border rounded-lg pl-9 pr-3 py-2 text-sm disabled:bg-muted/30" /></div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">WhatsApp Number</label>
-                  <input {...form.register('whatsapp_number')} placeholder="+88017XXXXXXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+                  <input {...form.register('whatsapp_number')} disabled={!isEditing} placeholder="+88017XXXXXXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm disabled:bg-muted/30" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Email Address</label>
-                  <div className="relative"><Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><input {...form.register('contact_email')} placeholder="hello@hellotms.com.bd" className="w-full border border-border rounded-lg pl-9 pr-3 py-2 text-sm" /></div>
+                  <div className="relative"><Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><input {...form.register('contact_email')} disabled={!isEditing} placeholder="hello@hellotms.com.bd" className="w-full border border-border rounded-lg pl-9 pr-3 py-2 text-sm disabled:bg-muted/30" /></div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Address</label>
-                  <input {...form.register('contact_address')} placeholder="Dhaka, Bangladesh" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+                  <input {...form.register('contact_address')} disabled={!isEditing} placeholder="Dhaka, Bangladesh" className="w-full border border-border rounded-lg px-3 py-2 text-sm disabled:bg-muted/30" />
                 </div>
               </div>
             </div>
@@ -259,7 +287,7 @@ export default function CmsPage() {
                 ].map(({ label, field, placeholder }) => (
                   <div key={field}>
                     <label className="block text-sm font-medium mb-1">{label}</label>
-                    <input {...form.register(field)} placeholder={placeholder} className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+                    <input {...form.register(field)} disabled={!isEditing} placeholder={placeholder} className="w-full border border-border rounded-lg px-3 py-2 text-sm disabled:bg-muted/30" />
                   </div>
                 ))}
               </div>

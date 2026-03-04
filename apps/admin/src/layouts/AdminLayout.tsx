@@ -79,9 +79,13 @@ export default function AdminLayout() {
       {/* User info */}
       <div className="px-3 py-4 border-t border-sidebar-border">
         <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-sidebar-accent transition-colors">
-          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white shrink-0">
-            {getInitials(profile?.name ?? 'U')}
-          </div>
+          {profile?.avatar_url ? (
+            <img src={profile.avatar_url} alt={profile.name} className="h-8 w-8 rounded-full object-cover shrink-0" />
+          ) : (
+            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white shrink-0">
+              {getInitials(profile?.name ?? 'U')}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-sidebar-foreground truncate">{profile?.name ?? 'User'}</p>
             <p className="text-xs text-sidebar-foreground/60 truncate">{role?.name ?? 'viewer'}</p>
@@ -135,9 +139,13 @@ export default function AdminLayout() {
               <Bell className="h-5 w-5 text-muted-foreground" />
             </button>
             <div className="flex items-center gap-2 pl-2 border-l border-border">
-              <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white">
-                {getInitials(profile?.name ?? 'U')}
-              </div>
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt={profile.name} className="h-7 w-7 rounded-full object-cover shrink-0" />
+              ) : (
+                <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white">
+                  {getInitials(profile?.name ?? 'U')}
+                </div>
+              )}
               <span className="text-sm font-medium hidden sm:block">{profile?.name ?? 'User'}</span>
             </div>
           </div>

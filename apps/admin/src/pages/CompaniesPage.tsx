@@ -96,9 +96,13 @@ export default function CompaniesPage() {
       header: 'Company Name',
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Building2 className="h-4 w-4 text-primary" />
-          </div>
+          {row.original.logo_url ? (
+            <img src={row.original.logo_url} alt={row.original.name} className="h-8 w-8 rounded-lg object-cover bg-white" />
+          ) : (
+            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Building2 className="h-4 w-4 text-primary" />
+            </div>
+          )}
           <span className="font-medium text-foreground">{row.original.name}</span>
         </div>
       ),

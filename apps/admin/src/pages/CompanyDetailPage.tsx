@@ -93,9 +93,13 @@ export default function CompanyDetailPage() {
 
       {/* Company Info Card */}
       <div className="bg-card border border-border rounded-xl p-6 flex items-start gap-4">
-        <div className="h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-          <Building2 className="h-7 w-7 text-primary" />
-        </div>
+        {company.logo_url ? (
+          <img src={company.logo_url} alt={company.name} className="h-14 w-14 rounded-xl object-cover bg-white shrink-0 shadow-sm border border-border" />
+        ) : (
+          <div className="h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <Building2 className="h-7 w-7 text-primary" />
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
           {[
             { label: 'Phone', value: company.phone },
@@ -118,9 +122,8 @@ export default function CompanyDetailPage() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
+              className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
             >
               {tab}
             </button>

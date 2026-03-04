@@ -34,7 +34,7 @@ export function ProjectDetailView({ slug }: { slug: string }) {
             const { data: p } = await supabase
                 .from('projects')
                 .select('id, slug, title, description, notes, location, event_start_date, event_end_date, cover_image_url, companies(name, logo_url)')
-                .eq('slug', slug)
+                .eq('id', slug)
                 .eq('is_published', true)
                 .single();
 
@@ -115,14 +115,21 @@ export function ProjectDetailView({ slug }: { slug: string }) {
                             <ArrowLeft className="h-4 w-4" /> Back to Portfolio
                         </Link>
 
-                        {(project.description || project.notes) && (
+                        {project.description ? (
                             <div>
                                 <h2 className="text-xl font-bold text-[var(--foreground)] mb-4">About This Event</h2>
                                 <p className="text-[var(--muted)] leading-relaxed text-base whitespace-pre-line">
-                                    {project.description ?? project.notes}
+                                    {project.description}
                                 </p>
                             </div>
-                        )}
+                        ) : project.notes ? (
+                            <div>
+                                <h2 className="text-xl font-bold text-[var(--foreground)] mb-4">Event Notes</h2>
+                                <p className="text-[var(--muted)] leading-relaxed text-base whitespace-pre-line">
+                                    {project.notes}
+                                </p>
+                            </div>
+                        ) : null}
 
                         {photos.length > 0 && (
                             <div>

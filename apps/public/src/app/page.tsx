@@ -1,7 +1,9 @@
+'use client';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { ArrowRight, Camera, Users, Star, Award, Play, CheckCircle, Sparkles, TrendingUp, Globe } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
-// ── Demo data (replace with Supabase queries after domain setup) ─────────────
 const DEMO_STATS = [
   { icon: Camera, value: '500+', label: 'Events Executed' },
   { icon: Users, value: '300+', label: 'Happy Clients' },
@@ -16,15 +18,6 @@ const DEMO_SERVICES = [
   { icon: '🎤', title: 'Corporate Events', description: 'Conferences, seminars, product launches — we deliver on brand, always.' },
   { icon: '🌹', title: 'Wedding Planning', description: 'Your dream wedding, flawlessly curated with love and precision.' },
   { icon: '📊', title: 'Brand Activations', description: 'Immersive campaigns that connect your brand to the right audience.' },
-];
-
-const DEMO_PROJECTS = [
-  { id: 'demo-1', title: 'Grand Corporate Summit 2024', company: 'Apex Group', image: null, category: 'Corporate' },
-  { id: 'demo-2', title: 'Luxury Wedding — Bashundhara', company: 'Private Client', image: null, category: 'Wedding' },
-  { id: 'demo-3', title: 'Product Launch — Tech Expo', company: 'StartupBD', image: null, category: 'Corporate' },
-  { id: 'demo-4', title: 'Music Festival Dhaka 2024', company: 'EventCo', image: null, category: 'Festival' },
-  { id: 'demo-5', title: 'Fashion Week Bangladesh', company: 'StyleHouse', image: null, category: 'Fashion' },
-  { id: 'demo-6', title: 'NGO Annual Gala Dinner', company: 'HopeFoundation', image: null, category: 'Charity' },
 ];
 
 const GRADIENT_BG_CLASSES = [
@@ -43,27 +36,47 @@ const WHY_US = [
   { icon: Sparkles, title: 'Award-Winning Team', text: 'A passionate crew of creatives, planners, and storytellers.' },
 ];
 
-export const revalidate = 300;
+type Project = {
+  id: string;
+  title: string;
+  cover_image_url: string | null;
+  location: string | null;
+  companies: { name: string } | null;
+};
 
 export default function HomePage() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchProjects() {
+      const { data } = await supabase
+        .from('projects')
+        .select('id, title, cover_image_url, location, companies(name)')
+        .eq('is_published', true)
+        .order('event_start_date', { ascending: false })
+        .limit(6);
+      setProjects((data ?? []) as unknown as Project[]);
+      setLoading(false);
+    }
+    fetchProjects();
+  }, []);
+
   return (
     <div className="overflow-x-hidden">
 
       {/* ── Hero ─────────────────────────────────────────── */}
       <section className="relative min-h-screen flex items-center hero-gradient pt-16">
-        {/* Ambient orbs */}
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-amber-500/8 rounded-full blur-3xl pointer-events-none" />
 
         <div className="container relative z-10 py-20">
           <div className="max-w-4xl mx-auto text-center">
-            {/* Badge */}
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold tracking-wide mb-6">
               <Sparkles className="h-3.5 w-3.5" />
               Bangladesh's Premier Marketing Agency
             </div>
 
-            {/* Heading */}
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight text-[var(--foreground)] mb-6">
               We Create{' '}
               <span className="gradient-text">Unforgettable</span>
@@ -74,7 +87,6 @@ export default function HomePage() {
               From intimate gatherings to grand spectacles — The Marketing Solution delivers events that leave lasting impressions. Let us bring your vision to life.
             </p>
 
-            {/* CTAs */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 href="/contact"
@@ -91,12 +103,11 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Floating stat chips */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-16 max-w-3xl mx-auto">
             {DEMO_STATS.map(({ icon: Icon, value, label }) => (
               <div key={label} className="glass rounded-2xl p-4 text-center card-hover border border-[var(--border)]">
                 <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center mx-auto mb-2">
-                  <Icon className="h-5 w-5 text-indigo-400" />
+                  <Icon className="h-5 v-5 text-indigo-400" />
                 </div>
                 <p className="text-2xl font-black text-[var(--foreground)]">{value}</p>
                 <p className="text-xs text-[var(--muted)] mt-0.5">{label}</p>
@@ -158,39 +169,53 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {DEMO_PROJECTS.map((project, i) => (
-              <Link
-                key={project.id}
-                href={`/portfolio/${project.id}`}
-                className="group relative rounded-2xl overflow-hidden border border-[var(--border)] card-hover bg-[var(--card)]"
-              >
-                {/* Image / gradient placeholder */}
-                <div className={`relative h-52 bg-gradient-to-br ${GRADIENT_BG_CLASSES[i % GRADIENT_BG_CLASSES.length]} flex items-center justify-center`}>
-                  <Camera className="h-12 w-12 text-white/20 group-hover:text-white/30 transition-colors" />
-                  {/* Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                  <div className="absolute bottom-3 left-4 right-4">
-                    <span className="inline-block px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-[10px] text-white/80 font-medium backdrop-blur-sm">
-                      {project.category}
-                    </span>
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-64 rounded-2xl bg-[var(--muted)]/10 animate-pulse" />
+              ))}
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="text-center py-10">
+              <Camera className="h-12 w-12 text-[var(--muted)] opacity-20 mx-auto mb-3" />
+              <p className="text-[var(--muted)]">No projects published yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {projects.map((project, i) => (
+                <Link
+                  key={project.id}
+                  href={`/portfolio/${project.id}`}
+                  className="group relative rounded-2xl overflow-hidden border border-[var(--border)] card-hover bg-[var(--card)]"
+                >
+                  <div className={`relative h-52 bg-gradient-to-br ${GRADIENT_BG_CLASSES[i % GRADIENT_BG_CLASSES.length]} flex items-center justify-center`}>
+                    {project.cover_image_url ? (
+                      <img src={project.cover_image_url} alt={project.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <Camera className="h-12 w-12 text-white/20 group-hover:text-white/30 transition-colors" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                    <div className="absolute bottom-3 left-4 right-4">
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-[10px] text-white/80 font-medium backdrop-blur-sm">
+                        {project.location ?? 'Bangladesh'}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                {/* Content */}
-                <div className="p-4 bg-[var(--card)]">
-                  <h3 className="font-bold text-[var(--foreground)] group-hover:text-indigo-500 transition-colors line-clamp-1">
-                    {project.title}
-                  </h3>
-                  <p className="text-xs text-[var(--muted)] mt-1">{project.company}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
+                  <div className="p-4 bg-[var(--card)]">
+                    <h3 className="font-bold text-[var(--foreground)] group-hover:text-indigo-500 transition-colors line-clamp-1">
+                      {project.title}
+                    </h3>
+                    <p className="text-xs text-[var(--muted)] mt-1">{project.companies?.name ?? 'The Marketing Solution'}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
 
           <div className="text-center mt-10">
             <Link
               href="/portfolio"
-              className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-semibold transition-all hover:shadow-lg hover:shadow-indigo-500/25"
+              className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-50 text-white px-6 py-3 rounded-xl font-semibold transition-all hover:shadow-lg hover:shadow-indigo-500/25"
             >
               View Full Portfolio <ArrowRight className="h-4 w-4" />
             </Link>
@@ -238,7 +263,6 @@ export default function HomePage() {
       <section className="section">
         <div className="container">
           <div className="relative rounded-3xl overflow-hidden border border-indigo-500/20 bg-gradient-to-br from-indigo-950 via-[#0f0f23] to-purple-950 p-8 sm:p-14 text-center">
-            {/* Ambient */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-32 bg-indigo-600/20 rounded-full blur-3xl" />
             <div className="relative z-10">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60 text-xs font-medium mb-5">

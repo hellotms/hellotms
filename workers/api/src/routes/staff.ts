@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { createClient } from '@supabase/supabase-js';
 import { staffInviteSchema } from '@hellotms/shared';
 import { authMiddleware, requirePermission } from '../middleware/auth.js';
-import { sendEmail, buildInviteEmailHtml } from '../services/brevo.js';
+import { sendEmail, buildInviteEmailHtml, buildPasswordResetEmailHtml } from '../services/brevo.js';
 import type { Env, Variables } from '../types.js';
 
 export const staffRoute = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -134,6 +134,61 @@ staffRoute.put('/:id/activate', requirePermission('manage_staff'), async (c) => 
   if (error) return c.json({ error: error.message }, 500);
 
   return c.json({ message: 'Staff activated' });
+});
+
+// PUT /staff/:id/reset-password
+staffRoute.put('/:id/reset-password', async (c) => {
+  const { id } = c.req.param();
+
+  // Custom auth check to ensure caller is Super Admin. In Supabase we don't naturally 
+  // expose 'userRoleName' in Variables, we check permissions:
+  const callerPerms = c.get('userPermissions');
+  // 'manage_roles' and 'manage_staff' are the highest markers of super admin / admin
+  if (!callerPerms || !callerPerms.manage_staff) {
+    return c.json({ error: 'Only administrators can reset passwords' }, 403);
+  }
+
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+
+  // First, get the staff info
+  const { data: profile, error: profileErr } = await supabase
+    .from('profiles')
+    .select('name, email')
+    .eq('id', id)
+    .single();
+
+  if (profileErr || !profile) {
+    return c.json({ error: 'Staff profile not found' }, 404);
+  }
+
+  // Generate new Temp Password
+  const tempPassword = generateTempPassword();
+
+  // Update Auth layer
+  const { error: updateAuthErr } = await supabase.auth.admin.updateUserById(id, {
+    password: tempPassword
+  });
+
+  if (updateAuthErr) return c.json({ error: updateAuthErr.message }, 500);
+
+  // Mark needs pass reset
+  await supabase.from('profiles').update({ must_change_password: true }).eq('id', id);
+
+  // Send Email
+  const loginUrl = `https://ad.acadome.dev`; // Adjust via env if needed
+  const html = buildPasswordResetEmailHtml({
+    recipientName: profile.name,
+    loginUrl,
+    tempPassword
+  });
+
+  await sendEmail(c.env.BREVO_API_KEY, c.env.BREVO_SENDER_EMAIL, c.env.BREVO_SENDER_NAME, {
+    to: [{ email: profile.email, name: profile.name }],
+    subject: "Security: Your Ad.Acadome.Dev Password was reset",
+    htmlContent: html,
+  });
+
+  return c.json({ message: 'Password reset successfully', tempPassword });
 });
 
 // PUT /staff/:id/profile — update profile (self or manage_staff admin)

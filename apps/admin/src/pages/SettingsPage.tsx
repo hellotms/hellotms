@@ -1,18 +1,22 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useForm } from 'react-hook-form';
-import { User, Lock, Database, Bell, CheckCircle2, Sliders, Hash } from 'lucide-react';
+import { User, Lock, Database, Bell, Sliders } from 'lucide-react';
+import { toast } from '@/components/Toast';
 import { ImageUpload } from '@/components/ImageUpload';
+import { getInitials } from '@/lib/utils';
 
 export default function SettingsPage() {
   const { user, profile, refreshProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'system' | 'invoice'>('profile');
-  const [profileSaved, setProfileSaved] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [pwSaved, setPwSaved] = useState(false);
   const [pwError, setPwError] = useState('');
+  const [padMarginTop, setPadMarginTop] = useState(150);
+  const [padMarginBottom, setPadMarginBottom] = useState(100);
 
   const profileForm = useForm({
     defaultValues: {
@@ -24,7 +28,7 @@ export default function SettingsPage() {
   });
 
   const passwordForm = useForm({
-    defaultValues: { new_password: '', confirm_password: '' },
+    defaultValues: { current_password: '', new_password: '', confirm_password: '' },
   });
 
   const updateProfileMutation = useMutation({
@@ -37,9 +41,40 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       refreshProfile();
-      setProfileSaved(true);
-      setTimeout(() => setProfileSaved(false), 3000);
+      setIsEditingProfile(false);
+      toast('Profile updated successfully!', 'success');
     },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  const { data: siteSettings, refetch: refetchSettings } = useQuery({
+    queryKey: ['site-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('site_settings').select('*').eq('id', 1).single();
+      if (error) throw error;
+      if (data) {
+        setPadMarginTop(data.pad_margin_top ?? 150);
+        setPadMarginBottom(data.pad_margin_bottom ?? 100);
+      }
+      return data;
+    },
+  });
+
+  const updatePadMutation = useMutation({
+    mutationFn: async (payload: { url?: string; top?: number; bottom?: number }) => {
+      const updateData: any = {};
+      if (payload.url !== undefined) updateData.invoice_pad_url = payload.url;
+      if (payload.top !== undefined) updateData.pad_margin_top = payload.top;
+      if (payload.bottom !== undefined) updateData.pad_margin_bottom = payload.bottom;
+
+      const { error } = await supabase.from('site_settings').update(updateData).eq('id', 1);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refetchSettings();
+      toast('Invoice Pad settings updated!', 'success');
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
   });
 
   const updatePasswordMutation = useMutation({
@@ -89,7 +124,7 @@ export default function SettingsPage() {
                 <img src={profile.avatar_url} alt="Avatar" className="w-16 h-16 rounded-full object-cover" />
               ) : (
                 <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl font-bold">
-                  {(profile?.name ?? 'U')[0].toUpperCase()}
+                  {getInitials(profile?.name ?? 'U')}
                 </div>
               )}
               <div>
@@ -101,16 +136,16 @@ export default function SettingsPage() {
             <form onSubmit={profileForm.handleSubmit((v) => updateProfileMutation.mutate(v))} className="space-y-4 pt-4 border-t border-border">
               <div>
                 <label className="block text-sm font-medium mb-1">Full Name</label>
-                <input {...profileForm.register('name')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                <input {...profileForm.register('name')} disabled={!isEditingProfile} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:bg-muted/30" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Mobile No.</label>
-                  <input {...profileForm.register('phone')} placeholder="+8801..." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <input {...profileForm.register('phone')} disabled={!isEditingProfile} placeholder="+8801..." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:bg-muted/30" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Address</label>
-                  <input {...profileForm.register('address')} placeholder="123 Dhaka, BD..." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <input {...profileForm.register('address')} disabled={!isEditingProfile} placeholder="123 Dhaka, BD..." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:bg-muted/30" />
                 </div>
               </div>
               <div>
@@ -120,17 +155,41 @@ export default function SettingsPage() {
                     currentUrl={profileForm.watch('avatar_url')}
                     onUploaded={(url) => profileForm.setValue('avatar_url', url, { shouldDirty: true })}
                     label=""
+                    disabled={!isEditingProfile}
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2">
-                {profileSaved && <span className="text-sm text-green-600">✓ Profile updated</span>}
-                <div className="ml-auto">
-                  <button type="submit" disabled={updateProfileMutation.isPending} className="px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90 disabled:opacity-60">
-                    {updateProfileMutation.isPending ? 'Saving...' : 'Save Profile'}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                {!isEditingProfile ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingProfile(true)}
+                    className="px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+                  >
+                    Edit Profile
                   </button>
-                </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingProfile(false);
+                        profileForm.reset();
+                      }}
+                      className="px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={updateProfileMutation.isPending}
+                      className="px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90 disabled:opacity-60"
+                    >
+                      {updateProfileMutation.isPending ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </>
+                )}
               </div>
             </form>
           </div>
@@ -143,6 +202,10 @@ export default function SettingsPage() {
           <div className="bg-card border border-border rounded-xl p-6">
             <h3 className="font-semibold mb-4">Change Password</h3>
             <form onSubmit={passwordForm.handleSubmit((v) => updatePasswordMutation.mutate(v))} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Current Password</label>
+                <input type="password" {...passwordForm.register('current_password', { required: true })} placeholder="Verify identity" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+              </div>
               <div>
                 <label className="block text-sm font-medium mb-1">New Password</label>
                 <input type="password" {...passwordForm.register('new_password', { required: true })} placeholder="Min. 8 characters" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
@@ -161,19 +224,123 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Invoice settings Stub Tab */}
+      {/* Invoice settings Tab */}
       {activeTab === 'invoice' && (
-        <div className="max-w-xl space-y-4">
-          <div className="bg-card border border-border rounded-xl p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2"><Sliders className="h-4 w-4" /> Invoice Pad Config</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              You can upload a pad JPG/PNG or set up future UI logic templates here.
-            </p>
-            <div className="space-y-4 text-sm mt-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Upload Default Invoice/Pad Background (Stub)</label>
-                <input type="file" disabled className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-muted/20 text-muted-foreground border-dashed focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all opacity-50 cursor-not-allowed" />
-                <span className="text-xs text-muted-foreground mt-1">Image uploads will be enabled here when the DB layout mappings permit templates parsing in PDF/Print Views natively.</span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="space-y-6">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h3 className="font-semibold mb-4 flex items-center gap-2"><Sliders className="h-4 w-4" /> Invoice Pad Config</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Upload your pre-printed pad background (Header/Footer included) and set margins for the invoice content.
+              </p>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Pad Background Image</label>
+                  <ImageUpload
+                    currentUrl={siteSettings?.invoice_pad_url || null}
+                    onUploaded={(url) => updatePadMutation.mutate({ url })}
+                    label=""
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-2">
+                    Recommended: A4 portrait (2480 x 3508 px). The white area is where content will be printed.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Top Margin (px)</label>
+                    <input
+                      type="number"
+                      value={padMarginTop}
+                      onChange={(e) => setPadMarginTop(Number(e.target.value))}
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Bottom Margin (px)</label>
+                    <input
+                      type="number"
+                      value={padMarginBottom}
+                      onChange={(e) => setPadMarginBottom(Number(e.target.value))}
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => updatePadMutation.mutate({ top: padMarginTop, bottom: padMarginBottom })}
+                  disabled={updatePadMutation.isPending}
+                  className="w-full py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                >
+                  {updatePadMutation.isPending ? 'Updating...' : 'Save Margin Settings'}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+              <Bell className="h-5 w-5 text-amber-500 shrink-0" />
+              <div className="text-xs text-amber-700 space-y-1">
+                <p className="font-bold uppercase">Pro Tip</p>
+                <p>The margins prevent your content from overlapping with pre-printed headers and footers on your real pad.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="font-semibold flex items-center gap-2">Live Preview (Demo Data)</h3>
+            <div className="bg-muted border border-border rounded-xl p-4 flex justify-center overflow-hidden">
+              {/* Scaled A4 Preview */}
+              <div className="relative bg-white shadow-2xl origin-top" style={{ width: '350px', height: '495px', minWidth: '350px' }}>
+                {siteSettings?.invoice_pad_url && (
+                  <img src={siteSettings.invoice_pad_url} className="absolute inset-0 w-full h-full object-cover pointer-events-none opacity-100" />
+                )}
+
+                {/* Content Area within margins */}
+                <div
+                  className="absolute inset-x-0 bg-primary/5 border-y border-dashed border-primary/20 flex flex-col pointer-events-none"
+                  style={{
+                    top: `${(padMarginTop / 3508) * 100}%`,
+                    bottom: `${(padMarginBottom / 3508) * 100}%`
+                  }}
+                >
+                  <div className="p-4 space-y-4 opacity-40 grayscale translate-y-2">
+                    <div className="flex justify-between items-start">
+                      <div className="h-6 w-20 bg-gray-300 rounded" />
+                      <div className="text-[6px] text-right space-y-0.5">
+                        <div className="h-2 w-16 bg-gray-200 ml-auto rounded" />
+                        <div className="h-2 w-12 bg-gray-100 ml-auto rounded" />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="h-3 w-32 bg-gray-300 rounded" />
+                      <div className="h-2 w-48 bg-gray-200 rounded" />
+                    </div>
+                    <div className="border border-gray-200 rounded overflow-hidden">
+                      <div className="bg-gray-50 h-3 border-b border-gray-100" />
+                      <div className="p-1 space-y-1">
+                        <div className="h-2 w-full bg-gray-100 rounded" />
+                        <div className="h-2 w-full bg-gray-100 rounded" />
+                        <div className="h-2 w-2/3 bg-gray-100 rounded" />
+                      </div>
+                    </div>
+                    <div className="flex justify-end pt-2">
+                      <div className="h-4 w-16 bg-primary/20 rounded" />
+                    </div>
+                  </div>
+                  {/* Helper text for margins */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <p className="text-[10px] font-bold text-primary/40 rotate-12 border border-primary/20 px-2 py-1 rounded">INVOICE CONTENT AREA</p>
+                  </div>
+                </div>
+
+                {/* Margin labels */}
+                <div className="absolute top-0 right-0 p-1">
+                  <span className="text-[8px] bg-primary text-white px-1 py-0.5 rounded">Top: {padMarginTop}px</span>
+                </div>
+                <div className="absolute bottom-0 right-0 p-1">
+                  <span className="text-[8px] bg-primary text-white px-1 py-0.5 rounded">Bottom: {padMarginBottom}px</span>
+                </div>
               </div>
             </div>
           </div>

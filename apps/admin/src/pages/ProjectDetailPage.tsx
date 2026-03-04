@@ -30,6 +30,8 @@ type EditProjectInput = {
   notes?: string;
   is_featured: boolean;
   project_completed_at?: string;
+  description?: string;
+  cover_image_url?: string;
 };
 
 export default function ProjectDetailPage() {
@@ -102,7 +104,9 @@ export default function ProjectDetailPage() {
   const durations = project ? computeProjectDurations(project, collections, totalInvoiced) : null;
 
   // Edit project form
-  const editProjectForm = useForm<EditProjectInput>();
+  const { register: registerEdit, handleSubmit: handleSubmitEdit, reset: resetEdit, setValue: setValueEdit, watch: watchEdit } = useForm<EditProjectInput>();
+
+  const editCoverImageUrl = watchEdit('cover_image_url');
 
   // Gallery: fetch images from project_media table
   const { data: gallery = [], refetch: refetchGallery } = useQuery<{ id: string; url: string; path: string }[]>({
@@ -278,7 +282,7 @@ export default function ProjectDetailPage() {
         <StatusBadge status={project.status} />
         <button
           onClick={() => {
-            editProjectForm.reset({
+            resetEdit({
               title: project.title,
               status: project.status,
               location: project.location ?? '',
@@ -287,6 +291,8 @@ export default function ProjectDetailPage() {
               notes: project.notes ?? '',
               is_featured: project.is_featured ?? false,
               project_completed_at: project.project_completed_at ?? '',
+              description: project.description ?? '',
+              cover_image_url: project.cover_image_url ?? '',
             });
             setIsEditOpen(true);
           }}
@@ -352,19 +358,34 @@ export default function ProjectDetailPage() {
               { label: 'Budget', value: project.budget ? formatBDT(Number(project.budget)) : '—' },
               { label: 'Advance Paid', value: project.advance_received ? formatBDT(Number(project.advance_received)) : '—' },
               { label: 'Featured', value: project.is_featured ? 'Yes' : 'No' },
+              { label: 'Cover Photo', value: project.cover_image_url ? 'Added' : 'Missing' },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-start gap-2">
                 <span className="text-xs text-muted-foreground w-28 shrink-0 mt-0.5">{label}</span>
                 <span className="text-sm text-foreground capitalize">{value ?? '—'}</span>
               </div>
             ))}
+            {project.cover_image_url && (
+              <div className="mt-4">
+                <p className="text-xs text-muted-foreground mb-2">Cover Preview</p>
+                <img src={project.cover_image_url} alt="Cover" className="w-full h-40 object-cover rounded-lg border border-border" />
+              </div>
+            )}
           </div>
-          {project.notes && (
-            <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="font-semibold text-foreground mb-3">Notes</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{project.notes}</p>
-            </div>
-          )}
+          <div className="space-y-6">
+            {project.description && (
+              <div className="bg-card border border-border rounded-xl p-6">
+                <h3 className="font-semibold text-foreground mb-3 text-sm">About the Event (Public)</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{project.description}</p>
+              </div>
+            )}
+            {project.notes && (
+              <div className="bg-card border border-border rounded-xl p-6">
+                <h3 className="font-semibold text-foreground mb-3 text-sm">Admin Notes (Internal)</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{project.notes}</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -745,17 +766,16 @@ export default function ProjectDetailPage() {
         loading={deleteLedgerMutation.isPending}
       />
 
-      {/* Edit Project Modal */}
       <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Project">
-        <form onSubmit={editProjectForm.handleSubmit((v) => saveProjectMutation.mutate(v))} className="space-y-4">
+        <form onSubmit={handleSubmitEdit((v) => saveProjectMutation.mutate(v))} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">Project Title *</label>
-            <input {...editProjectForm.register('title', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            <input {...registerEdit('title', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Status</label>
-              <select {...editProjectForm.register('status')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+              <select {...registerEdit('status')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
                 <option value="draft">Draft</option>
                 <option value="active">Active</option>
                 <option value="completed">Completed</option>
@@ -764,29 +784,40 @@ export default function ProjectDetailPage() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Location</label>
-              <input {...editProjectForm.register('location')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="Dhaka, Bangladesh" />
+              <input {...registerEdit('location')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="Dhaka, Bangladesh" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Event Start Date *</label>
-              <input type="date" {...editProjectForm.register('event_start_date', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <input type="date" {...registerEdit('event_start_date', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Event End Date</label>
-              <input type="date" {...editProjectForm.register('event_end_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <input type="date" {...registerEdit('event_end_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Project Completed At</label>
-            <input type="date" {...editProjectForm.register('project_completed_at')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            <input type="date" {...registerEdit('project_completed_at')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          <ImageUpload
+            label="Cover Photo"
+            currentUrl={editCoverImageUrl}
+            onUploaded={(url) => setValueEdit('cover_image_url', url)}
+            aspect={16 / 9}
+            guide="Recommended ratio 16:9 (e.g. 1920x1080)"
+          />
+          <div>
+            <label className="block text-sm font-medium mb-1">About the Event (Description)</label>
+            <textarea {...registerEdit('description')} rows={5} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" placeholder="Public description..." />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Notes</label>
-            <textarea {...editProjectForm.register('notes')} rows={3} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+            <label className="block text-sm font-medium mb-1">Internal Notes</label>
+            <textarea {...registerEdit('notes')} rows={2} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
           </div>
           <div className="flex items-center gap-2">
-            <input type="checkbox" id="is_featured" {...editProjectForm.register('is_featured')} className="rounded" />
+            <input type="checkbox" id="is_featured" {...registerEdit('is_featured')} className="rounded" />
             <label htmlFor="is_featured" className="text-sm font-medium">Mark as Featured</label>
           </div>
           <div className="flex justify-end gap-3 pt-2">

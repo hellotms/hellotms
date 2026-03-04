@@ -139,6 +139,7 @@ export interface Lead {
 export interface SiteSettings {
   id: number; // singleton row id=1
   hero_title: string;
+  site_motto?: string | null;
   hero_subtitle?: string | null;
   hero_cta_primary_label?: string | null;
   hero_cta_primary_url?: string | null;

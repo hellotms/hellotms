@@ -13,6 +13,7 @@ import InvoiceDetailPage from '@/pages/InvoiceDetailPage';
 import LeadsPage from '@/pages/LeadsPage';
 import CmsPage from '@/pages/CmsPage';
 import StaffPage from '@/pages/StaffPage';
+import StaffProfilePage from '@/pages/StaffProfilePage';
 import SettingsPage from '@/pages/SettingsPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import WorkLogsPage from '@/pages/WorkLogsPage';
@@ -58,6 +59,7 @@ function AppRoutes() {
         <Route path="leads" element={<LeadsPage />} />
         <Route path="cms" element={<CmsPage />} />
         <Route path="staff" element={<StaffPage />} />
+        <Route path="staff/:id" element={<StaffProfilePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="work-logs" element={<WorkLogsPage />} />
       </Route>

@@ -87,7 +87,7 @@ export default function PortfolioPage() {
                 return (
                   <Link
                     key={project.id}
-                    href={`/portfolio/${project.slug}`}
+                    href={`/portfolio/${project.id}`}
                     className="group rounded-2xl overflow-hidden border border-[var(--border)] card-hover bg-[var(--card)]"
                   >
                     <div className={`relative h-56 bg-gradient-to-br ${GRADIENT_CLASSES[gradientIdx]} overflow-hidden`}>

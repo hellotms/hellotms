@@ -89,6 +89,48 @@ export function buildInviteEmailHtml(params: {
 </html>`;
 }
 
+export function buildPasswordResetEmailHtml(params: {
+  recipientName: string;
+  loginUrl: string;
+  tempPassword: string;
+}): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Temporary Password Reset</title></head>
+<body style="font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px">
+  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
+    <div style="background:#1e40af;padding:30px;text-align:center">
+      <h1 style="color:#fff;margin:0;font-size:24px">Marketing Solution</h1>
+      <p style="color:#bfdbfe;margin:8px 0 0">hellotms.com.bd</p>
+    </div>
+    <div style="padding:30px">
+      <h2 style="color:#1e293b;margin:0 0 16px">Your Password has been Reset</h2>
+      <p style="color:#475569;line-height:1.6">
+        Hi <strong>${params.recipientName}</strong>,<br><br>
+        Your administrator has reset your password for the
+        <strong>Marketing Solution</strong> admin panel.
+      </p>
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px;margin:20px 0;text-align:center">
+        <p style="color:#0369a1;margin:0 0 8px;font-size:13px;font-weight:bold">YOUR NEW TEMPORARY PASSWORD</p>
+        <p style="font-family:monospace;font-size:20px;font-weight:bold;color:#1e293b;letter-spacing:2px;margin:0">${params.tempPassword}</p>
+        <p style="color:#64748b;font-size:12px;margin:8px 0 0">You will be required to change this password on your next login.</p>
+      </div>
+      <div style="text-align:center;margin:24px 0">
+        <a href="${params.loginUrl}"
+           style="background:#1e40af;color:#fff;padding:14px 32px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:16px;display:inline-block">
+          Login to Admin Panel
+        </a>
+      </div>
+    </div>
+    <div style="background:#f8fafc;padding:16px;text-align:center;color:#94a3b8;font-size:12px">
+      © ${new Date().getFullYear()} hellotms.com.bd · All rights reserved
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
 export function buildInvoiceEmailHtml(params: {
   recipientName: string;
   invoiceNumber: string;

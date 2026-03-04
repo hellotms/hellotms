@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { staffApi } from '@/lib/api';
@@ -6,7 +7,8 @@ import { PageHeader } from '@/components/PageHeader';
 import { Modal, ConfirmModal } from '@/components/Modal';
 import { StatusBadge } from '@/components/StatusBadge';
 import { formatDate, getInitials } from '@/lib/utils';
-import { UserPlus, ShieldCheck, UserX, UserCheck, Plus, Pencil, Trash2 } from 'lucide-react';
+import { toast } from '@/components/Toast';
+import { UserPlus, ShieldCheck, UserX, UserCheck, Plus, Pencil, Trash2, KeyRound } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '@/context/AuthContext';
 
@@ -39,13 +41,13 @@ const ALL_PERMISSIONS: { key: string; label: string; group: string }[] = [
   { key: 'view_ledger', label: 'View Ledger', group: 'Finance' },
   { key: 'send_invoice', label: 'Send Invoices', group: 'Finance' },
   { key: 'manage_staff', label: 'Manage Staff', group: 'Staff' },
+  { key: 'view_staff', label: 'View Staff', group: 'Staff' },
   { key: 'manage_roles', label: 'Manage Roles', group: 'Staff' },
-  { key: 'manage_leads', label: 'Manage Leads', group: 'Leads' },
+  { key: 'manage_leads', label: 'Manage Contact Forms', group: 'Leads' },
   { key: 'view_leads', label: 'View Leads', group: 'Leads' },
   { key: 'manage_cms', label: 'Manage CMS', group: 'Settings' },
   { key: 'manage_settings', label: 'Manage Settings', group: 'Settings' },
   { key: 'view_audit_logs', label: 'View Audit Logs', group: 'Settings' },
-  { key: 'manage_contact_submissions', label: 'Manage Contact Forms', group: 'Settings' },
 ];
 
 const PERMISSION_GROUPS = Array.from(new Set(ALL_PERMISSIONS.map((p) => p.group)));
@@ -56,7 +58,7 @@ type Tab = (typeof TABS)[number];
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function StaffPage() {
   const queryClient = useQueryClient();
-  const { can } = useAuth();
+  const { can, role } = useAuth();
 
   const [activeTab, setActiveTab] = useState<Tab>('Staff');
 
@@ -67,6 +69,7 @@ export default function StaffPage() {
   const [deactivateTarget, setDeactivateTarget] = useState<StaffMember | null>(null);
   const [activateTarget, setActivateTarget] = useState<StaffMember | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
+  const [resetPasswordTarget, setResetPasswordTarget] = useState<StaffMember | null>(null);
   const [inviteError, setInviteError] = useState('');
 
   // Role modals
@@ -121,25 +124,55 @@ export default function StaffPage() {
   const changeRoleMutation = useMutation({
     mutationFn: async ({ staffId, roleId }: { staffId: string; roleId: string }) => {
       const result = await staffApi.changeRole(staffId, roleId) as { success?: boolean; error?: string };
-      if (!result.success) throw new Error(result.error ?? 'Failed to change role');
+      if (result.error) throw new Error(result.error);
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['staff'] }); setRoleChangeTarget(null); },
+    onSuccess: () => {
+      toast('Role changed successfully', 'success');
+      setRoleChangeTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
   });
 
   const deactivateMutation = useMutation({
     mutationFn: async (staffId: string) => {
       const result = await staffApi.deactivate(staffId) as { success?: boolean; error?: string };
-      if (!result.success) throw new Error(result.error ?? 'Failed to deactivate');
+      if (result.error) throw new Error(result.error);
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['staff'] }); setDeactivateTarget(null); },
+    onSuccess: () => {
+      toast('Staff deactivated', 'success');
+      setDeactivateTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
   });
 
   const activateMutation = useMutation({
     mutationFn: async (staffId: string) => {
       const result = await staffApi.activate(staffId) as { success?: boolean; error?: string };
-      if (!result.success) throw new Error(result.error ?? 'Failed to activate');
+      if (result.error) throw new Error(result.error);
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['staff'] }); setActivateTarget(null); },
+    onSuccess: () => {
+      toast('Staff activated', 'success');
+      setActivateTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (staffId: string) => {
+      return await staffApi.resetPassword(staffId);
+    },
+    onSuccess: (data, staffId) => {
+      toast('Password reset successfully. Email sent.', 'success');
+      setResetPasswordTarget(null);
+      const member = staff.find(s => s.id === staffId);
+      if (member && data.tempPassword) {
+        setTempPasswordModal({ name: member.name, email: member.email, password: data.tempPassword });
+      }
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
   });
 
   const deleteStaffMutation = useMutation({
@@ -223,7 +256,7 @@ export default function StaffPage() {
           title="Staff & Roles"
           description="Manage team members, roles and permissions"
         />
-        {activeTab === 'Staff' && can('manage_staff') && (
+        {(activeTab === 'Staff' && can('manage_staff')) && (
           <button
             onClick={() => { setInviteError(''); setIsInviteOpen(true); }}
             className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
@@ -285,43 +318,50 @@ export default function StaffPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         {member.avatar_url ? (
-                          <img src={member.avatar_url} alt={member.name} className="w-9 h-9 rounded-full object-cover" />
+                          <img src={member.avatar_url} alt={member.name} className="w-9 h-9 rounded-full object-cover bg-white" />
                         ) : (
-                          <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
+                          <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold uppercase">
                             {getInitials(member.name)}
                           </div>
                         )}
-                        <div>
-                          <p className="font-medium">{member.name}</p>
+                        <NavLink to={`/staff/${member.id}`} className="group/name">
+                          <p className="font-medium group-hover/name:text-primary transition-colors">{member.name}</p>
                           <p className="text-xs text-muted-foreground">{member.email}</p>
-                        </div>
+                        </NavLink>
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-1.5 text-sm">
                         <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                        {member.roles?.label ?? '—'}
+                        <span className="truncate max-w-[120px]" title={member.roles?.label}>{member.roles?.label ?? '—'}</span>
                       </span>
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={member.is_active ? 'active' : 'inactive'} /></td>
                     <td className="px-4 py-3 text-muted-foreground">{formatDate(member.created_at)}</td>
                     <td className="px-4 py-3">
-                      {can('manage_staff') && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => { setRoleChangeTarget(member); roleForm.reset({ role_id: member.roles?.id ?? '' }); }}
-                            className="text-xs text-primary hover:underline"
-                          >
-                            Change Role
-                          </button>
-                          {member.is_active ? (
-                            <button onClick={() => setDeactivateTarget(member)} className="text-xs text-destructive hover:underline">Deactivate</button>
-                          ) : (
-                            <button onClick={() => setActivateTarget(member)} className="text-xs text-green-600 hover:underline">Activate</button>
-                          )}
-                          <button onClick={() => handleDeleteClick(member)} className="text-xs text-red-500 hover:underline">Delete</button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {can('manage_staff') && (
+                          <>
+                            <button
+                              onClick={() => { setRoleChangeTarget(member); roleForm.reset({ role_id: member.roles?.id ?? '' }); }}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              Change Role
+                            </button>
+                            {member.is_active ? (
+                              <button onClick={() => handleDeactivateClick(member)} className="text-xs text-destructive hover:underline">Deactivate</button>
+                            ) : (
+                              <button onClick={() => setActivateTarget(member)} className="text-xs text-green-600 hover:underline">Activate</button>
+                            )}
+                            <button onClick={() => handleDeleteClick(member)} className="text-xs text-red-500 hover:underline">Delete</button>
+                            {role?.name === 'super_admin' && (
+                              <button onClick={() => setResetPasswordTarget(member)} className="text-xs text-amber-600 hover:underline flex items-center gap-1">
+                                <KeyRound className="h-3 w-3" /> Reset Password
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -521,6 +561,16 @@ export default function StaffPage() {
         message={`Are you sure you want to deactivate ${deactivateTarget?.name}? They will no longer be able to log in.`}
         confirmLabel="Deactivate"
         danger
+      />
+      <ConfirmModal
+        isOpen={!!resetPasswordTarget}
+        onClose={() => setResetPasswordTarget(null)}
+        onConfirm={() => resetPasswordTarget && resetPasswordMutation.mutate(resetPasswordTarget.id)}
+        title="Reset Staff Password"
+        message={`Are you sure you want to reset the password for ${resetPasswordTarget?.name}? They will be emailed a new temporary password instantly.`}
+        confirmLabel="Reset Password"
+        danger
+        loading={resetPasswordMutation.isPending}
       />
       <ConfirmModal
         isOpen={!!activateTarget}

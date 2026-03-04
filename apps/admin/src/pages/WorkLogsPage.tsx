@@ -6,6 +6,7 @@ import {
     Image, FileText, AlertCircle, ChevronDown
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
+import { getInitials } from '@/lib/utils';
 
 interface AuditLog {
     id: string;
@@ -16,7 +17,7 @@ interface AuditLog {
     before: Record<string, unknown> | null;
     after: Record<string, unknown> | null;
     created_at: string;
-    profiles?: { name: string; email: string } | null;
+    profiles?: { name: string; email: string; avatar_url?: string | null } | null;
 }
 
 const ACTION_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
@@ -39,22 +40,29 @@ export default function WorkLogsPage() {
     const [search, setSearch] = useState('');
     const [actionFilter, setActionFilter] = useState('all');
     const [expanded, setExpanded] = useState<string | null>(null);
+    const [rolesMap, setRolesMap] = useState<Record<string, string>>({});
 
     const load = useCallback(async () => {
         setLoading(true);
-        const { data } = await supabase
+        const { data: logsData } = await supabase
             .from('audit_logs')
-            .select('*, profiles(name, email)')
+            .select('*, profiles(name, email, avatar_url)')
             .order('created_at', { ascending: false })
             .limit(200);
-        setLogs(data ?? []);
+
+        const { data: rolesData } = await supabase.from('roles').select('id, label');
+        if (rolesData) {
+            const rMap: Record<string, string> = {};
+            rolesData.forEach(r => rMap[r.id] = r.label);
+            setRolesMap(rMap);
+        }
+
+        setLogs(logsData ?? []);
         setLoading(false);
     }, []);
 
     useEffect(() => {
         load();
-        const interval = setInterval(load, 5000);
-        return () => clearInterval(interval);
     }, [load]);
 
     const actionTypes = ['all', ...Array.from(new Set(logs.map(l => l.action)))];
@@ -128,7 +136,13 @@ export default function WorkLogsPage() {
                                             <p className="text-xs text-muted-foreground">{log.entity_type}</p>
                                         </div>
                                         <div className="flex items-center gap-1.5 mt-0.5">
-                                            <User className="h-3 w-3 text-muted-foreground" />
+                                            {log.profiles?.avatar_url ? (
+                                                <img src={log.profiles.avatar_url} alt="" className="h-3.5 w-3.5 rounded-full object-cover" />
+                                            ) : (
+                                                <div className="h-3.5 w-3.5 rounded-full bg-primary/20 flex items-center justify-center text-[8px] font-bold text-primary">
+                                                    {getInitials(log.profiles?.name ?? 'S')}
+                                                </div>
+                                            )}
                                             <p className="text-xs text-muted-foreground">{log.profiles?.name ?? 'System'}</p>
                                         </div>
                                     </div>
@@ -139,23 +153,56 @@ export default function WorkLogsPage() {
                                     {hasDetails && <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />}
                                 </div>
                                 {isOpen && hasDetails && (
-                                    <div className="border-t border-border px-4 py-3 bg-muted/20 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {log.before && Object.keys(log.before).length > 0 && (
-                                            <div>
-                                                <p className="text-xs font-semibold text-muted-foreground mb-1.5">Before</p>
-                                                <pre className="text-xs bg-background/50 rounded-lg p-3 overflow-auto text-foreground/70 border border-border">
-                                                    {JSON.stringify(log.before, null, 2)}
-                                                </pre>
-                                            </div>
-                                        )}
-                                        {log.after && Object.keys(log.after).length > 0 && (
-                                            <div>
-                                                <p className="text-xs font-semibold text-muted-foreground mb-1.5">After</p>
-                                                <pre className="text-xs bg-background/50 rounded-lg p-3 overflow-auto text-foreground/70 border border-border">
-                                                    {JSON.stringify(log.after, null, 2)}
-                                                </pre>
-                                            </div>
-                                        )}
+                                    <div className="border-t border-border px-4 py-4 bg-muted/10 grid grid-cols-1 gap-3">
+                                        {(() => {
+                                            const b = log.before || {};
+                                            const a = log.after || {};
+                                            const keys = Array.from(new Set([...Object.keys(b), ...Object.keys(a)]));
+
+                                            // Format value appropriately
+                                            const formatValue = (key: string, val: any) => {
+                                                if (val === null || val === undefined) return 'null';
+                                                if (key === 'role_id' && typeof val === 'string' && rolesMap[val]) {
+                                                    return rolesMap[val];
+                                                }
+                                                if (typeof val === 'object') return JSON.stringify(val);
+                                                return String(val);
+                                            };
+
+                                            return (
+                                                <div className="space-y-2">
+                                                    {keys.map(k => {
+                                                        const valB = b[k];
+                                                        const valA = a[k];
+                                                        // Hide uninteresting fields or deep unchanged objects if they clutter, but here we show if diff
+                                                        if (JSON.stringify(valB) === JSON.stringify(valA)) return null;
+
+                                                        const displayB = formatValue(k, valB);
+                                                        const displayA = formatValue(k, valA);
+
+                                                        if (log.action.includes('created') || log.action.includes('invited') || !log.before) {
+                                                            // Mostly just creation
+                                                            return (
+                                                                <div key={k} className="text-sm">
+                                                                    <span className="font-semibold text-foreground capitalize">{k.replace(/_/g, ' ')}:</span> <span className="text-muted-foreground">{displayA}</span>
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <div key={k} className="text-sm bg-background border border-border rounded-lg p-3">
+                                                                <span className="text-muted-foreground">Changed </span>
+                                                                <span className="font-semibold text-foreground capitalize">{k.replace(/_/g, ' ')}</span>
+                                                                <span className="text-muted-foreground"> from </span>
+                                                                <span className="text-red-500/80 line-through bg-red-500/10 px-1.5 py-0.5 rounded">{displayB}</span>
+                                                                <span className="text-muted-foreground"> to </span>
+                                                                <span className="font-semibold text-green-600 bg-green-500/10 px-1.5 py-0.5 rounded">{displayA}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 )}
                             </div>

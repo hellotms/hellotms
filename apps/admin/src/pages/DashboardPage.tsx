@@ -10,7 +10,7 @@ import { DateRangePicker } from '@/components/DateRangePicker';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useDateFilter } from '@/context/DateFilterContext';
-import { formatBDT, formatDate } from '@/lib/utils';
+import { formatBDT, formatDate, getInitials } from '@/lib/utils';
 import {
   DollarSign, TrendingDown, TrendingUp, AlertCircle,
   FolderOpen, CheckCircle2, Users, MessageSquare
@@ -152,7 +152,7 @@ export default function DashboardPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('audit_logs')
-        .select('id, action, entity_type, created_at, profiles(name)')
+        .select('id, action, entity_type, created_at, profiles(name, avatar_url)')
         .order('created_at', { ascending: false })
         .limit(6);
       return data ?? [];
@@ -300,14 +300,25 @@ export default function DashboardPage() {
       <div className="bg-card border border-border rounded-xl p-6">
         <h3 className="text-base font-semibold text-foreground mb-4">Recent Activity</h3>
         <div className="space-y-3">
-          {auditLogs?.map((log) => (
-            <div key={log.id} className="flex items-center gap-3 text-sm">
-              <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
-              <span className="text-foreground font-medium capitalize">{log.action.replace(/_/g, ' ')}</span>
-              <span className="text-muted-foreground capitalize">{log.entity_type}</span>
-              <span className="text-muted-foreground ml-auto text-xs">{formatDate(log.created_at)}</span>
-            </div>
-          ))}
+          {auditLogs?.map((log) => {
+            const p = log.profiles as unknown as { name: string; avatar_url?: string | null } | null;
+            return (
+              <div key={log.id} className="flex items-center gap-3 text-sm">
+                {p?.avatar_url ? (
+                  <img src={p.avatar_url} alt="" className="h-5 w-5 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div className="h-5 w-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
+                    {getInitials(p?.name ?? 'S')}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className="text-foreground font-medium capitalize truncate">{log.action.replace(/_/g, ' ')}</span>
+                  <span className="text-muted-foreground capitalize truncate">{log.entity_type}</span>
+                </div>
+                <span className="text-muted-foreground shrink-0 text-xs">{formatDate(log.created_at)}</span>
+              </div>
+            );
+          })}
           {!auditLogs?.length && (
             <p className="text-sm text-muted-foreground">No recent activity</p>
           )}

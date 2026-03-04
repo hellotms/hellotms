@@ -7,7 +7,8 @@ import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Modal } from '@/components/Modal';
 import { formatDate, slugify } from '@/lib/utils';
-import { Plus, FolderOpen } from 'lucide-react';
+import { Plus, FolderOpen, ImageIcon } from 'lucide-react';
+import { ImageUpload } from '@/components/ImageUpload';
 import { projectSchema } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
 import { toast } from '@/components/Toast';
@@ -48,7 +49,7 @@ export default function ProjectsPage() {
   });
 
   const today = new Date().toISOString().split('T')[0];
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<ProjectInput>({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ProjectInput>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
       status: 'draft',
@@ -58,6 +59,8 @@ export default function ProjectsPage() {
       event_start_date: today
     },
   });
+
+  const coverImageUrl = watch('cover_image_url');
 
   const createMutation = useMutation({
     mutationFn: async (values: ProjectInput) => {
@@ -270,8 +273,25 @@ export default function ProjectsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
-            <textarea {...register('notes')} rows={3} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+            <ImageUpload
+              label="Cover Photo"
+              currentUrl={coverImageUrl}
+              onUploaded={(url) => setValue('cover_image_url', url)}
+              aspect={16 / 9}
+              guide="Recommended ratio 16:9 (e.g. 1920x1080)"
+            />
+            {errors.cover_image_url && <p className="text-xs text-destructive mt-1">{errors.cover_image_url.message}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">About the Event</label>
+            <textarea {...register('description')} rows={4} placeholder="Detailed project/event description for the public site..." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+            {errors.description && <p className="text-xs text-destructive mt-1">{errors.description.message}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Admin Notes <span className="text-muted-foreground font-normal text-xs">(internal only)</span></label>
+            <textarea {...register('notes')} rows={2} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
           </div>
 
           <div className="flex justify-end gap-3 pt-2">

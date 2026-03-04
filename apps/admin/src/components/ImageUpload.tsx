@@ -10,6 +10,9 @@ interface ImageUploadProps {
     onUploaded: (url: string) => void;
     label?: string;
     className?: string;
+    disabled?: boolean;
+    aspect?: number;
+    guide?: string;
 }
 
 export function ImageUpload({
@@ -17,6 +20,9 @@ export function ImageUpload({
     onUploaded,
     label = 'Upload Image',
     className = '',
+    disabled = false,
+    aspect = 1,
+    guide,
 }: ImageUploadProps) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [preview, setPreview] = useState<string | null>(currentUrl ?? null);
@@ -88,24 +94,26 @@ export function ImageUpload({
 
             {preview ? (
                 // Preview state
-                <div className="relative w-full h-40 rounded-xl overflow-hidden border border-border group">
+                <div className={`relative w-full h-40 rounded-xl overflow-hidden border border-border group ${disabled ? 'opacity-70 grayscale-[0.2]' : ''}`}>
                     <img src={preview} alt="preview" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => inputRef.current?.click()}
-                            className="px-3 py-1.5 bg-white text-xs font-medium rounded-lg text-gray-900 hover:bg-gray-100"
-                        >
-                            Replace
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleClear}
-                            className="p-1.5 bg-red-500 rounded-lg text-white hover:bg-red-600"
-                        >
-                            <X className="h-3.5 w-3.5" />
-                        </button>
-                    </div>
+                    {!disabled && (
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => inputRef.current?.click()}
+                                className="px-3 py-1.5 bg-white text-xs font-medium rounded-lg text-gray-900 hover:bg-gray-100"
+                            >
+                                Replace
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleClear}
+                                className="p-1.5 bg-red-500 rounded-lg text-white hover:bg-red-600"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    )}
                     {uploading && (
                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                             <Loader2 className="h-6 w-6 text-white animate-spin" />
@@ -115,10 +123,10 @@ export function ImageUpload({
             ) : (
                 // Drop zone
                 <div
-                    onClick={() => inputRef.current?.click()}
+                    onClick={() => !disabled && inputRef.current?.click()}
                     onDrop={handleDrop}
                     onDragOver={(e) => e.preventDefault()}
-                    className="flex flex-col items-center justify-center h-36 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all"
+                    className={`flex flex-col items-center justify-center h-36 border-2 border-dashed border-border rounded-xl transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-primary/50 hover:bg-muted/30'}`}
                 >
                     {uploading ? (
                         <Loader2 className="h-6 w-6 text-muted-foreground animate-spin mb-2" />
@@ -129,6 +137,7 @@ export function ImageUpload({
                         {uploading ? 'Uploading...' : 'Click or drag & drop to upload'}
                     </p>
                     <p className="text-[10px] text-muted-foreground/60 mt-0.5">JPG, PNG, WEBP up to 10MB</p>
+                    {guide && <p className="text-[10px] text-primary/60 mt-1 font-medium">{guide}</p>}
                 </div>
             )}
 
@@ -154,7 +163,7 @@ export function ImageUpload({
                                 image={cropModalSrc}
                                 crop={crop}
                                 zoom={zoom}
-                                aspect={1} // Assuming 1:1 ratio for avatars
+                                aspect={aspect}
                                 onCropChange={setCrop}
                                 onCropComplete={onCropComplete}
                                 onZoomChange={setZoom}
