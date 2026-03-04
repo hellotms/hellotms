@@ -9,19 +9,19 @@ import {
 import { useState } from 'react';
 
 const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/companies', label: 'Companies', icon: Building2 },
-  { to: '/projects', label: 'Projects', icon: FolderOpen },
-  { to: '/invoices', label: 'Invoices', icon: Receipt },
-  { to: '/leads', label: 'Contact Form', icon: MessageSquare },
-  { to: '/cms', label: 'CMS / Website', icon: Globe },
-  { to: '/staff', label: 'Staff & Roles', icon: UserCog },
-  { to: '/work-logs', label: 'Work Logs', icon: ClipboardList },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }, // Always visible
+  { to: '/companies', label: 'Companies', icon: Building2, permission: 'manage_companies' },
+  { to: '/projects', label: 'Projects', icon: FolderOpen, permission: 'view_projects' },
+  { to: '/invoices', label: 'Invoices', icon: Receipt, permission: 'manage_invoices' },
+  { to: '/leads', label: 'Contact Form', icon: MessageSquare, permission: 'view_leads' },
+  { to: '/cms', label: 'CMS / Website', icon: Globe, permission: 'manage_cms' },
+  { to: '/staff', label: 'Staff & Roles', icon: UserCog, permission: 'view_staff' },
+  { to: '/work-logs', label: 'Work Logs', icon: ClipboardList, permission: 'view_audit_logs' },
+  { to: '/settings', label: 'Settings', icon: Settings, permission: 'manage_settings' },
 ];
 
 export default function AdminLayout() {
-  const { profile, role, signOut } = useAuth();
+  const { profile, role, signOut, can } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -53,7 +53,7 @@ export default function AdminLayout() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        {navItems.map(({ to, label, icon: Icon }) => (
+        {navItems.filter(item => !item.permission || can(item.permission)).map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

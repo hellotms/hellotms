@@ -97,8 +97,11 @@ export function ImageUpload({
 
             {preview ? (
                 // Preview state
-                <div className={`relative w-full h-40 rounded-xl overflow-hidden border border-border group ${disabled ? 'opacity-70 grayscale-[0.2]' : ''}`}>
-                    <img src={preview} alt="preview" className="w-full h-full object-cover" />
+                <div
+                    className={`relative w-full max-w-[200px] mx-auto rounded-xl overflow-hidden border border-border group ${disabled ? 'opacity-70 grayscale-[0.2]' : ''}`}
+                    style={{ aspectRatio: aspect ? `${aspect}` : '1/1', height: !aspect ? '160px' : 'auto', maxHeight: '200px' }}
+                >
+                    <img src={preview} alt="preview" className="w-full h-full object-contain bg-muted/20" />
                     {!disabled && (
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             <button

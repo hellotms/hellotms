@@ -11,33 +11,29 @@ export async function scheduledHandler(
   const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
 
   // Stochastic check: run ~2 times a week. 
-  // With hourly cron, probability is 2/168 ~= 0.0119. 
-  // We'll use 0.015 to be safer (roughly 2.5 times a week).
-  const shouldRun = Math.random() < 0.015;
+  // With 30-min cron, we have 336 slots/week. Probability = 2/336 ~= 0.006.
+  const shouldRun = Math.random() < 0.006;
 
   if (!shouldRun) {
-    console.log('[cron] Skipping keepalive for this hour.');
     return;
   }
 
+  // Stealth: Wait for a random number of seconds (up to 15 seconds) to avoid "on-the-dot" patterns
+  // Cloudflare Workers have a 30s limit for free, so we stay well below that.
+  const delayMs = Math.floor(Math.random() * 15000);
+  await new Promise(resolve => setTimeout(resolve, delayMs));
+
   try {
-    // Ping Supabase with a lightweight query
+    // Stealth: Query a real application table instead of a dedicated 'health' table.
+    // This looks like normal API activity.
     const { count, error } = await supabase
-      .from('health_logs')
-      .select('*', { count: 'exact', head: true });
+      .from('projects')
+      .select('id', { count: 'exact', head: true })
+      .limit(1);
 
     if (error) throw error;
-
-    // Log the successful ping
-    await supabase.from('health_logs').insert({ status: 'ok' });
-    console.log('[cron] Keepalive OK. health_logs count:', count);
+    console.log('[cron] Stealth keepalive success. Projects count:', count);
   } catch (err) {
-    console.error('[cron] Keepalive FAILED:', err);
-    try {
-      const supabaseRetry = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
-      await supabaseRetry.from('health_logs').insert({ status: 'error' });
-    } catch (logErr) {
-      console.error('[cron] Could not log failure:', logErr);
-    }
+    console.error('[cron] Stealth keepalive failed:', err);
   }
 }

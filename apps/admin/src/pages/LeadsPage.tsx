@@ -11,11 +11,14 @@ import type { Lead } from '@hellotms/shared';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useForm } from 'react-hook-form';
 import { toast } from '@/components/Toast';
+import { useAuth } from '@/context/AuthContext';
+import { auditApi } from '@/lib/api';
 
 const STATUS_OPTIONS = ['all', 'new', 'contacted', 'closed', 'starred'];
 
 export default function LeadsPage() {
   const queryClient = useQueryClient();
+  const { can } = useAuth();
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
@@ -38,6 +41,12 @@ export default function LeadsPage() {
     mutationFn: async (values: { status: string; notes?: string }) => {
       const { error } = await supabase.from('leads').update(values).eq('id', selectedLead!.id);
       if (error) throw error;
+      auditApi.log({
+        action: 'update_contact_form',
+        entity_type: 'lead',
+        entity_id: selectedLead!.id,
+        after: values
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
@@ -67,6 +76,12 @@ export default function LeadsPage() {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('leads').delete().eq('id', id);
       if (error) throw error;
+      auditApi.log({
+        action: 'delete_contact_form',
+        entity_type: 'lead',
+        entity_id: id,
+        before: { id }
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
@@ -129,12 +144,14 @@ export default function LeadsPage() {
           >
             <Star className={`h-4 w-4 ${row.original.is_starred ? 'fill-current' : ''}`} />
           </button>
-          <button
-            onClick={(e) => handleDelete(e, row.original)}
-            className="p-1.5 text-muted-foreground hover:text-red-500 rounded-md hover:bg-muted transition-colors"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {can('manage_contact_forms') && (
+            <button
+              onClick={(e) => handleDelete(e, row.original)}
+              className="p-1.5 text-muted-foreground hover:text-red-500 rounded-md hover:bg-muted transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       )
     }
@@ -235,27 +252,39 @@ export default function LeadsPage() {
               </div>
             )}
 
-            {/* Update Form */}
-            <form onSubmit={noteForm.handleSubmit((v) => updateMutation.mutate(v))} className="space-y-3 border-t border-border pt-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Update Status</label>
-                <select {...noteForm.register('status')} className="w-full border border-border rounded-lg px-3 py-2 text-sm">
-                  <option value="new">New</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="closed">Closed</option>
-                </select>
+            {/* Update Form (Guarded) */}
+            {can('manage_contact_forms') ? (
+              <form onSubmit={noteForm.handleSubmit((v) => updateMutation.mutate(v))} className="space-y-3 border-t border-border pt-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Update Status</label>
+                  <select {...noteForm.register('status')} className="w-full border border-border rounded-lg px-3 py-2 text-sm">
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Internal Notes</label>
+                  <textarea {...noteForm.register('notes')} rows={3} placeholder="Add private notes..." className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button type="button" onClick={() => setSelectedLead(null)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
+                  <button type="submit" disabled={updateMutation.isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
+                    {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-3 border-t border-border pt-4 mt-4">
+                <div className="bg-muted/40 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Internal Notes</p>
+                  <p className="text-sm text-foreground whitespace-pre-line">{selectedLead.notes || 'No notes.'}</p>
+                </div>
+                <div className="flex justify-end gap-3 mt-4">
+                  <button type="button" onClick={() => setSelectedLead(null)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Close</button>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Internal Notes</label>
-                <textarea {...noteForm.register('notes')} rows={3} placeholder="Add private notes..." className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
-              </div>
-              <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => setSelectedLead(null)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
-                <button type="submit" disabled={updateMutation.isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
-                  {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
+            )}
           </div>
         )}
       </Modal>

@@ -12,6 +12,7 @@ import type { Invoice, Company, Project } from '@hellotms/shared';
 import { generateInvoiceNumber } from '@hellotms/shared';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from '@/components/Toast';
+import { auditApi } from '@/lib/api';
 
 const STATUS_OPTIONS = ['all', 'draft', 'sent', 'paid', 'overdue'];
 
@@ -21,6 +22,8 @@ type LedgerRow = {
   amount: number;
   note?: string | null;
   entry_date: string;
+  quantity?: number | null;
+  face_value?: number | null;
 };
 
 type InvoiceLineItem = {
@@ -84,7 +87,7 @@ export default function InvoicesPage() {
       if (!selectedProjectId) return [];
       const { data } = await supabase
         .from('ledger_entries')
-        .select('id, category, amount, note, entry_date')
+        .select('id, category, amount, note, entry_date, quantity, face_value')
         .eq('project_id', selectedProjectId)
         .eq('type', 'expense')
         .is('deleted_at', null)
@@ -94,16 +97,53 @@ export default function InvoicesPage() {
     enabled: !!selectedProjectId,
   });
 
+  // Fetch project details for advance payment
+  const { data: projectDetails } = useQuery({
+    queryKey: ['invoice-project-details', selectedProjectId],
+    queryFn: async () => {
+      if (!selectedProjectId) return null;
+      const { data } = await supabase
+        .from('projects')
+        .select('advance_received')
+        .eq('id', selectedProjectId)
+        .single();
+      return data;
+    },
+    enabled: !!selectedProjectId,
+  });
+
+  // Fetch collections for this project
+  const { data: collections = [] } = useQuery({
+    queryKey: ['invoice-collections', selectedProjectId],
+    queryFn: async () => {
+      if (!selectedProjectId) return [];
+      const { data } = await supabase
+        .from('collections')
+        .select('amount')
+        .eq('project_id', selectedProjectId);
+      return data ?? [];
+    },
+    enabled: !!selectedProjectId,
+  });
+
+  const advanceReceived = Number(projectDetails?.advance_received || 0);
+  const totalCollections = collections.reduce((sum, c) => sum + Number(c.amount), 0);
+  const totalReceived = advanceReceived + totalCollections;
+
   // Auto-populate line items when ledger entries change
   useEffect(() => {
     if (ledgerEntries.length > 0) {
-      setLineItems(ledgerEntries.map(e => ({
-        description: e.category + (e.note ? ` — ${e.note}` : ''),
-        costPrice: e.amount,
-        quantity: 1,
-        unit_price: 0,
-        amount: 0,
-      })));
+      setLineItems(ledgerEntries.map(e => {
+        const qty = Number(e.quantity ?? 1);
+        const sellPrice = Number(e.face_value ?? 0);
+        return {
+          description: e.category + (e.note ? ` — ${e.note}` : ''),
+          costPrice: e.amount,
+          quantity: qty,
+          unit_price: sellPrice,
+          amount: qty * sellPrice,
+        };
+      }));
     }
   }, [ledgerEntries]);
 
@@ -160,10 +200,12 @@ export default function InvoicesPage() {
   const addBlankItem = () => setLineItems(prev => [...prev, { description: '', costPrice: 0, quantity: 1, unit_price: 0, amount: 0 }]);
 
   const subtotal = lineItems.reduce((s, item) => s + item.amount, 0);
+  const totalCost = lineItems.reduce((s, item) => s + (item.costPrice * item.quantity), 0);
   const discountAmt = discountType === 'percent'
     ? subtotal * (discountValue / 100)
     : discountValue;
-  const totalPayable = Math.max(0, subtotal - discountAmt);
+  const totalPayable = Math.max(0, subtotal - discountAmt - totalReceived);
+  const adminProfit = subtotal - discountAmt - totalCost;
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -176,6 +218,8 @@ export default function InvoicesPage() {
         unit_price: i.unit_price,
         amount: i.amount,
       }));
+
+      const { data: { user } } = await supabase.auth.getUser();
 
       const { data: inv, error } = await supabase
         .from('invoices')
@@ -190,6 +234,7 @@ export default function InvoicesPage() {
           discount_type: discountType,
           discount_value: discountAmt,
           notes: notes || null,
+          created_by: user?.id,
         })
         .select()
         .single();
@@ -204,7 +249,18 @@ export default function InvoicesPage() {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-count'] });
       closeModal();
-      navigate(`/invoices/${inv.id}`);
+      toast('Invoice created successfully', 'success');
+      auditApi.log({
+        action: 'create_invoice',
+        entity_type: 'invoice',
+        entity_id: inv.id,
+        after: {
+          invoice_number: invoiceNum,
+          company_id: selectedCompanyId,
+          project_id: selectedProjectId,
+          total_amount: subtotal
+        }
+      });
     },
     onError: (e: Error) => toast(e.message, 'error'),
   });
@@ -214,10 +270,15 @@ export default function InvoicesPage() {
       const { error } = await supabase.from('invoices').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       setDeleteTarget(null);
       toast('Invoice deleted successfully!', 'success');
+      auditApi.log({
+        action: 'delete_invoice',
+        entity_type: 'invoice',
+        entity_id: id
+      });
     },
     onError: (e: Error) => toast(e.message, 'error'),
   });
@@ -396,7 +457,7 @@ export default function InvoicesPage() {
                       </td>
                       <td className="px-3 py-2">
                         <span className="inline-flex items-center px-2 py-1 rounded bg-muted text-muted-foreground font-mono text-[11px]">
-                          {formatBDT(item.costPrice)}
+                          {item.costPrice > 0 ? formatBDT(item.costPrice) : '—'}
                         </span>
                       </td>
                       <td className="px-3 py-2">
@@ -481,18 +542,35 @@ export default function InvoicesPage() {
           </div>
 
           {/* Totals Summary */}
-          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col items-end gap-1.5 text-sm">
-            <div className="flex justify-between w-48">
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col items-end gap-1.5 text-sm relative overflow-hidden">
+            {/* Admin Profit Badge */}
+            <div className="absolute top-4 left-4 border border-emerald-200 bg-emerald-50 text-emerald-700 px-3 py-2 rounded-lg text-xs">
+              <span className="block font-semibold mb-0.5">Admin Profit Prediction</span>
+              <span className="font-mono text-sm">{formatBDT(adminProfit)}</span>
+              <span className="block text-[10px] opacity-70 mt-0.5">Not printed on invoice</span>
+            </div>
+
+            <div className="flex justify-between w-64">
               <span className="text-muted-foreground">Sub Total:</span>
               <span className="font-medium">{formatBDT(subtotal)}</span>
             </div>
+            <div className="flex justify-between w-64 text-muted-foreground text-xs border-b border-border/50 pb-1.5 mb-0.5">
+              <span>Total Cost Price:</span>
+              <span className="font-mono">{formatBDT(totalCost)}</span>
+            </div>
             {discountAmt > 0 && (
-              <div className="flex justify-between w-48 text-red-600">
+              <div className="flex justify-between w-64 text-red-600">
                 <span>Discount:</span>
                 <span>− {formatBDT(discountAmt)}</span>
               </div>
             )}
-            <div className="flex justify-between w-48 border-t border-primary/20 pt-1.5">
+            {totalReceived > 0 && (
+              <div className="flex justify-between w-64 text-teal-600">
+                <span>Payments Received:</span>
+                <span>− {formatBDT(totalReceived)}</span>
+              </div>
+            )}
+            <div className="flex justify-between w-64 border-t border-primary/20 pt-1.5">
               <span className="font-semibold text-foreground">Total Payable:</span>
               <span className="font-bold text-lg text-primary">{formatBDT(totalPayable)}</span>
             </div>

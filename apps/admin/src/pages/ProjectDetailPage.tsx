@@ -2,14 +2,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { staffApi, mediaApi } from '@/lib/api';
+import { staffApi, mediaApi, auditApi } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Modal, ConfirmModal } from '@/components/Modal';
 import { ImageUpload } from '@/components/ImageUpload';
 import { formatBDT, formatDate } from '@/lib/utils';
 import { computeProjectDurations } from '@hellotms/shared';
-import { ArrowLeft, Plus, Pencil, Trash2, Calendar, Clock, DollarSign, Upload, X, ImageIcon } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Calendar, Clock, DollarSign, Upload, X, ImageIcon, Download } from 'lucide-react';
 import type { Project, LedgerEntry, Collection, Invoice } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
 import { toast } from '@/components/Toast';
@@ -18,7 +18,7 @@ import { ledgerEntrySchema, collectionSchema, EVENT_CATEGORIES } from '@hellotms
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { CollectionInput } from '@hellotms/shared';
 
-const TABS = ['Overview', 'Ledger', 'Collections', 'Invoices', 'Timeline', 'Gallery'] as const;
+const TABS = ['Overview', 'Expenses', 'Collections', 'Invoices', 'Timeline', 'Gallery'] as const;
 type Tab = typeof TABS[number];
 
 type EditProjectInput = {
@@ -144,9 +144,21 @@ export default function ProjectDetailPage() {
       if (editingEntry) {
         const { error } = await supabase.from('ledger_entries').update(values).eq('id', editingEntry.id);
         if (error) throw error;
+        auditApi.log({
+          action: 'update_ledger_entry',
+          entity_type: 'ledger',
+          entity_id: editingEntry.id,
+          after: values
+        });
       } else {
-        const { error } = await supabase.from('ledger_entries').insert(values);
+        const { data, error } = await supabase.from('ledger_entries').insert(values).select().single();
         if (error) throw error;
+        auditApi.log({
+          action: 'create_ledger_entry',
+          entity_type: 'ledger',
+          entity_id: data.id,
+          after: values
+        });
       }
     },
     onSuccess: () => {
@@ -165,6 +177,12 @@ export default function ProjectDetailPage() {
     mutationFn: async (entryId: string) => {
       const { error } = await supabase.from('ledger_entries').update({ deleted_at: new Date().toISOString() }).eq('id', entryId);
       if (error) throw error;
+      auditApi.log({
+        action: 'delete_ledger_entry',
+        entity_type: 'ledger',
+        entity_id: entryId,
+        before: { id: entryId }
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ledger', id] });
@@ -195,8 +213,14 @@ export default function ProjectDetailPage() {
 
   const saveCollectionMutation = useMutation({
     mutationFn: async (values: CollectionInput) => {
-      const { error } = await supabase.from('collections').insert(values);
+      const { data, error } = await supabase.from('collections').insert(values).select().single();
       if (error) throw error;
+      auditApi.log({
+        action: 'create_collection',
+        entity_type: 'collection',
+        entity_id: data.id,
+        after: values
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['collections', id] });
@@ -212,7 +236,14 @@ export default function ProjectDetailPage() {
   // Toggle published
   const togglePublished = async () => {
     if (!project) return;
-    await supabase.from('projects').update({ is_published: !project.is_published }).eq('id', id!);
+    const newStatus = !project.is_published;
+    await supabase.from('projects').update({ is_published: newStatus }).eq('id', id!);
+    auditApi.log({
+      action: 'update_project_visibility',
+      entity_type: 'project',
+      entity_id: id!,
+      after: { is_published: newStatus }
+    });
     queryClient.invalidateQueries({ queryKey: ['project', id] });
   };
 
@@ -220,8 +251,8 @@ export default function ProjectDetailPage() {
     mutationFn: async (values: EditProjectInput) => {
       // 1. Handle potential cover image change
       const finalCoverUrl = await mediaApi.uploadAndCleanMedia(
-        values.cover_image_url as string | File | null,
-        project?.cover_image_url,
+        (values.cover_image_url ?? null) as File | string | null,
+        project?.cover_image_url || null,
         'projects',
         'cover',
         project?.title || values.title
@@ -242,6 +273,12 @@ export default function ProjectDetailPage() {
       };
       const { error } = await supabase.from('projects').update(payload).eq('id', id!);
       if (error) throw error;
+      auditApi.log({
+        action: 'update_project',
+        entity_type: 'project',
+        entity_id: id!,
+        after: payload
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', id] });
@@ -279,6 +316,12 @@ export default function ProjectDetailPage() {
             });
             if (insertError) throw insertError;
             successCount++;
+            auditApi.log({
+              action: 'upload_gallery_photo',
+              entity_type: 'project',
+              entity_id: id,
+              after: { url: res.url, path: res.key }
+            });
           } else {
             throw new Error('Upload to R2 failed');
           }
@@ -298,6 +341,25 @@ export default function ProjectDetailPage() {
       toast('Upload process encountered errors', 'error');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleDownloadPhoto = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename || 'photo.jpg';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Download failed:', error);
+      // Fallback: open in new tab if blob fetch fails (CORS issues etc)
+      window.open(url, '_blank');
     }
   };
 
@@ -445,11 +507,11 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {/* Ledger Tab */}
-      {activeTab === 'Ledger' && (
+      {/* Expenses Tab */}
+      {activeTab === 'Expenses' && (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold text-foreground">Finance Ledger</h3>
+            <h3 className="font-semibold text-foreground">Expenses</h3>
             <button
               onClick={() => {
                 setEditingEntry(null);
@@ -465,31 +527,22 @@ export default function ProjectDetailPage() {
             >
               <Plus className="h-3.5 w-3.5" /> Add Expense
             </button>
-            <button
-              onClick={openCollectionModal}
-              className="flex items-center gap-1.5 text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors ml-2"
-            >
-              <Plus className="h-3.5 w-3.5" /> Received from Client
-            </button>
           </div>
           <div className="border border-border rounded-xl overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
-                  {['Date', 'Type', 'Category', 'Amount', 'Status', 'Note', ''].map(h => (
+                  {['Date', 'Category', 'Amount', 'Status', 'Note', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {ledger.map((entry, i) => (
+                {ledger.filter(e => e.type === 'expense').map((entry, i) => (
                   <tr key={entry.id} className={`border-b border-border last:border-0 ${i % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
                     <td className="px-4 py-2.5 text-muted-foreground">{formatDate(entry.entry_date)}</td>
-                    <td className="px-4 py-2.5"><StatusBadge status={entry.type} /></td>
                     <td className="px-4 py-2.5">{entry.category}</td>
-                    <td className={`px-4 py-2.5 font-semibold ${entry.type === 'income' ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {entry.type === 'income' ? '+' : '-'}{formatBDT(Number(entry.amount))}
-                    </td>
+                    <td className="px-4 py-2.5 font-semibold text-red-500">−{formatBDT(Number(entry.amount))}</td>
                     <td className="px-4 py-2.5"><StatusBadge status={entry.paid_status ?? 'unpaid'} /></td>
                     <td className="px-4 py-2.5 text-muted-foreground max-w-[150px] truncate">{entry.note ?? '—'}</td>
                     <td className="px-4 py-2.5">
@@ -504,16 +557,16 @@ export default function ProjectDetailPage() {
                     </td>
                   </tr>
                 ))}
-                {ledger.length === 0 && (
-                  <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">No ledger entries yet</td></tr>
+                {ledger.filter(e => e.type === 'expense').length === 0 && (
+                  <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">No expense entries yet</td></tr>
                 )}
               </tbody>
-              {ledger.length > 0 && (
+              {ledger.filter(e => e.type === 'expense').length > 0 && (
                 <tfoot className="bg-muted/30 border-t border-border">
                   <tr>
-                    <td colSpan={3} className="px-4 py-3 text-sm font-semibold text-foreground">Totals</td>
-                    <td className="px-4 py-3 text-sm font-bold text-emerald-600">+{formatBDT(totalIncome)}</td>
-                    <td colSpan={3} className="px-4 py-3 text-sm font-bold text-red-500">-{formatBDT(totalExpense)}</td>
+                    <td colSpan={2} className="px-4 py-3 text-sm font-semibold text-foreground">Total Expenses</td>
+                    <td className="px-4 py-3 text-sm font-bold text-red-500">−{formatBDT(totalExpense)}</td>
+                    <td colSpan={3}></td>
                   </tr>
                 </tfoot>
               )}
@@ -656,15 +709,26 @@ export default function ProjectDetailPage() {
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold text-foreground">Photo Gallery</h3>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60"
+              <label
+                className={`flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${isUploading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-primary/90'}`}
               >
                 <Upload className="h-3.5 w-3.5" /> Select Photos
-              </button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  disabled={isUploading}
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      stageFiles(e.target.files);
+                    }
+                  }}
+                />
+              </label>
               {stagedFiles.length > 0 && (
                 <button
+                  type="button"
                   onClick={uploadStagedFiles}
                   disabled={isUploading}
                   className="flex items-center gap-1.5 text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-60"
@@ -673,14 +737,6 @@ export default function ProjectDetailPage() {
                 </button>
               )}
             </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => stageFiles(e.target.files)}
-            />
           </div>
           {uploadError && (
             <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2 mb-4">{uploadError}</p>
@@ -714,19 +770,27 @@ export default function ProjectDetailPage() {
             <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
               <ImageIcon className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">No photos yet. Click "Upload Photos" to add images.</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Photos are stored in R2 Cloudflare Storage ({project.companies?.name})</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Photos are stored in R2 Cloudflare Storage ({project?.companies?.name})</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {gallery.map((photo) => (
                 <div key={photo.id} className="relative group aspect-square rounded-lg overflow-hidden border border-border">
                   <img src={photo.url} alt="" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => handleDownloadPhoto(photo.url, `photo_${project?.title || 'project'}_${photo.id.slice(0, 8)}.jpg`)}
+                      className="p-1.5 rounded-full bg-white/20 text-white hover:bg-white/40 transition-colors"
+                      title="Download"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
                     <button
                       onClick={() => deletePhoto(photo)}
                       className="p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
+                      title="Delete"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
@@ -734,7 +798,8 @@ export default function ProjectDetailPage() {
             </div>
           )}
         </div>
-      )}
+      )
+      }
 
       {/* Ledger Entry Modal */}
       <Modal isOpen={isLedgerOpen} onClose={() => { setIsLedgerOpen(false); setEditingEntry(null); }} title={editingEntry ? 'Edit Entry' : 'Add Ledger Entry'}>
@@ -767,19 +832,32 @@ export default function ProjectDetailPage() {
               <input type="date" {...ledgerForm.register('entry_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
           </div>
+          {/* Optional invoice-planning fields */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Status</label>
-              <select {...ledgerForm.register('paid_status')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                <option value="paid">Paid</option>
-                <option value="unpaid">Unpaid</option>
-              </select>
+              <label className="block text-sm font-medium mb-1">Qty <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                placeholder="1"
+                {...ledgerForm.register('quantity', { valueAsNumber: true })}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Note</label>
-              <input {...ledgerForm.register('note')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <label className="block text-sm font-medium mb-1">Face Value / Sell Price <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="৳ 0"
+                {...ledgerForm.register('face_value', { valueAsNumber: true })}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
             </div>
           </div>
+          <p className="text-[11px] text-muted-foreground -mt-2">💡 Qty &amp; Face Value will auto-fill invoice line items for revenue calculation.</p>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => { setIsLedgerOpen(false); setEditingEntry(null); }} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
             <button type="submit" disabled={saveLedgerMutation.isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">

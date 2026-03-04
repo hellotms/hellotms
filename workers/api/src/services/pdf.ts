@@ -43,8 +43,15 @@ export interface InvoicePdfData {
   padMarginBottom?: number;
 }
 
+function cleanText(val: any): string {
+  if (val === null || val === undefined) return '';
+  const str = String(val);
+  // Keep standard ASCII 32-126 and high-order WinAnsi for basic latin
+  return str.replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ');
+}
+
 function fmtBDT(n: number): string {
-  return `BDT ${Math.round(n).toLocaleString('en-IN')}`;
+  return `BDT ${Math.round(n || 0).toLocaleString('en-IN')}`;
 }
 
 export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Array> {
@@ -62,8 +69,11 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   const red = rgb(0.863, 0.149, 0.149);
   const white = rgb(1, 1, 1);
 
-  const padTop = data.padMarginTop ?? 150;
-  const padBottom = data.padMarginBottom ?? 80;
+  const pageHeight = PageSizes.A4[1];
+  const scaleFactor = pageHeight / 3508; // Scaling from UI's recommended 3508px height to PDF points
+
+  const padTop = (data.padMarginTop ?? 150) * scaleFactor;
+  const padBottom = (data.padMarginBottom ?? 100) * scaleFactor;
 
   // ── Embedded pad image (fetched once, reused across pages) ──────────────────
   let embeddedPadImg: Awaited<ReturnType<typeof doc.embedPng>> | null = null;
@@ -71,6 +81,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   if (data.padImageUrl) {
     try {
       const imgRes = await fetch(data.padImageUrl);
+      if (!imgRes.ok) throw new Error('Pad image fetch failed');
       const imgBuf = await imgRes.arrayBuffer();
       const ct = imgRes.headers.get('content-type') ?? '';
       embeddedPadImg = ct.includes('png')
@@ -103,13 +114,15 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
       x: width - margin - boldFont.widthOfTextAtSize(label, 26),
       y: height - 50, size: 26, font: boldFont, color: white,
     });
-    page.drawText(data.invoiceNumber, {
-      x: width - margin - regularFont.widthOfTextAtSize(data.invoiceNumber, 11),
+    page.drawText(cleanText(data.invoiceNumber), {
+      x: width - margin - regularFont.widthOfTextAtSize(cleanText(data.invoiceNumber), 11),
       y: height - 68, size: 11, font: regularFont, color: rgb(0.749, 0.859, 1),
     });
   }
 
   // ── Current y position ─────────────────────────────────────────────────────
+  // If usePad is true, we respect the custom top margin. 
+  // If false, we use a fixed offset for the default blue header.
   let y = usePad ? height - padTop : height - 110;
 
   // ── Helper: ensure enough space, add page if not ───────────────────────────
@@ -130,19 +143,20 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   page.drawText('INVOICE DATE', { x: width - 200, y, size: 9, font: boldFont, color: blue });
 
   y -= 18;
-  page.drawText(data.company.name, { x: margin, y, size: 12, font: boldFont, color: dark });
-  page.drawText(data.project.title.slice(0, 35), { x: width / 2, y, size: 11, font: regularFont, color: dark });
-  page.drawText(data.invoiceDate, { x: width - 200, y, size: 11, font: regularFont, color: dark });
+  page.drawText(cleanText(data.company.name), { x: margin, y, size: 12, font: boldFont, color: dark });
+  const projTitle = cleanText(data.project.title);
+  page.drawText(projTitle.slice(0, 35), { x: width / 2, y, size: 11, font: regularFont, color: dark });
+  page.drawText(cleanText(data.invoiceDate), { x: width - 200, y, size: 11, font: regularFont, color: dark });
 
   y -= 16;
-  if (data.company.address) page.drawText(data.company.address.slice(0, 40), { x: margin, y, size: 9, font: regularFont, color: gray });
-  if (data.project.location) page.drawText(data.project.location.slice(0, 35), { x: width / 2, y, size: 9, font: regularFont, color: gray });
-  if (data.dueDate) page.drawText(`DUE: ${data.dueDate}`, { x: width - 200, y, size: 9, font: boldFont, color: red });
+  if (data.company.address) page.drawText(cleanText(data.company.address).slice(0, 40), { x: margin, y, size: 9, font: regularFont, color: gray });
+  if (data.project.location) page.drawText(cleanText(data.project.location).slice(0, 35), { x: width / 2, y, size: 9, font: regularFont, color: gray });
+  if (data.dueDate) page.drawText(`DUE: ${cleanText(data.dueDate)}`, { x: width - 200, y, size: 9, font: boldFont, color: red });
 
   y -= 16;
-  if (data.company.phone) page.drawText(`Tel: ${data.company.phone}`, { x: margin, y, size: 9, font: regularFont, color: gray });
+  if (data.company.phone) page.drawText(`Tel: ${cleanText(data.company.phone)}`, { x: margin, y, size: 9, font: regularFont, color: gray });
   y -= 14;
-  if (data.company.email) page.drawText(`Email: ${data.company.email}`, { x: margin, y, size: 9, font: regularFont, color: gray });
+  if (data.company.email) page.drawText(`Email: ${cleanText(data.company.email)}`, { x: margin, y, size: 9, font: regularFont, color: gray });
 
   y -= 24;
 
@@ -152,7 +166,8 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
 
   // ── Items Table Header ─────────────────────────────────────────────────────
   page.drawRectangle({ x: margin, y: y - 8, width: width - 2 * margin, height: 26, color: blue });
-  const cols = { sl: margin + 6, desc: margin + 30, qty: width - 200, unit: width - 145, total: width - 80 };
+  // Adjusted column positions for more room on the right
+  const cols = { sl: margin + 6, desc: margin + 30, qty: width - 250, unit: width - 180, total: width - 100 };
   page.drawText('SL', { x: cols.sl, y: y + 4, size: 8, font: boldFont, color: white });
   page.drawText('DESCRIPTION', { x: cols.desc, y: y + 4, size: 8, font: boldFont, color: white });
   page.drawText('QTY', { x: cols.qty, y: y + 4, size: 8, font: boldFont, color: white });
@@ -165,24 +180,25 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
     ensureSpace(24);
     const rowBg = i % 2 === 0 ? lightGray : white;
     page.drawRectangle({ x: margin, y: y - 8, width: width - 2 * margin, height: 22, color: rowBg });
-    const truncDesc = item.description.length > 52 ? item.description.slice(0, 49) + '...' : item.description;
+    const desc = cleanText(item.description);
+    const truncDesc = desc.length > 52 ? desc.slice(0, 49) + '...' : desc;
     page.drawText(String(i + 1), { x: cols.sl, y: y + 4, size: 8, font: regularFont, color: dark });
     page.drawText(truncDesc, { x: cols.desc, y: y + 4, size: 8, font: regularFont, color: dark });
-    page.drawText(String(item.quantity), { x: cols.qty, y: y + 4, size: 8, font: regularFont, color: dark });
-    page.drawText(fmtBDT(item.unitPrice), { x: cols.unit - 8, y: y + 4, size: 8, font: regularFont, color: dark });
-    page.drawText(fmtBDT(item.amount), { x: cols.total - 4, y: y + 4, size: 8, font: regularFont, color: dark });
+    page.drawText(String(item.quantity ?? 0), { x: cols.qty, y: y + 4, size: 8, font: regularFont, color: dark });
+    page.drawText(fmtBDT(item.unitPrice ?? 0), { x: cols.unit - 8, y: y + 4, size: 8, font: regularFont, color: dark });
+    page.drawText(fmtBDT(item.amount ?? 0), { x: cols.total - 4, y: y + 4, size: 8, font: regularFont, color: dark });
     y -= 22;
   });
 
   y -= 10;
 
   // ── Totals Section ─────────────────────────────────────────────────────────
-  const subtotal = data.totalAmount;
+  const subtotal = data.totalAmount ?? 0;
   const discountAmt = data.discountType === 'percent'
     ? subtotal * ((data.discountValue ?? 0) / 100)
     : (data.discountValue ?? 0);
   const totalPayable = Math.max(0, subtotal - discountAmt);
-  const totalPaid = (data.payments ?? []).reduce((s, p) => s + p.amount, 0) + (data.advanceReceived ?? 0);
+  const totalPaid = (data.payments ?? []).reduce((s, p) => s + (p.amount ?? 0), 0) + (data.advanceReceived ?? 0);
   const due = Math.max(0, totalPayable - totalPaid);
 
   const totalsX = width - 270;
@@ -205,8 +221,8 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
       ? `Discount (${data.discountValue}%):`
       : 'Discount:';
     page.drawText(discLabel, { x: totalsX, y, size: 9, font: boldFont, color: red });
-    page.drawText(`− ${fmtBDT(discountAmt)}`, {
-      x: width - margin - regularFont.widthOfTextAtSize(`− ${fmtBDT(discountAmt)}`, 9),
+    page.drawText(`- ${fmtBDT(discountAmt)}`, {
+      x: width - margin - regularFont.widthOfTextAtSize(`- ${fmtBDT(discountAmt)}`, 9),
       y, size: 9, font: regularFont, color: red,
     });
     y -= 16;
@@ -238,7 +254,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
     if ((data.advanceReceived ?? 0) > 0) {
       ensureSpace(20);
       page.drawText('Project Advance Payment', { x: margin + 8, y, size: 8, font: regularFont, color: gray });
-      page.drawText(`− ${fmtBDT(data.advanceReceived!)}`, {
+      page.drawText(`- ${fmtBDT(data.advanceReceived!)}`, {
         x: totalsX + 120,
         y, size: 8, font: boldFont, color: gray,
       });
@@ -247,10 +263,10 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
 
     data.payments!.forEach(p => {
       ensureSpace(20);
-      const methodStr = p.method ? ` (${p.method})` : '';
-      const noteStr = p.note ? ` — ${p.note.slice(0, 25)}` : '';
-      page.drawText(`${p.date}${methodStr}${noteStr}`, { x: margin + 8, y, size: 8, font: regularFont, color: gray });
-      page.drawText(`− ${fmtBDT(p.amount)}`, {
+      const methodStr = p.method ? ` (${cleanText(p.method)})` : '';
+      const noteStr = p.note ? ` — ${cleanText(p.note).slice(0, 25)}` : '';
+      page.drawText(`${cleanText(p.date)}${methodStr}${noteStr}`, { x: margin + 8, y, size: 8, font: regularFont, color: gray });
+      page.drawText(`- ${fmtBDT(p.amount ?? 0)}`, {
         x: totalsX + 120,
         y, size: 8, font: boldFont, color: gray,
       });
@@ -262,8 +278,8 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
     // Total paid row
     y -= 6;
     page.drawText('Total Paid:', { x: totalsX, y, size: 9, font: boldFont, color: dark });
-    page.drawText(`− ${fmtBDT(totalPaid)}`, {
-      x: width - margin - regularFont.widthOfTextAtSize(`− ${fmtBDT(totalPaid)}`, 9),
+    page.drawText(`- ${fmtBDT(totalPaid)}`, {
+      x: width - margin - regularFont.widthOfTextAtSize(`- ${fmtBDT(totalPaid)}`, 9),
       y, size: 9, font: regularFont, color: gray,
     });
     y -= 20;
@@ -283,11 +299,12 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
 
   // ── Notes ────────────────────────────────────────────────────────────────
   if (data.notes) {
+    const notes = cleanText(data.notes);
     ensureSpace(40);
     y -= 10;
     page.drawText('Notes:', { x: margin, y, size: 9, font: boldFont, color: dark });
     y -= 14;
-    const noteLines = data.notes.match(/.{1,90}/g) ?? [data.notes];
+    const noteLines = notes.match(/.{1,90}/g) ?? [notes];
     noteLines.slice(0, 3).forEach(line => {
       ensureSpace(14);
       page.drawText(line, { x: margin + 8, y, size: 9, font: regularFont, color: gray });

@@ -15,7 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from '@/components/Toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { Company, CompanyInput } from '@hellotms/shared';
-import { mediaApi } from '@/lib/api';
+import { mediaApi, auditApi } from '@/lib/api';
 
 export default function CompaniesPage() {
   const navigate = useNavigate();
@@ -58,9 +58,21 @@ export default function CompaniesPage() {
       if (editingCompany) {
         const { error } = await supabase.from('companies').update(payload).eq('id', editingCompany.id);
         if (error) throw error;
+        auditApi.log({
+          action: 'update_company',
+          entity_type: 'company',
+          entity_id: editingCompany.id,
+          after: payload
+        });
       } else {
-        const { error } = await supabase.from('companies').insert(payload);
+        const { data, error } = await supabase.from('companies').insert(payload).select().single();
         if (error) throw error;
+        auditApi.log({
+          action: 'create_company',
+          entity_type: 'company',
+          entity_id: data.id,
+          after: payload
+        });
       }
     },
     onSuccess: () => {
@@ -79,6 +91,12 @@ export default function CompaniesPage() {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('companies').delete().eq('id', id);
       if (error) throw error;
+      auditApi.log({
+        action: 'delete_company',
+        entity_type: 'company',
+        entity_id: id,
+        before: { id }
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });

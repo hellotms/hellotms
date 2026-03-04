@@ -7,6 +7,7 @@ import { Plus, Save, Trash2, Globe, Phone, Mail, LayoutDashboard } from 'lucide-
 import { toast } from '@/components/Toast';
 import { useForm, useFieldArray } from 'react-hook-form';
 import type { SiteSettings } from '@hellotms/shared';
+import { auditApi } from '@/lib/api';
 
 type CmsFormValues = {
   hero_title: string;
@@ -107,6 +108,13 @@ export default function CmsPage() {
       };
       const { error } = await supabase.from('site_settings').update(payload).eq('id', 1);
       if (error) throw error;
+
+      auditApi.log({
+        action: 'update_cms_content',
+        entity_type: 'site_settings',
+        entity_id: '1',
+        after: payload
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site-settings'] });

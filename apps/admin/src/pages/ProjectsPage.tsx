@@ -16,7 +16,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { Project, Company, ProjectInput } from '@hellotms/shared';
 import { MoreHorizontal, Trash, Pencil } from 'lucide-react';
-import { mediaApi } from '@/lib/api';
+import { mediaApi, auditApi } from '@/lib/api';
 
 const STATUS_OPTIONS = ['all', 'draft', 'active', 'completed'];
 
@@ -92,8 +92,14 @@ export default function ProjectsPage() {
         notes: values.notes || null,
         location: values.location || null,
       };
-      const { error } = await supabase.from('projects').insert(payload);
+      const { data, error } = await supabase.from('projects').insert(payload).select().single();
       if (error) throw error;
+      auditApi.log({
+        action: 'create_project',
+        entity_type: 'project',
+        entity_id: data.id,
+        after: payload
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -111,6 +117,12 @@ export default function ProjectsPage() {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('projects').delete().eq('id', id);
       if (error) throw error;
+      auditApi.log({
+        action: 'delete_project',
+        entity_type: 'project',
+        entity_id: id,
+        before: { id }
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects', statusFilter] });

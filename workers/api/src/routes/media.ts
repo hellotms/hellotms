@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requirePermission } from '../middleware/auth.js';
 import type { Env, Variables } from '../types.js';
 
 export const mediaRoute = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -8,8 +8,8 @@ export const mediaRoute = new Hono<{ Bindings: Env; Variables: Variables }>();
 mediaRoute.use('*', authMiddleware);
 
 mediaRoute.post('/upload', async (c) => {
-    const formData = await c.req.parseBody();
-    const file = formData['file'] as File | null;
+    const formData = await c.req.formData();
+    const file = formData.get('file') as File | null;
 
     if (!file) {
         return c.json({ error: 'No file provided' }, 400);
@@ -51,8 +51,8 @@ mediaRoute.post('/upload', async (c) => {
     }
 });
 
-// Optional: Delete endpoint
-mediaRoute.delete('/:key', async (c) => {
+// Delete endpoint requires manage_projects permission (or super_admin)
+mediaRoute.delete('/:key', requirePermission('manage_projects'), async (c) => {
     const { key } = c.req.param();
     try {
         await c.env.MEDIA_BUCKET.delete(key);

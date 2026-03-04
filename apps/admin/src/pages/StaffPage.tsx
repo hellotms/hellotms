@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { staffApi } from '@/lib/api';
+import { staffApi, auditApi } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { Modal, ConfirmModal } from '@/components/Modal';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -127,10 +127,16 @@ export default function StaffPage() {
       const result = await staffApi.changeRole(staffId, roleId) as { success?: boolean; error?: string };
       if (result.error) throw new Error(result.error);
     },
-    onSuccess: () => {
+    onSuccess: (_, { staffId, roleId }) => {
       toast('Role changed successfully', 'success');
       setRoleChangeTarget(null);
       queryClient.invalidateQueries({ queryKey: ['staff'] });
+      auditApi.log({
+        action: 'change_staff_role',
+        entity_type: 'staff',
+        entity_id: staffId,
+        after: { role_id: roleId }
+      });
     },
     onError: (e: Error) => toast(e.message, 'error'),
   });
@@ -140,10 +146,15 @@ export default function StaffPage() {
       const result = await staffApi.deactivate(staffId) as { success?: boolean; error?: string };
       if (result.error) throw new Error(result.error);
     },
-    onSuccess: () => {
+    onSuccess: (_, staffId) => {
       toast('Staff deactivated', 'success');
       setDeactivateTarget(null);
       queryClient.invalidateQueries({ queryKey: ['staff'] });
+      auditApi.log({
+        action: 'deactivate_staff',
+        entity_type: 'staff',
+        entity_id: staffId
+      });
     },
     onError: (e: Error) => toast(e.message, 'error'),
   });
@@ -153,10 +164,15 @@ export default function StaffPage() {
       const result = await staffApi.activate(staffId) as { success?: boolean; error?: string };
       if (result.error) throw new Error(result.error);
     },
-    onSuccess: () => {
+    onSuccess: (_, staffId) => {
       toast('Staff activated', 'success');
       setActivateTarget(null);
       queryClient.invalidateQueries({ queryKey: ['staff'] });
+      auditApi.log({
+        action: 'activate_staff',
+        entity_type: 'staff',
+        entity_id: staffId
+      });
     },
     onError: (e: Error) => toast(e.message, 'error'),
   });
@@ -172,6 +188,11 @@ export default function StaffPage() {
       if (member && data.tempPassword) {
         setTempPasswordModal({ name: member.name, email: member.email, password: data.tempPassword });
       }
+      auditApi.log({
+        action: 'reset_staff_password',
+        entity_type: 'staff',
+        entity_id: staffId
+      });
     },
     onError: (e: Error) => toast(e.message, 'error'),
   });
@@ -181,7 +202,15 @@ export default function StaffPage() {
       const { error } = await supabase.rpc('delete_user_by_id', { user_id: staffId });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['staff'] }); setDeleteTarget(null); },
+    onSuccess: (_, staffId) => {
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      setDeleteTarget(null);
+      auditApi.log({
+        action: 'delete_staff',
+        entity_type: 'staff',
+        entity_id: staffId
+      });
+    },
   });
 
   // ── Role mutations ─────────────────────────────────────────────────────────
@@ -195,7 +224,17 @@ export default function StaffPage() {
         if (error) throw error;
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['roles'] }); setIsRoleOpen(false); setEditingRole(null); },
+    onSuccess: (_, values) => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      setIsRoleOpen(false);
+      setEditingRole(null);
+      auditApi.log({
+        action: editingRole ? 'update_role' : 'create_role',
+        entity_type: 'role',
+        entity_id: editingRole?.id || undefined,
+        after: values
+      });
+    },
   });
 
   const deleteRoleMutation = useMutation({
@@ -203,7 +242,15 @@ export default function StaffPage() {
       const { error } = await supabase.from('roles').delete().eq('id', roleId);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['roles'] }); setDeleteRoleTarget(null); },
+    onSuccess: (_, roleId) => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      setDeleteRoleTarget(null);
+      auditApi.log({
+        action: 'delete_role',
+        entity_type: 'role',
+        entity_id: roleId
+      });
+    },
   });
 
   const openCreateRole = () => {

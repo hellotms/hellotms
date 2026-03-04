@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { invoicesApi } from '@/lib/api';
+import { invoicesApi, auditApi } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Modal, ConfirmModal } from '@/components/Modal';
@@ -67,7 +67,15 @@ export default function InvoiceDetailPage() {
       const { error } = await supabase.from('invoices').update({ status }).eq('id', id!);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['invoice', id] }),
+    onSuccess: (_, status) => {
+      queryClient.invalidateQueries({ queryKey: ['invoice', id] });
+      auditApi.log({
+        action: 'update_invoice_status',
+        entity_type: 'invoice',
+        entity_id: id,
+        after: { status }
+      });
+    },
   });
 
   const sendMutation = useMutation({
@@ -91,10 +99,16 @@ export default function InvoiceDetailPage() {
       const newTotal = (invoice?.total_amount ?? 0) + amount;
       await supabase.from('invoices').update({ total_amount: newTotal }).eq('id', id!);
     },
-    onSuccess: () => {
+    onSuccess: (_, values) => {
       queryClient.invalidateQueries({ queryKey: ['invoice', id] });
       setIsAddingItem(false);
       newItemForm.reset({ description: '', quantity: 1, unit_price: 0 });
+      auditApi.log({
+        action: 'add_invoice_item',
+        entity_type: 'invoice',
+        entity_id: id,
+        after: values
+      });
     },
   });
 
@@ -107,9 +121,15 @@ export default function InvoiceDetailPage() {
       const newTotal = (items ?? []).reduce((s: number, i: { amount: number }) => s + i.amount, 0);
       await supabase.from('invoices').update({ total_amount: newTotal }).eq('id', id!);
     },
-    onSuccess: () => {
+    onSuccess: (_, { itemId, values }) => {
       queryClient.invalidateQueries({ queryKey: ['invoice', id] });
       setIsEditingItem(null);
+      auditApi.log({
+        action: 'edit_invoice_item',
+        entity_type: 'invoice',
+        entity_id: id,
+        after: { item_id: itemId, ...values }
+      });
     },
   });
 
@@ -123,9 +143,15 @@ export default function InvoiceDetailPage() {
         await supabase.from('invoices').update({ total_amount: Math.max(0, newTotal) }).eq('id', id!);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, itemId) => {
       queryClient.invalidateQueries({ queryKey: ['invoice', id] });
       setDeleteItemId(null);
+      auditApi.log({
+        action: 'delete_invoice_item',
+        entity_type: 'invoice',
+        entity_id: id,
+        before: { item_id: itemId }
+      });
     },
   });
 
@@ -136,12 +162,30 @@ export default function InvoiceDetailPage() {
       if (result.pdfUrl) {
         window.open(result.pdfUrl, '_blank');
         queryClient.invalidateQueries({ queryKey: ['invoice', id] });
-        toast('PDF generated successfully!', 'success');
+        toast('PDF fetched successfully!', 'success');
       } else {
-        toast(result.error ?? 'Failed to generate PDF', 'error');
+        toast(result.error ?? 'Failed to get PDF', 'error');
       }
     } catch (err) {
-      toast('Failed to generate PDF', 'error');
+      toast('Failed to get PDF', 'error');
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  const handleRegeneratePdf = async () => {
+    try {
+      setPdfLoading(true);
+      const result = await invoicesApi.getPdf(id!, true) as { pdfUrl?: string | null; error?: string };
+      if (result.pdfUrl) {
+        window.open(result.pdfUrl, '_blank');
+        queryClient.invalidateQueries({ queryKey: ['invoice', id] });
+        toast('PDF regenerated successfully!', 'success');
+      } else {
+        toast(result.error ?? 'Failed to regenerate PDF', 'error');
+      }
+    } catch (err) {
+      toast('Failed to regenerate PDF', 'error');
     } finally {
       setPdfLoading(false);
     }
@@ -178,12 +222,20 @@ export default function InvoiceDetailPage() {
               </button>
             )}
             <button
+              onClick={handleRegeneratePdf}
+              disabled={pdfLoading}
+              className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted disabled:opacity-60"
+            >
+              {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Generate
+            </button>
+            <button
               onClick={handleDownloadPdf}
               disabled={pdfLoading}
               className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted disabled:opacity-60"
             >
               {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              PDF
+              Download
             </button>
             <button
               onClick={() => { setSendSuccess(false); setSendError(''); setIsSendOpen(true); }}

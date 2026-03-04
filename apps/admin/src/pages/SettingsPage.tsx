@@ -8,7 +8,7 @@ import { User, Lock, Database, Bell, Sliders } from 'lucide-react';
 import { toast } from '@/components/Toast';
 import { ImageUpload } from '@/components/ImageUpload';
 import { getInitials } from '@/lib/utils';
-import { mediaApi } from '@/lib/api';
+import { mediaApi, auditApi } from '@/lib/api';
 
 export default function SettingsPage() {
   const { user, profile, refreshProfile } = useAuth();
@@ -90,6 +90,13 @@ export default function SettingsPage() {
 
       const { error } = await supabase.from('site_settings').update(updateData).eq('id', 1);
       if (error) throw error;
+
+      auditApi.log({
+        action: 'update_invoice_pad_settings',
+        entity_type: 'site_settings',
+        entity_id: '1',
+        after: updateData
+      });
     },
     onSuccess: () => {
       refetchSettings();
@@ -264,6 +271,7 @@ export default function SettingsPage() {
                     onChange={(val) => updatePadMutation.mutate({ url: val, top: padMarginTop, bottom: padMarginBottom })}
                     label=""
                     disabled={!isEditingInvoice}
+                    aspect={210 / 297}
                   />
                   <p className="text-[10px] text-muted-foreground mt-2">
                     Recommended: A4 portrait (2480 x 3508 px). The white area is where content will be printed.
@@ -341,57 +349,72 @@ export default function SettingsPage() {
 
           <div className="space-y-4">
             <h3 className="font-semibold flex items-center gap-2">Live Preview (Demo Data)</h3>
-            <div className="bg-muted border border-border rounded-xl p-4 flex justify-center overflow-hidden">
-              {/* Scaled A4 Preview */}
-              <div className="relative bg-white shadow-2xl origin-top" style={{ width: '350px', height: '495px', minWidth: '350px' }}>
+            <div className="bg-muted border border-border rounded-xl p-8 flex justify-center overflow-hidden">
+              {/* Scaled A4 Preview: 210mm x 297mm -> Ratio ~0.707 */}
+              <div className="relative bg-white shadow-2xl overflow-hidden border border-border" style={{ width: '300px', height: '424px', minWidth: '300px' }}>
+                {/* Pad Background Image: Must be the absolute bottom layer */}
                 {siteSettings?.invoice_pad_url && (
-                  <img src={siteSettings.invoice_pad_url} className="absolute inset-0 w-full h-full object-cover pointer-events-none opacity-100" />
+                  <img
+                    src={siteSettings.invoice_pad_url}
+                    className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+                    alt="Pad Preview"
+                  />
                 )}
 
-                {/* Content Area within margins */}
+                {/* Top Margin Shadow/Overlay */}
                 <div
-                  className="absolute inset-x-0 bg-primary/5 border-y border-dashed border-primary/20 flex flex-col pointer-events-none"
+                  className="absolute top-0 inset-x-0 bg-red-500/10 border-b border-dashed border-red-400/30 z-10"
+                  style={{ height: `${(padMarginTop / 3508) * 100}%` }}
+                >
+                  <div className="absolute top-1 right-1 bg-red-500 text-white text-[6px] px-1 rounded-sm">Margin Top: {padMarginTop}px</div>
+                </div>
+
+                {/* Bottom Margin Shadow/Overlay */}
+                <div
+                  className="absolute bottom-0 inset-x-0 bg-red-500/10 border-t border-dashed border-red-400/30 z-10"
+                  style={{ height: `${(padMarginBottom / 3508) * 100}%` }}
+                >
+                  <div className="absolute bottom-1 right-1 bg-red-500 text-white text-[6px] px-1 rounded-sm">Margin Bottom: {padMarginBottom}px</div>
+                </div>
+
+                {/* Content Area (printable region) */}
+                <div
+                  className="absolute inset-x-0 flex flex-col pointer-events-none z-0"
                   style={{
                     top: `${(padMarginTop / 3508) * 100}%`,
                     bottom: `${(padMarginBottom / 3508) * 100}%`
                   }}
                 >
-                  <div className="p-4 space-y-4 opacity-40 grayscale translate-y-2">
+                  <div className="p-3 space-y-3 opacity-20 grayscale pointer-events-none">
                     <div className="flex justify-between items-start">
-                      <div className="h-6 w-20 bg-gray-300 rounded" />
-                      <div className="text-[6px] text-right space-y-0.5">
-                        <div className="h-2 w-16 bg-gray-200 ml-auto rounded" />
-                        <div className="h-2 w-12 bg-gray-100 ml-auto rounded" />
+                      <div className="h-3 w-12 bg-gray-400 rounded" />
+                      <div className="text-[5px] text-right space-y-0.5">
+                        <div className="h-1 w-10 bg-gray-300 ml-auto rounded" />
+                        <div className="h-1 w-6 bg-gray-200 ml-auto rounded" />
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <div className="h-3 w-32 bg-gray-300 rounded" />
-                      <div className="h-2 w-48 bg-gray-200 rounded" />
+                    <div className="space-y-1">
+                      <div className="h-1.5 w-20 bg-gray-400 rounded" />
+                      <div className="h-1 w-32 bg-gray-300 rounded" />
                     </div>
                     <div className="border border-gray-200 rounded overflow-hidden">
-                      <div className="bg-gray-50 h-3 border-b border-gray-100" />
+                      <div className="bg-gray-50 h-1.5 border-b border-gray-100" />
                       <div className="p-1 space-y-1">
-                        <div className="h-2 w-full bg-gray-100 rounded" />
-                        <div className="h-2 w-full bg-gray-100 rounded" />
-                        <div className="h-2 w-2/3 bg-gray-100 rounded" />
+                        <div className="h-1 w-full bg-gray-100 rounded" />
+                        <div className="h-1 w-1/2 bg-gray-100 rounded" />
                       </div>
                     </div>
-                    <div className="flex justify-end pt-2">
-                      <div className="h-4 w-16 bg-primary/20 rounded" />
+                    <div className="flex justify-end pt-1">
+                      <div className="h-2 w-10 bg-primary/20 rounded" />
                     </div>
                   </div>
-                  {/* Helper text for margins */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <p className="text-[10px] font-bold text-primary/40 rotate-12 border border-primary/20 px-2 py-1 rounded">INVOICE CONTENT AREA</p>
-                  </div>
-                </div>
 
-                {/* Margin labels */}
-                <div className="absolute top-0 right-0 p-1">
-                  <span className="text-[8px] bg-primary text-white px-1 py-0.5 rounded">Top: {padMarginTop}px</span>
-                </div>
-                <div className="absolute bottom-0 right-0 p-1">
-                  <span className="text-[8px] bg-primary text-white px-1 py-0.5 rounded">Bottom: {padMarginBottom}px</span>
+                  {/* Content area indicator */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-40">
+                    <p className="text-[7px] font-bold text-primary/60 rotate-12 border border-primary/30 px-1 py-0.5 rounded tracking-widest whitespace-nowrap">
+                      PRINTABLE CONTENT
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

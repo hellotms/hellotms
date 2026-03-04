@@ -46,6 +46,8 @@ export const ledgerEntrySchema = z.object({
   paid_status: z.enum(['paid', 'unpaid']).optional().nullable(),
   note: z.string().max(500).optional().nullable(),
   attachment_url: z.string().url().optional().nullable(),
+  quantity: z.number().positive().optional().nullable(),
+  face_value: z.number().nonnegative().optional().nullable(),
 });
 
 export type LedgerEntryInput = z.infer<typeof ledgerEntrySchema>;

@@ -55,6 +55,15 @@ export const leadsApi = {
   list: () => apiFetch<{ data: unknown[] }>('/leads'),
 };
 
+// ─── Audit Logs ──────────────────────────────────────────────────────────────
+export const auditApi = {
+  log: (payload: { action: string; entity_type: string; entity_id?: string; before?: any; after?: any }) =>
+    apiFetch('/audit', { method: 'POST', body: JSON.stringify(payload) }).catch(err => {
+      console.warn('[Audit Log Failed]', err);
+      // We don't want audit log failures to break the main application flow
+    }),
+};
+
 // ─── Staff ───────────────────────────────────────────────────────────────────
 export const staffApi = {
   invite: (payload: unknown) => apiFetch('/staff/invite', { method: 'POST', body: JSON.stringify(payload) }),
@@ -68,9 +77,13 @@ export const staffApi = {
 
 // ─── Invoices ────────────────────────────────────────────────────────────────
 export const invoicesApi = {
-  send: (id: string, recipientEmail: string, recipientName: string) =>
-    apiFetch(`/invoices/${id}/send`, { method: 'POST', body: JSON.stringify({ recipientEmail, recipientName }) }),
-  getPdf: (id: string) => apiFetch<{ pdfUrl: string | null }>(`/invoices/${id}/pdf`),
+  send: (id: string, recipientEmail: string, recipientName: string, force = false) =>
+    apiFetch(`/invoices/${id}/send`, {
+      method: 'POST',
+      body: JSON.stringify({ recipientEmail, recipientName, force })
+    }),
+  getPdf: (id: string, force = false) =>
+    apiFetch<{ pdfUrl: string | null }>(`/invoices/${id}/pdf${force ? '?force=true' : ''}`),
 };
 
 // ─── Media ───────────────────────────────────────────────────────────────────

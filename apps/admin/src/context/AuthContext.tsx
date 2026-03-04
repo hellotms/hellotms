@@ -74,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchProfile]);
 
   const can = useCallback((permission: string): boolean => {
+    if (role?.name === 'super_admin') return true;
     return Boolean(role?.permissions?.[permission]);
   }, [role]);
 

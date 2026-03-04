@@ -52,6 +52,10 @@ export function requireRole(...roles: string[]): MiddlewareHandler<{ Bindings: E
 
 export function requirePermission(permission: string): MiddlewareHandler<{ Bindings: Env; Variables: Variables }> {
   return async (c, next) => {
+    const role = c.get('userRole');
+    if (role === 'super_admin') {
+      return await next();
+    }
     const permissions = c.get('userPermissions');
     if (!permissions?.[permission]) {
       return c.json({ error: `Forbidden — requires permission: ${permission}` }, 403);
