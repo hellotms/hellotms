@@ -31,6 +31,7 @@ export const projectSchema = z.object({
   advance_received: z.number().min(0).optional().nullable(),
   description: z.string().max(3000).optional().nullable(),
   cover_image_url: z.string().url().optional().nullable(),
+  category: z.string().max(100).optional().nullable(),
 });
 
 export type ProjectInput = z.infer<typeof projectSchema>;

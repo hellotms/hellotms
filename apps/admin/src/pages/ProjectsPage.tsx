@@ -9,7 +9,7 @@ import { Modal } from '@/components/Modal';
 import { formatDate, slugify } from '@/lib/utils';
 import { Plus, FolderOpen, ImageIcon } from 'lucide-react';
 import { ImageUpload } from '@/components/ImageUpload';
-import { projectSchema } from '@hellotms/shared';
+import { projectSchema, EVENT_CATEGORIES } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
 import { toast } from '@/components/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -61,6 +61,9 @@ export default function ProjectsPage() {
   });
 
   const coverImageUrl = watch('cover_image_url');
+  const selectedCategory = watch('category');
+  const isOtherCategory = selectedCategory === 'Others';
+  const [customCategory, setCustomCategory] = useState('');
 
   const createMutation = useMutation({
     mutationFn: async (values: ProjectInput) => {
@@ -72,6 +75,11 @@ export default function ProjectsPage() {
         proposal_date: values.proposal_date || null,
         budget: values.budget || null,
         advance_received: values.advance_received ?? 0,
+        category: values.category === 'Others' ? customCategory : (values.category || null),
+        description: values.description || null,
+        cover_image_url: values.cover_image_url || null,
+        notes: values.notes || null,
+        location: values.location || null,
       };
       const { error } = await supabase.from('projects').insert(payload);
       if (error) throw error;
@@ -229,6 +237,33 @@ export default function ProjectsPage() {
             <input {...register('title')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             {errors.title && <p className="text-xs text-destructive mt-1">{errors.title.message}</p>}
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Event Category</label>
+            <select
+              {...register('category')}
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Select Category</option>
+              {EVENT_CATEGORIES.filter(c => c !== 'Others').map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+              <option value="Others">Others</option>
+            </select>
+          </div>
+
+          {isOtherCategory && (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Custom Category Name *</label>
+              <input
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder="Enter custom category..."
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                required
+              />
+            </div>
+          )}
 
 
           <div className="grid grid-cols-3 gap-4">

@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const { user, profile, refreshProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'system' | 'invoice'>('profile');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isEditingInvoice, setIsEditingInvoice] = useState(false);
   const [pwSaved, setPwSaved] = useState(false);
   const [pwError, setPwError] = useState('');
   const [padMarginTop, setPadMarginTop] = useState(150);
@@ -72,6 +73,7 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       refetchSettings();
+      setIsEditingInvoice(false);
       toast('Invoice Pad settings updated!', 'success');
     },
     onError: (e: Error) => toast(e.message, 'error'),
@@ -241,6 +243,7 @@ export default function SettingsPage() {
                     currentUrl={siteSettings?.invoice_pad_url || null}
                     onUploaded={(url) => updatePadMutation.mutate({ url })}
                     label=""
+                    disabled={!isEditingInvoice}
                   />
                   <p className="text-[10px] text-muted-foreground mt-2">
                     Recommended: A4 portrait (2480 x 3508 px). The white area is where content will be printed.
@@ -254,7 +257,8 @@ export default function SettingsPage() {
                       type="number"
                       value={padMarginTop}
                       onChange={(e) => setPadMarginTop(Number(e.target.value))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      disabled={!isEditingInvoice}
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:bg-muted/30"
                     />
                   </div>
                   <div>
@@ -263,18 +267,46 @@ export default function SettingsPage() {
                       type="number"
                       value={padMarginBottom}
                       onChange={(e) => setPadMarginBottom(Number(e.target.value))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      disabled={!isEditingInvoice}
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:bg-muted/30"
                     />
                   </div>
                 </div>
 
-                <button
-                  onClick={() => updatePadMutation.mutate({ top: padMarginTop, bottom: padMarginBottom })}
-                  disabled={updatePadMutation.isPending}
-                  className="w-full py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-                >
-                  {updatePadMutation.isPending ? 'Updating...' : 'Save Margin Settings'}
-                </button>
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  {!isEditingInvoice ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingInvoice(true)}
+                      className="w-full py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+                    >
+                      Edit Configuration
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditingInvoice(false);
+                          if (siteSettings) {
+                            setPadMarginTop(siteSettings.pad_margin_top ?? 150);
+                            setPadMarginBottom(siteSettings.pad_margin_bottom ?? 100);
+                          }
+                        }}
+                        className="px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => updatePadMutation.mutate({ top: padMarginTop, bottom: padMarginBottom })}
+                        disabled={updatePadMutation.isPending}
+                        className="flex-1 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+                      >
+                        {updatePadMutation.isPending ? 'Saving...' : 'Save Settings'}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 

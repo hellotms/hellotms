@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Calendar, MapPin, Building2, Tag, Camera } from 'lucide-react';
+import { ArrowLeft, Calendar, Building2, Tag, Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { GallerySection } from '../../../components/GallerySection';
 
@@ -12,6 +12,7 @@ type Project = {
     description: string | null;
     notes: string | null;
     location: string | null;
+    category: string | null;
     event_start_date: string;
     event_end_date: string | null;
     cover_image_url: string | null;
@@ -33,7 +34,7 @@ export function ProjectDetailView({ slug }: { slug: string }) {
         async function fetchData() {
             const { data: p } = await supabase
                 .from('projects')
-                .select('id, slug, title, description, notes, location, event_start_date, event_end_date, cover_image_url, companies(name, logo_url)')
+                .select('id, slug, title, description, notes, location, category, event_start_date, event_end_date, cover_image_url, companies(name, logo_url)')
                 .eq('id', slug)
                 .eq('is_published', true)
                 .single();
@@ -93,9 +94,11 @@ export function ProjectDetailView({ slug }: { slug: string }) {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10">
                     <div className="container">
-                        <span className="inline-block px-2.5 py-1 rounded-full bg-white/10 border border-white/20 text-[10px] text-white/80 font-semibold backdrop-blur-sm mb-3">
-                            {project.location ?? 'Bangladesh'}
-                        </span>
+                        {project.category && (
+                            <span className="inline-block px-2.5 py-1 rounded-full bg-indigo-600 border border-indigo-400/30 text-[10px] text-white font-bold uppercase tracking-wider shadow-lg mb-3">
+                                {project.category}
+                            </span>
+                        )}
                         <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-tight">
                             {project.title}
                         </h1>
@@ -115,21 +118,14 @@ export function ProjectDetailView({ slug }: { slug: string }) {
                             <ArrowLeft className="h-4 w-4" /> Back to Portfolio
                         </Link>
 
-                        {project.description ? (
+                        {project.description && (
                             <div>
                                 <h2 className="text-xl font-bold text-[var(--foreground)] mb-4">About This Event</h2>
                                 <p className="text-[var(--muted)] leading-relaxed text-base whitespace-pre-line">
                                     {project.description}
                                 </p>
                             </div>
-                        ) : project.notes ? (
-                            <div>
-                                <h2 className="text-xl font-bold text-[var(--foreground)] mb-4">Event Notes</h2>
-                                <p className="text-[var(--muted)] leading-relaxed text-base whitespace-pre-line">
-                                    {project.notes}
-                                </p>
-                            </div>
-                        ) : null}
+                        )}
 
                         {photos.length > 0 && (
                             <div>
@@ -153,9 +149,9 @@ export function ProjectDetailView({ slug }: { slug: string }) {
                             )}
                             <h3 className="font-bold text-[var(--foreground)]">Event Details</h3>
                             {[
-                                { icon: Building2, label: 'Client', value: project.companies?.name ?? '—' },
+                                { icon: Building2, label: 'Client', value: project.companies?.name ?? 'The Marketing Solution' },
                                 { icon: Calendar, label: 'Event Date', value: eventDateStr },
-                                { icon: MapPin, label: 'Location', value: project.location ?? '—' },
+                                { icon: Tag, label: 'Category', value: project.category ?? '—' },
                                 { icon: Tag, label: 'Year', value: String(eventYear) },
                             ].map(({ icon: Icon, label, value }) => (
                                 <div key={label} className="flex items-start gap-3">

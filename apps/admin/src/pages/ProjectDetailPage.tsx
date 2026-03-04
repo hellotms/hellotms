@@ -14,7 +14,7 @@ import type { Project, LedgerEntry, Collection, Invoice } from '@hellotms/shared
 import { useForm } from 'react-hook-form';
 import { toast } from '@/components/Toast';
 import type { LedgerEntryInput } from '@hellotms/shared';
-import { ledgerEntrySchema, collectionSchema } from '@hellotms/shared';
+import { ledgerEntrySchema, collectionSchema, EVENT_CATEGORIES } from '@hellotms/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { CollectionInput } from '@hellotms/shared';
 
@@ -32,6 +32,7 @@ type EditProjectInput = {
   project_completed_at?: string;
   description?: string;
   cover_image_url?: string;
+  category?: string;
 };
 
 export default function ProjectDetailPage() {
@@ -44,6 +45,7 @@ export default function ProjectDetailPage() {
   const [isCollectionOpen, setIsCollectionOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [customCategory, setCustomCategory] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
@@ -107,6 +109,8 @@ export default function ProjectDetailPage() {
   const { register: registerEdit, handleSubmit: handleSubmitEdit, reset: resetEdit, setValue: setValueEdit, watch: watchEdit } = useForm<EditProjectInput>();
 
   const editCoverImageUrl = watchEdit('cover_image_url');
+  const selectedCategory = watchEdit('category');
+  const isOtherCategory = selectedCategory === 'Others';
 
   // Gallery: fetch images from project_media table
   const { data: gallery = [], refetch: refetchGallery } = useQuery<{ id: string; url: string; path: string }[]>({
@@ -205,10 +209,19 @@ export default function ProjectDetailPage() {
     queryClient.invalidateQueries({ queryKey: ['project', id] });
   };
 
-  // Save edited project
   const saveProjectMutation = useMutation({
     mutationFn: async (values: EditProjectInput) => {
-      const { error } = await supabase.from('projects').update(values).eq('id', id!);
+      const payload = {
+        ...values,
+        event_end_date: values.event_end_date || values.event_start_date || null,
+        project_completed_at: values.project_completed_at || null,
+        location: values.location || null,
+        notes: values.notes || null,
+        description: values.description || null,
+        cover_image_url: values.cover_image_url || null,
+        category: values.category === 'Others' ? customCategory : (values.category || null),
+      };
+      const { error } = await supabase.from('projects').update(payload).eq('id', id!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -293,7 +306,9 @@ export default function ProjectDetailPage() {
               project_completed_at: project.project_completed_at ?? '',
               description: project.description ?? '',
               cover_image_url: project.cover_image_url ?? '',
+              category: EVENT_CATEGORIES.includes(project.category as any) ? (project.category ?? '') : (project.category ? 'Others' : ''),
             });
+            setCustomCategory(EVENT_CATEGORIES.includes(project.category as any) ? '' : (project.category ?? ''));
             setIsEditOpen(true);
           }}
           className="flex items-center gap-1.5 text-xs border border-border px-3 py-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
@@ -787,6 +802,31 @@ export default function ProjectDetailPage() {
               <input {...registerEdit('location')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="Dhaka, Bangladesh" />
             </div>
           </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Event Category</label>
+            <select
+              {...registerEdit('category')}
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Select Category</option>
+              {EVENT_CATEGORIES.filter(c => c !== 'Others').map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+              <option value="Others">Others</option>
+            </select>
+          </div>
+          {isOtherCategory && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Custom Category Name *</label>
+              <input
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder="Enter custom category..."
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                required
+              />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Event Start Date *</label>

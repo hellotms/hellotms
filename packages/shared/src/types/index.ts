@@ -45,6 +45,7 @@ export interface Project {
   description?: string | null;
   cover_image_url?: string | null;
   gallery_urls?: string[] | null;
+  category?: string | null;
   venue?: string | null;
   event_start_date: string; // ISO date
   proposal_date?: string | null;

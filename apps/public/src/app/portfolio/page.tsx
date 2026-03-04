@@ -21,6 +21,7 @@ type Project = {
   slug: string;
   title: string;
   location: string | null;
+  category: string | null;
   event_start_date: string;
   cover_image_url: string | null;
   companies: { name: string } | null;
@@ -29,19 +30,32 @@ type Project = {
 export default function PortfolioPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<string>('All');
+  const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchProjects() {
       const { data } = await supabase
         .from('projects')
-        .select('id, slug, title, location, event_start_date, cover_image_url, companies(name)')
+        .select('id, slug, title, location, category, event_start_date, cover_image_url, companies(name)')
         .eq('is_published', true)
         .order('event_start_date', { ascending: false });
-      setProjects((data ?? []) as unknown as Project[]);
+
+      const projectsData = (data ?? []) as unknown as Project[];
+      setProjects(projectsData);
+
+      // Extract unique categories
+      const uniqueCats = Array.from(new Set(projectsData.map(p => p.category).filter(Boolean))) as string[];
+      setCategories(['All', ...uniqueCats.sort()]);
+
       setLoading(false);
     }
     fetchProjects();
   }, []);
+
+  const filteredProjects = activeCategory === 'All'
+    ? projects
+    : projects.filter(p => p.category === activeCategory);
 
   return (
     <div className="pt-16">
@@ -59,8 +73,28 @@ export default function PortfolioPage() {
         </div>
       </section>
 
+      {/* Filters */}
+      <section className="pb-10">
+        <div className="container">
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${activeCategory === cat
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
+                  : 'bg-[var(--card)] text-[var(--muted)] border border-[var(--border)] hover:border-indigo-500/50 hover:text-indigo-400'
+                  }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Grid */}
-      <section className="section">
+      <section className="section pt-0">
         <div className="container">
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -74,14 +108,14 @@ export default function PortfolioPage() {
                 </div>
               ))}
             </div>
-          ) : projects.length === 0 ? (
+          ) : filteredProjects.length === 0 ? (
             <div className="text-center py-20 text-[var(--muted)]">
               <Camera className="h-12 w-12 mx-auto mb-3 opacity-20" />
-              <p>No published projects yet. Check back soon!</p>
+              <p>No projects found in this category.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {projects.map((project, i) => {
+              {filteredProjects.map((project, i) => {
                 const gradientIdx = i % GRADIENT_CLASSES.length;
                 const year = new Date(project.event_start_date).getFullYear();
                 return (
@@ -101,18 +135,18 @@ export default function PortfolioPage() {
                         <Camera className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-12 w-12 text-white/15 group-hover:text-white/25 transition-colors" />
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                      {project.category && (
+                        <div className="absolute top-3 left-3">
+                          <span className="px-2.5 py-1 rounded-lg bg-indigo-600 shadow-xl text-[10px] text-white font-bold uppercase tracking-wider">
+                            {project.category}
+                          </span>
+                        </div>
+                      )}
                       <div className="absolute top-3 right-3">
                         <span className="px-2 py-1 rounded-full bg-black/30 border border-white/10 text-[10px] text-white/80 font-medium backdrop-blur-sm">
                           {year}
                         </span>
                       </div>
-                      {project.location && (
-                        <div className="absolute bottom-3 left-4">
-                          <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-[10px] text-white/80 font-medium backdrop-blur-sm">
-                            {project.location}
-                          </span>
-                        </div>
-                      )}
                     </div>
                     <div className="p-5">
                       <h2 className="font-bold text-[var(--foreground)] group-hover:text-indigo-500 transition-colors line-clamp-1 mb-1">

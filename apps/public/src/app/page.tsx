@@ -106,8 +106,8 @@ export default function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-16 max-w-3xl mx-auto">
             {DEMO_STATS.map(({ icon: Icon, value, label }) => (
               <div key={label} className="glass rounded-2xl p-4 text-center card-hover border border-[var(--border)]">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center mx-auto mb-2">
-                  <Icon className="h-5 v-5 text-indigo-400" />
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center mx-auto mb-2" suppressHydrationWarning>
+                  <Icon className="h-5 w-5 text-indigo-400" />
                 </div>
                 <p className="text-2xl font-black text-[var(--foreground)]">{value}</p>
                 <p className="text-xs text-[var(--muted)] mt-0.5">{label}</p>
