@@ -39,6 +39,7 @@ const ALL_PERMISSIONS: { key: string; label: string; group: string }[] = [
   { key: 'view_projects', label: 'View Projects', group: 'Projects' },
   { key: 'manage_ledger', label: 'Manage Ledger', group: 'Finance' },
   { key: 'view_ledger', label: 'View Ledger', group: 'Finance' },
+  { key: 'manage_invoices', label: 'Manage Invoices', group: 'Finance' },
   { key: 'send_invoice', label: 'Send Invoices', group: 'Finance' },
   { key: 'manage_staff', label: 'Manage Staff', group: 'Staff' },
   { key: 'view_staff', label: 'View Staff', group: 'Staff' },
@@ -342,18 +343,22 @@ export default function StaffPage() {
                       <div className="flex items-center gap-2">
                         {can('manage_staff') && (
                           <>
-                            <button
-                              onClick={() => { setRoleChangeTarget(member); roleForm.reset({ role_id: member.roles?.id ?? '' }); }}
-                              className="text-xs text-primary hover:underline"
-                            >
-                              Change Role
-                            </button>
-                            {member.is_active ? (
-                              <button onClick={() => handleDeactivateClick(member)} className="text-xs text-destructive hover:underline">Deactivate</button>
-                            ) : (
-                              <button onClick={() => setActivateTarget(member)} className="text-xs text-green-600 hover:underline">Activate</button>
+                            {!(member.roles?.name === 'super_admin' && activeSuperAdminsCount <= 1) && (
+                              <>
+                                <button
+                                  onClick={() => { setRoleChangeTarget(member); roleForm.reset({ role_id: member.roles?.id ?? '' }); }}
+                                  className="text-xs text-primary hover:underline"
+                                >
+                                  Change Role
+                                </button>
+                                {member.is_active ? (
+                                  <button onClick={() => handleDeactivateClick(member)} className="text-xs text-destructive hover:underline">Deactivate</button>
+                                ) : (
+                                  <button onClick={() => setActivateTarget(member)} className="text-xs text-green-600 hover:underline">Activate</button>
+                                )}
+                                <button onClick={() => handleDeleteClick(member)} className="text-xs text-red-500 hover:underline">Delete</button>
+                              </>
                             )}
-                            <button onClick={() => handleDeleteClick(member)} className="text-xs text-red-500 hover:underline">Delete</button>
                             {role?.name === 'super_admin' && (
                               <button onClick={() => setResetPasswordTarget(member)} className="text-xs text-amber-600 hover:underline flex items-center gap-1">
                                 <KeyRound className="h-3 w-3" /> Reset Password

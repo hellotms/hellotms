@@ -15,20 +15,28 @@ mediaRoute.post('/upload', async (c) => {
         return c.json({ error: 'No file provided' }, 400);
     }
 
-    // Generate unique filename
+    // Get organizational parameters
+    const folder = c.req.query('folder') || 'misc';
+    const type = c.req.query('type') || 'file';
+    const name = c.req.query('name') || 'unnamed';
+
+    // Generate descriptive filename: folder/type_name_timestamp.ext
     const timestamp = Date.now();
-    const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const fileName = `${timestamp}-${safeName}`;
+    const extension = file.name.split('.').pop() || 'bin';
+    const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    const fileName = `${folder}/${type}_${safeName}_${timestamp}.${extension}`;
     const contentType = file.type || 'application/octet-stream';
 
     try {
+        console.log(`[Media] Uploading to R2: ${fileName} (${file.size} bytes, ${contentType})`);
+
         // Upload to R2 Bucket
         await c.env.MEDIA_BUCKET.put(fileName, await file.arrayBuffer(), {
             httpMetadata: { contentType },
         });
 
-        // We use the R2_PUBLIC_URL which can be r2.dev or a custom domain later
         const publicUrl = `${c.env.R2_PUBLIC_URL}/${fileName}`;
+        console.log(`[Media] Upload successful: ${publicUrl}`);
 
         return c.json({
             success: true,
@@ -39,7 +47,7 @@ mediaRoute.post('/upload', async (c) => {
         });
     } catch (err) {
         console.error('[R2 Upload Error]', err);
-        return c.json({ error: 'Failed to upload to storage' }, 500);
+        return c.json({ error: 'Failed to upload to storage: ' + (err as Error).message }, 500);
     }
 });
 

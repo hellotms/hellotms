@@ -36,7 +36,13 @@ export default function SettingsPage() {
   const updateProfileMutation = useMutation({
     mutationFn: async (values: { name: string; avatar_url: string | File | null; phone?: string; address?: string }) => {
       // Handle potential image upload
-      const finalAvatarUrl = await mediaApi.uploadAndCleanMedia(values.avatar_url, profile?.avatar_url);
+      const finalAvatarUrl = await mediaApi.uploadAndCleanMedia(
+        values.avatar_url,
+        profile?.avatar_url,
+        'profiles',
+        'avatar',
+        values.name
+      );
 
       const { error } = await supabase
         .from('profiles')
@@ -70,7 +76,13 @@ export default function SettingsPage() {
       const updateData: any = {};
 
       if (payload.url !== undefined) {
-        updateData.invoice_pad_url = await mediaApi.uploadAndCleanMedia(payload.url, siteSettings?.invoice_pad_url);
+        updateData.invoice_pad_url = await mediaApi.uploadAndCleanMedia(
+          payload.url,
+          siteSettings?.invoice_pad_url,
+          'site',
+          'pad',
+          'invoice-pad'
+        );
       }
 
       if (payload.top !== undefined) updateData.pad_margin_top = payload.top;

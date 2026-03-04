@@ -3,20 +3,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { DataTable } from '@/components/DataTable';
+import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader } from '@/components/PageHeader';
-import { Modal } from '@/components/Modal';
+import { Modal, ConfirmModal } from '@/components/Modal';
 import { ImageUpload } from '@/components/ImageUpload';
-import { formatDate } from '@/lib/utils';
-import { Plus, Building2, Pencil } from 'lucide-react';
+import { formatDate, slugify } from '@/lib/utils';
+import { Plus, Building2, Pencil, Trash } from 'lucide-react';
 import { companySchema } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from '@/components/Toast';
 import type { ColumnDef } from '@tanstack/react-table';
-import type { Company } from '@hellotms/shared';
-import type { CompanyInput } from '@hellotms/shared';
-import { slugify } from '@/lib/utils';
-import { Trash } from 'lucide-react';
+import type { Company, CompanyInput } from '@hellotms/shared';
 import { mediaApi } from '@/lib/api';
 
 export default function CompaniesPage() {
@@ -25,6 +23,7 @@ export default function CompaniesPage() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [logoUrl, setLogoUrl] = useState<string>('');
+  const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
 
   const { data: companies = [], isLoading } = useQuery({
     queryKey: ['companies'],
@@ -34,7 +33,7 @@ export default function CompaniesPage() {
         .select('*')
         .order('name');
       if (error) {
-        toast(`কোম্পানি লিস্ট লোড করা যায়নি: ${error.message}`, 'error');
+        toast(`Failed to load companies: ${error.message}`, 'error');
         throw error;
       }
       return data as Company[];
@@ -47,10 +46,15 @@ export default function CompaniesPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (values: CompanyInput) => {
-      // 1. Upload new logo if needed, and clean up the old one
-      const finalLogoUrl = await mediaApi.uploadAndCleanMedia(logoUrl, editingCompany?.logo_url);
-
+      const finalLogoUrl = await mediaApi.uploadAndCleanMedia(
+        logoUrl,
+        editingCompany?.logo_url,
+        'companies',
+        'logo',
+        values.name
+      );
       const payload = { ...values, slug: values.slug || slugify(values.name), logo_url: finalLogoUrl || undefined };
+
       if (editingCompany) {
         const { error } = await supabase.from('companies').update(payload).eq('id', editingCompany.id);
         if (error) throw error;
@@ -78,18 +82,13 @@ export default function CompaniesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
+      setDeleteTarget(null);
       toast('Company deleted successfully!', 'success');
     },
     onError: (error: any) => {
       toast(`Failed to delete company: ${error.message || 'Unknown error'}`, 'error');
     }
   });
-
-  const handleDelete = (c: Company) => {
-    if (window.confirm(`Are you absolutely sure?\nThis will permanently delete the company "${c.name}" and might affect associated projects or invoices.`)) {
-      deleteMutation.mutate(c.id);
-    }
-  };
 
   const openCreate = () => { setEditingCompany(null); reset(); setLogoUrl(''); setIsOpen(true); };
   const openEdit = (c: Company) => { setEditingCompany(c); reset(c); setLogoUrl(c.logo_url ?? ''); setIsOpen(true); };
@@ -113,7 +112,11 @@ export default function CompaniesPage() {
     },
     { accessorKey: 'email', header: 'Email', cell: ({ getValue }) => getValue() as string || '—' },
     { accessorKey: 'phone', header: 'Phone', cell: ({ getValue }) => getValue() as string || '—' },
-    { accessorKey: 'address', header: 'Address', cell: ({ getValue }) => (getValue() as string || '—').slice(0, 40) },
+    {
+      accessorKey: 'address',
+      header: 'Address',
+      cell: ({ getValue }) => (getValue() as string || '—').slice(0, 40)
+    },
     {
       accessorKey: 'created_at',
       header: 'Created',
@@ -132,7 +135,7 @@ export default function CompaniesPage() {
             <Pencil className="h-4 w-4" />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); handleDelete(row.original); }}
+            onClick={(e) => { e.stopPropagation(); setDeleteTarget(row.original); }}
             className="p-1.5 rounded-md hover:bg-red-50 transition-colors text-muted-foreground hover:text-destructive"
             title="Delete Company"
           >
@@ -171,7 +174,6 @@ export default function CompaniesPage() {
 
       <Modal isOpen={isOpen} onClose={() => { setIsOpen(false); reset(); }} title={editingCompany ? 'Edit Company' : 'New Company'}>
         <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
-          {/* Logo upload */}
           <ImageUpload
             value={logoUrl || null}
             onChange={(val) => setLogoUrl(val as string)}
@@ -204,6 +206,17 @@ export default function CompaniesPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        title="Delete Company"
+        message={`Are you sure you want to permanently delete the company "${deleteTarget?.name}"? This might affect associated projects or invoices. This action cannot be undone.`}
+        confirmLabel="Delete Company"
+        danger
+        loading={deleteMutation.isPending}
+      />
     </div>
   );
 }

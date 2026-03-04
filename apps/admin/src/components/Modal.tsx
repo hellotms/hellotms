@@ -1,5 +1,4 @@
-import React from 'react';
-import { X } from 'lucide-react';
+import { X, AlertTriangle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ModalProps {
@@ -76,11 +75,22 @@ export function ConfirmModal({
 }: ConfirmModalProps) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
-      <p className="text-sm text-muted-foreground mb-6">{message}</p>
-      <div className="flex justify-end gap-3">
+      <div className="flex flex-col items-center text-center py-2">
+        <div className={cn(
+          "w-12 h-12 rounded-full flex items-center justify-center mb-4 animate-in zoom-in duration-300",
+          danger ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
+        )}>
+          {danger ? <AlertTriangle className="h-6 w-6" /> : <Info className="h-6 w-6" />}
+        </div>
+        <p className="text-sm text-muted-foreground mb-8 leading-relaxed px-2">
+          {message}
+        </p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row justify-center gap-3 w-full">
         <button
           onClick={onClose}
-          className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors"
+          className="order-2 sm:order-1 flex-1 px-4 py-2.5 text-sm font-medium border border-border rounded-xl hover:bg-muted transition-all active:scale-95"
         >
           Cancel
         </button>
@@ -88,13 +98,13 @@ export function ConfirmModal({
           onClick={onConfirm}
           disabled={loading}
           className={cn(
-            'px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-60',
+            'order-1 sm:order-2 flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95 disabled:opacity-60 shadow-sm',
             danger
-              ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-              : 'bg-primary text-primary-foreground hover:bg-primary/90'
+              ? 'bg-red-600 text-white hover:bg-red-700 shadow-red-200'
+              : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20'
           )}
         >
-          {loading ? 'Loading...' : confirmLabel}
+          {loading ? 'Processing...' : confirmLabel}
         </button>
       </div>
     </Modal>

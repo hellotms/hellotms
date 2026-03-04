@@ -25,14 +25,17 @@ type EditProjectInput = {
   title: string;
   status: string;
   location?: string;
+  category?: string;
   event_start_date: string;
   event_end_date?: string;
+  proposal_date?: string;
+  budget?: string | number;
+  advance_received?: string | number;
   notes?: string;
   is_featured: boolean;
   project_completed_at?: string;
   description?: string;
   cover_image_url?: string;
-  category?: string;
 };
 
 export default function ProjectDetailPage() {
@@ -216,11 +219,20 @@ export default function ProjectDetailPage() {
   const saveProjectMutation = useMutation({
     mutationFn: async (values: EditProjectInput) => {
       // 1. Handle potential cover image change
-      const finalCoverUrl = await mediaApi.uploadAndCleanMedia(editCoverImageUrl as string | File | null, project?.cover_image_url);
+      const finalCoverUrl = await mediaApi.uploadAndCleanMedia(
+        values.cover_image_url as string | File | null,
+        project?.cover_image_url,
+        'projects',
+        'cover',
+        project?.title || values.title
+      );
 
       const payload = {
         ...values,
         event_end_date: values.event_end_date || values.event_start_date || null,
+        proposal_date: values.proposal_date || null,
+        budget: values.budget || null,
+        advance_received: values.advance_received || null,
         project_completed_at: values.project_completed_at || null,
         location: values.location || null,
         notes: values.notes || null,
@@ -255,7 +267,8 @@ export default function ProjectDetailPage() {
     setUploadError('');
     try {
       for (const file of stagedFiles) {
-        const res = await mediaApi.upload(file);
+        // Descriptive name for gallery photos: photo_[project-title]_[timestamp]
+        const res = await mediaApi.upload(file, 'projects/gallery', 'photo', project?.title || 'project');
         if (res.success) {
           await supabase.from('project_media').insert({
             project_id: id,
@@ -267,8 +280,9 @@ export default function ProjectDetailPage() {
       setStagedFiles([]);
       refetchGallery();
       toast(`${stagedFiles.length} photo(s) uploaded`, 'success');
-    } catch (e) {
-      setUploadError((e as Error).message);
+    } catch (e: any) {
+      console.error('[Gallery Upload Error]', e);
+      setUploadError(e.message || 'Gallery upload failed. Check internet or server logs.');
       toast('Upload failed', 'error');
     } finally {
       setIsUploading(false);
@@ -306,14 +320,17 @@ export default function ProjectDetailPage() {
               title: project.title,
               status: project.status,
               location: project.location ?? '',
+              category: EVENT_CATEGORIES.includes(project.category as any) ? (project.category ?? '') : (project.category ? 'Others' : ''),
               event_start_date: project.event_start_date,
               event_end_date: project.event_end_date ?? '',
+              proposal_date: project.proposal_date ?? '',
+              budget: project.budget ?? '',
+              advance_received: project.advance_received ?? '',
               notes: project.notes ?? '',
               is_featured: project.is_featured ?? false,
               project_completed_at: project.project_completed_at ?? '',
               description: project.description ?? '',
               cover_image_url: project.cover_image_url ?? '',
-              category: EVENT_CATEGORIES.includes(project.category as any) ? (project.category ?? '') : (project.category ? 'Others' : ''),
             });
             setCustomCategory(EVENT_CATEGORIES.includes(project.category as any) ? '' : (project.category ?? ''));
             setIsEditOpen(true);
@@ -841,17 +858,24 @@ export default function ProjectDetailPage() {
           )}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Event Start Date *</label>
-              <input type="date" {...registerEdit('event_start_date', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <label className="block text-sm font-medium mb-1">Proposal Date</label>
+              <input type="date" {...registerEdit('proposal_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Event End Date</label>
-              <input type="date" {...registerEdit('event_end_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <label className="block text-sm font-medium mb-1">Project Completed At</label>
+              <input type="date" {...registerEdit('project_completed_at')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Project Completed At</label>
-            <input type="date" {...registerEdit('project_completed_at')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Grand Budget (৳)</label>
+              <input type="number" step="0.01" {...registerEdit('budget')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="0.00" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Advance Received (৳)</label>
+              <input type="number" step="0.01" {...registerEdit('advance_received')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="0.00" />
+            </div>
           </div>
           <ImageUpload
             label="Cover Photo"

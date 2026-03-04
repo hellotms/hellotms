@@ -75,27 +75,34 @@ export const invoicesApi = {
 
 // ─── Media ───────────────────────────────────────────────────────────────────
 export const mediaApi = {
-  upload: (file: File) => {
+  upload: (file: File, folder: string = 'misc', type: string = 'file', name: string = 'unnamed') => {
     const formData = new FormData();
     formData.append('file', file);
-    return apiFetch<{ success: true; url: string; key: string }>('/media/upload', {
+    const query = new URLSearchParams({ folder, type, name }).toString();
+    return apiFetch<{ success: true; url: string; key: string }>(`/media/upload?${query}`, {
       method: 'POST',
       body: formData,
     });
   },
-  delete: (key: string) => apiFetch('/media/' + key, { method: 'DELETE' }),
+  delete: (key: string) => apiFetch('/media/' + encodeURIComponent(key), { method: 'DELETE' }),
 
   /**
    * Uploads a new file (if a File is provided) and cleans up the old media from R2 (if oldUrl is provided).
    * Returns the new URL (or the existing URL if no new File was provided).
    */
-  uploadAndCleanMedia: async (newFileOrUrl: File | string | null, oldUrl?: string | null): Promise<string | null> => {
+  uploadAndCleanMedia: async (
+    newFileOrUrl: File | string | null,
+    oldUrl?: string | null,
+    folder: string = 'misc',
+    type: string = 'file',
+    name: string = 'unnamed'
+  ): Promise<string | null> => {
     let finalUrl: string | null = null;
     let didUploadNew = false;
 
     // 1. If it's a File, upload it
     if (newFileOrUrl instanceof File) {
-      const res = await mediaApi.upload(newFileOrUrl);
+      const res = await mediaApi.upload(newFileOrUrl, folder, type, name);
       if (!res.success) throw new Error("Failed to upload image");
       finalUrl = res.url;
       didUploadNew = true;
@@ -110,16 +117,15 @@ export const mediaApi = {
     }
 
     // Process old media cleanup
-    // We delete the oldUrl IF:
-    // a) A new upload occurred, and oldUrl is a valid URL.
-    // b) Or the user explicitly cleared the image, and oldUrl is a valid URL.
-    // Basically, if oldUrl exists AND it is different from finalUrl, delete oldUrl.
     if (oldUrl && oldUrl !== finalUrl) {
       try {
-        // Extract the filename/key from the URL (everything after the last slash)
-        const parts = oldUrl.split('/');
-        const key = parts[parts.length - 1];
-        if (key) {
+        // Extract the key from URL. R2_PUBLIC_URL ends before the key.
+        // URLs look like: https://pub-xxx.r2.dev/folder/type_name_ts.ext
+        // We can find the key by taking everything after the domain.
+        const url = new URL(oldUrl);
+        const key = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
+
+        if (key && !key.startsWith('http')) {
           await mediaApi.delete(key);
         }
       } catch (err) {

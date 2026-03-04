@@ -104,6 +104,9 @@ export interface Invoice {
   type: InvoiceType;
   status: InvoiceStatus;
   total_amount: number;
+  discount_type?: 'flat' | 'percent' | null;
+  discount_value?: number | null;
+  notes?: string | null;
   due_date?: string | null;
   sent_at?: string | null;
   paid_at?: string | null;

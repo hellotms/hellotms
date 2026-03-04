@@ -1,23 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { DataTable } from '@/components/DataTable';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
-import { Modal } from '@/components/Modal';
-import { formatBDT, formatDate, slugify } from '@/lib/utils';
-import { Plus, Receipt } from 'lucide-react';
-import { invoiceSchema } from '@hellotms/shared';
-import type { Invoice, Company, Project, InvoiceInput } from '@hellotms/shared';
-import { useForm, useFieldArray } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import type { ColumnDef } from '@tanstack/react-table';
+import { Modal, ConfirmModal } from '@/components/Modal';
+import { formatBDT, formatDate } from '@/lib/utils';
+import { Plus, Receipt, Trash, Pencil, Trash2, ReceiptText } from 'lucide-react';
+import type { Invoice, Company, Project } from '@hellotms/shared';
 import { generateInvoiceNumber } from '@hellotms/shared';
-import { Trash, Pencil } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from '@/components/Toast';
 
 const STATUS_OPTIONS = ['all', 'draft', 'sent', 'paid', 'overdue'];
+
+type LedgerRow = {
+  id: string;
+  category: string;
+  amount: number;
+  note?: string | null;
+  entry_date: string;
+};
+
+type InvoiceLineItem = {
+  description: string;
+  costPrice: number; // admin-only, NOT saved to DB or PDF
+  quantity: number;
+  unit_price: number;
+  amount: number;
+};
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
@@ -25,7 +37,21 @@ export default function InvoicesPage() {
   const [searchParams] = useSearchParams();
   const [isOpen, setIsOpen] = useState(searchParams.get('new') === '1');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
 
+  // Creation form state
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [invoiceNum, setInvoiceNum] = useState('');
+  const [invoiceType, setInvoiceType] = useState<'invoice' | 'estimate'>('invoice');
+  const [invoiceStatus, setInvoiceStatus] = useState('draft');
+  const [dueDate, setDueDate] = useState('');
+  const [discountType, setDiscountType] = useState<'flat' | 'percent'>('flat');
+  const [discountValue, setDiscountValue] = useState(0);
+  const [notes, setNotes] = useState('');
+  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
+
+  // Queries
   const { data: companies = [] } = useQuery<Company[]>({
     queryKey: ['companies-list'],
     queryFn: async () => {
@@ -34,13 +60,47 @@ export default function InvoicesPage() {
     },
   });
 
-  const { data: projects = [] } = useQuery<Project[]>({
+  const { data: allProjects = [] } = useQuery<Project[]>({
     queryKey: ['projects-list'],
     queryFn: async () => {
       const { data } = await supabase.from('projects').select('id, title, company_id').order('title');
       return (data ?? []) as Project[];
     },
   });
+
+  const filteredProjects = selectedCompanyId
+    ? allProjects.filter(p => p.company_id === selectedCompanyId)
+    : allProjects;
+
+  // Auto-fetch ledger entries when project is selected
+  const { data: ledgerEntries = [], isFetching: ledgerLoading } = useQuery<LedgerRow[]>({
+    queryKey: ['ledger-for-invoice', selectedProjectId],
+    queryFn: async () => {
+      if (!selectedProjectId) return [];
+      const { data } = await supabase
+        .from('ledger_entries')
+        .select('id, category, amount, note, entry_date')
+        .eq('project_id', selectedProjectId)
+        .eq('type', 'expense')
+        .is('deleted_at', null)
+        .order('entry_date', { ascending: true });
+      return (data ?? []) as LedgerRow[];
+    },
+    enabled: !!selectedProjectId,
+  });
+
+  // Auto-populate line items when ledger entries change
+  useEffect(() => {
+    if (ledgerEntries.length > 0) {
+      setLineItems(ledgerEntries.map(e => ({
+        description: e.category + (e.note ? ` — ${e.note}` : ''),
+        costPrice: e.amount,
+        quantity: 1,
+        unit_price: 0,
+        amount: 0,
+      })));
+    }
+  }, [ledgerEntries]);
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['invoices', statusFilter],
@@ -53,7 +113,6 @@ export default function InvoicesPage() {
     },
   });
 
-  // Count for next invoice number
   const { data: invoiceCount } = useQuery<number>({
     queryKey: ['invoice-count'],
     queryFn: async () => {
@@ -62,51 +121,87 @@ export default function InvoicesPage() {
     },
   });
 
-  const form = useForm<InvoiceInput & { items: { description: string; quantity: number; unit_price: number; amount: number }[] }>({
-    resolver: zodResolver(invoiceSchema),
-    defaultValues: {
-      type: 'invoice',
-      status: 'draft',
-      total_amount: 0,
-      invoice_number: generateInvoiceNumber((invoiceCount ?? 0) + 1),
-      items: [{ description: '', quantity: 1, unit_price: 0, amount: 0 }],
-    },
-  });
+  // Set invoice number when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setInvoiceNum(generateInvoiceNumber((invoiceCount ?? 0) + 1));
+    }
+  }, [isOpen, invoiceCount]);
 
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'items' });
+  // Reset form when modal closes
+  const closeModal = () => {
+    setIsOpen(false);
+    setSelectedCompanyId('');
+    setSelectedProjectId('');
+    setLineItems([]);
+    setDiscountValue(0);
+    setDiscountType('flat');
+    setNotes('');
+    setDueDate('');
+  };
 
-  const watchItems = form.watch('items');
-  const computedTotal = watchItems.reduce((s, item) => s + (Number(item.quantity) * Number(item.unit_price)), 0);
+  // Line item helpers
+  const updateItem = (idx: number, field: keyof InvoiceLineItem, value: string | number) => {
+    setLineItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      const updated = { ...item, [field]: value };
+      updated.amount = Number(updated.quantity) * Number(updated.unit_price);
+      return updated;
+    }));
+  };
+
+  const removeItem = (idx: number) => setLineItems(prev => prev.filter((_, i) => i !== idx));
+
+  const addBlankItem = () => setLineItems(prev => [...prev, { description: '', costPrice: 0, quantity: 1, unit_price: 0, amount: 0 }]);
+
+  const subtotal = lineItems.reduce((s, item) => s + item.amount, 0);
+  const discountAmt = discountType === 'percent'
+    ? subtotal * (discountValue / 100)
+    : discountValue;
+  const totalPayable = Math.max(0, subtotal - discountAmt);
 
   const createMutation = useMutation({
-    mutationFn: async (values: InvoiceInput) => {
-      const items = values.items.map(item => ({
-        ...item,
-        amount: item.quantity * item.unit_price,
+    mutationFn: async () => {
+      if (!selectedCompanyId || !selectedProjectId) throw new Error('Please select a Company and Project.');
+      if (lineItems.every(i => i.amount === 0)) throw new Error('At least one line item must have a price.');
+
+      const items = lineItems.map(i => ({
+        description: i.description,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        amount: i.amount,
       }));
-      const total = items.reduce((s, i) => s + i.amount, 0);
 
       const { data: inv, error } = await supabase
         .from('invoices')
-        .insert({ ...values, total_amount: total, items: undefined })
+        .insert({
+          invoice_number: invoiceNum,
+          company_id: selectedCompanyId,
+          project_id: selectedProjectId,
+          type: invoiceType,
+          status: invoiceStatus,
+          due_date: dueDate || null,
+          total_amount: subtotal,
+          discount_type: discountType,
+          discount_value: discountAmt,
+          notes: notes || null,
+        })
         .select()
         .single();
       if (error) throw error;
 
-      // Insert items
-      await supabase.from('invoice_items').insert(items.map(i => ({ ...i, invoice_id: inv.id })));
-
+      if (items.length > 0) {
+        await supabase.from('invoice_items').insert(items.map(i => ({ ...i, invoice_id: inv.id })));
+      }
       return inv;
     },
     onSuccess: (inv) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-count'] });
-      setIsOpen(false);
+      closeModal();
       navigate(`/invoices/${inv.id}`);
     },
-    onError: (error: any) => {
-      toast(`Failed to create invoice: ${error.message || 'Unknown error'}`, 'error');
-    }
+    onError: (e: Error) => toast(e.message, 'error'),
   });
 
   const deleteMutation = useMutation({
@@ -116,18 +211,11 @@ export default function InvoicesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      setDeleteTarget(null);
       toast('Invoice deleted successfully!', 'success');
     },
-    onError: (error: any) => {
-      toast(`Failed to delete invoice: ${error.message || 'Unknown error'}`, 'error');
-    }
+    onError: (e: Error) => toast(e.message, 'error'),
   });
-
-  const handleDelete = (inv: Invoice) => {
-    if (window.confirm(`Are you sure you want to permanently delete Invoice ${inv.invoice_number}?\nThis cannot be undone.`)) {
-      deleteMutation.mutate(inv.id);
-    }
-  };
 
   const columns: ColumnDef<Invoice & { companies: { name: string } | null; projects: { title: string } | null }, unknown>[] = [
     {
@@ -155,12 +243,12 @@ export default function InvoicesPage() {
           <button
             onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${row.original.id}`); }}
             className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
-            title="Edit / View Invoice"
+            title="View / Edit Invoice"
           >
             <Pencil className="h-4 w-4" />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); handleDelete(row.original); }}
+            onClick={(e) => { e.stopPropagation(); setDeleteTarget(row.original); }}
             className="p-1.5 rounded-md hover:bg-red-50 transition-colors text-muted-foreground hover:text-destructive"
             title="Delete Invoice"
           >
@@ -205,120 +293,230 @@ export default function InvoicesPage() {
         )}
       </div>
 
-      {/* Create Invoice Modal */}
-      <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Create Invoice" size="xl">
-        <form onSubmit={form.handleSubmit((v) => createMutation.mutate({ ...v, total_amount: computedTotal }))} className="space-y-5">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      {/* ── Create Invoice Modal ─── */}
+      <Modal isOpen={isOpen} onClose={closeModal} title="Create Invoice" size="xl">
+        <div className="space-y-5">
+          {/* Step 1: Meta fields */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-medium mb-1">Invoice Number *</label>
-              <input {...form.register('invoice_number')} className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">Invoice #</label>
+              <input value={invoiceNum} onChange={e => setInvoiceNum(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Company *</label>
-              <select {...form.register('company_id')} className="w-full border border-border rounded-lg px-3 py-2 text-sm">
-                <option value="">Select...</option>
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">Company *</label>
+              <select
+                value={selectedCompanyId}
+                onChange={e => { setSelectedCompanyId(e.target.value); setSelectedProjectId(''); setLineItems([]); }}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card"
+              >
+                <option value="">Select company...</option>
                 {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Project *</label>
-              <select {...form.register('project_id')} className="w-full border border-border rounded-lg px-3 py-2 text-sm">
-                <option value="">Select...</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">Project *</label>
+              <select
+                value={selectedProjectId}
+                onChange={e => { setSelectedProjectId(e.target.value); setLineItems([]); }}
+                disabled={!selectedCompanyId}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card disabled:opacity-50"
+              >
+                <option value="">Select project...</option>
+                {filteredProjects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Type</label>
-              <select {...form.register('type')} className="w-full border border-border rounded-lg px-3 py-2 text-sm">
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">Type</label>
+              <select value={invoiceType} onChange={e => setInvoiceType(e.target.value as 'invoice' | 'estimate')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card">
                 <option value="invoice">Invoice</option>
                 <option value="estimate">Estimate</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Status</label>
-              <select {...form.register('status')} className="w-full border border-border rounded-lg px-3 py-2 text-sm">
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">Status</label>
+              <select value={invoiceStatus} onChange={e => setInvoiceStatus(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card">
                 <option value="draft">Draft</option>
                 <option value="sent">Sent</option>
                 <option value="paid">Paid</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Due Date</label>
-              <input type="date" {...form.register('due_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">Due Date</label>
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
 
-          {/* Items */}
+          {/* Line Items */}
           <div>
             <div className="flex justify-between items-center mb-2">
-              <h4 className="font-medium text-sm">Line Items</h4>
-              <button type="button" onClick={() => append({ description: '', quantity: 1, unit_price: 0, amount: 0 })} className="text-xs text-primary hover:underline flex items-center gap-1">
+              <h4 className="font-medium text-sm flex items-center gap-1.5">
+                <ReceiptText className="h-4 w-4 text-primary" /> Line Items
+                {ledgerLoading && <span className="text-xs text-muted-foreground">(loading...)</span>}
+                {ledgerEntries.length > 0 && !ledgerLoading && (
+                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{ledgerEntries.length} from project</span>
+                )}
+              </h4>
+              <button type="button" onClick={addBlankItem} className="text-xs text-primary hover:underline flex items-center gap-1">
                 <Plus className="h-3 w-3" /> Add line
               </button>
             </div>
-            <div className="border border-border rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
+
+            <div className="border border-border rounded-xl overflow-hidden">
+              <table className="w-full text-xs">
                 <thead className="bg-muted/50 border-b border-border">
                   <tr>
-                    {['Description', 'Qty', 'Unit Price (৳)', 'Amount (৳)', ''].map(h => (
-                      <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">{h}</th>
-                    ))}
+                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-8">SL</th>
+                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold">Description</th>
+                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">
+                      Cost Price
+                      <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-normal">admin only</span>
+                    </th>
+                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-16">Qty</th>
+                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-28">Sell Price (৳)</th>
+                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">Total</th>
+                    <th className="w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {fields.map((field, i) => (
-                    <tr key={field.id} className="border-b border-border last:border-0">
+                  {lineItems.map((item, i) => (
+                    <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/20">
+                      <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
                       <td className="px-3 py-2">
-                        <input {...form.register(`items.${i}.description`)} placeholder="Service description" className="w-full border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring" />
+                        <input
+                          value={item.description}
+                          onChange={e => updateItem(i, 'description', e.target.value)}
+                          placeholder="Description"
+                          className="w-full border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
                       </td>
-                      <td className="px-3 py-2 w-16">
-                        <input type="number" {...form.register(`items.${i}.quantity`, { valueAsNumber: true })} className="w-full border border-border rounded px-2 py-1 text-xs" />
-                      </td>
-                      <td className="px-3 py-2 w-28">
-                        <input type="number" {...form.register(`items.${i}.unit_price`, { valueAsNumber: true })} className="w-full border border-border rounded px-2 py-1 text-xs" />
-                      </td>
-                      <td className="px-3 py-2 w-24">
-                        <span className="text-xs font-medium">
-                          {formatBDT((watchItems[i]?.quantity ?? 0) * (watchItems[i]?.unit_price ?? 0))}
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center px-2 py-1 rounded bg-muted text-muted-foreground font-mono text-[11px]">
+                          {formatBDT(item.costPrice)}
                         </span>
                       </td>
-                      <td className="px-3 py-2 w-8">
-                        {fields.length > 1 && (
-                          <button type="button" onClick={() => remove(i)} className="text-destructive hover:text-destructive/80">
-                            <Trash2icon />
-                          </button>
-                        )}
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={e => updateItem(i, 'quantity', Number(e.target.value))}
+                          min={1}
+                          className="w-full border border-border rounded px-2 py-1 text-xs"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          value={item.unit_price || ''}
+                          onChange={e => updateItem(i, 'unit_price', Number(e.target.value))}
+                          placeholder="0"
+                          className="w-full border border-border rounded px-2 py-1 text-xs"
+                        />
+                      </td>
+                      <td className="px-3 py-2 font-semibold text-foreground">{formatBDT(item.amount)}</td>
+                      <td className="px-3 py-2">
+                        <button type="button" onClick={() => removeItem(i)} className="text-destructive/60 hover:text-destructive">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </td>
                     </tr>
                   ))}
+                  {lineItems.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="text-center py-6 text-muted-foreground text-xs">
+                        {selectedProjectId ? 'No expense entries found. Add lines manually.' : 'Select a project to auto-populate from transactions.'}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
-            <div className="flex justify-end mt-3">
-              <div className="bg-muted/50 rounded-lg px-4 py-2 text-sm">
-                <span className="text-muted-foreground">Total: </span>
-                <span className="font-bold text-lg text-foreground">{formatBDT(computedTotal)}</span>
+          </div>
+
+          {/* Discount + Notes Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Discount */}
+            <div className="bg-muted/40 rounded-xl p-4 space-y-3">
+              <h4 className="text-sm font-medium">Discount</h4>
+              <div className="flex gap-3 items-center">
+                <div className="flex gap-2">
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input type="radio" name="discountType" checked={discountType === 'flat'} onChange={() => setDiscountType('flat')} />
+                    <span>৳ Flat</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input type="radio" name="discountType" checked={discountType === 'percent'} onChange={() => setDiscountType('percent')} />
+                    <span>% Percent</span>
+                  </label>
+                </div>
+                <input
+                  type="number"
+                  value={discountValue || ''}
+                  onChange={e => setDiscountValue(Number(e.target.value))}
+                  placeholder="0"
+                  min={0}
+                  className="flex-1 border border-border rounded-lg px-3 py-1.5 text-sm"
+                />
               </div>
+              {discountAmt > 0 && (
+                <p className="text-xs text-muted-foreground">Discount: − {formatBDT(discountAmt)}</p>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">Notes (optional)</label>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                rows={3}
+                placeholder="Any additional notes for this invoice..."
+                className="w-full border border-border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              />
             </div>
           </div>
 
+          {/* Totals Summary */}
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col items-end gap-1.5 text-sm">
+            <div className="flex justify-between w-48">
+              <span className="text-muted-foreground">Sub Total:</span>
+              <span className="font-medium">{formatBDT(subtotal)}</span>
+            </div>
+            {discountAmt > 0 && (
+              <div className="flex justify-between w-48 text-red-600">
+                <span>Discount:</span>
+                <span>− {formatBDT(discountAmt)}</span>
+              </div>
+            )}
+            <div className="flex justify-between w-48 border-t border-primary/20 pt-1.5">
+              <span className="font-semibold text-foreground">Total Payable:</span>
+              <span className="font-bold text-lg text-primary">{formatBDT(totalPayable)}</span>
+            </div>
+          </div>
+
+          {/* Actions */}
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => setIsOpen(false)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
-            <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
+            <button type="button" onClick={closeModal} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
+            <button
+              onClick={() => createMutation.mutate()}
+              disabled={createMutation.isPending || !selectedCompanyId || !selectedProjectId}
+              className="px-5 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-medium"
+            >
               {createMutation.isPending ? 'Creating...' : 'Create Invoice'}
             </button>
           </div>
-        </form>
+        </div>
       </Modal>
-    </div>
-  );
-}
 
-// Inline trash icon to avoid import issues
-function Trash2icon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
-    </svg>
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        title="Delete Invoice"
+        message={`Are you sure you want to permanently delete Invoice "${deleteTarget?.invoice_number}"? This action cannot be undone.`}
+        confirmLabel="Delete Invoice"
+        danger
+        loading={deleteMutation.isPending}
+      />
+    </div>
   );
 }

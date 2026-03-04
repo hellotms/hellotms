@@ -1,5 +1,12 @@
 import { PDFDocument, rgb, StandardFonts, PageSizes } from 'pdf-lib';
 
+export interface PaymentRecord {
+  date: string;
+  amount: number;
+  method?: string;
+  note?: string;
+}
+
 export interface InvoicePdfData {
   invoiceNumber: string;
   invoiceDate: string;
@@ -23,6 +30,9 @@ export interface InvoicePdfData {
     amount: number;
   }[];
   totalAmount: number;
+  discountType?: 'flat' | 'percent';
+  discountValue?: number;
+  payments?: PaymentRecord[];
   notes?: string;
   /** Optional: URL of the invoice pad background image (from site_settings) */
   padImageUrl?: string;
@@ -32,10 +42,12 @@ export interface InvoicePdfData {
   padMarginBottom?: number;
 }
 
+function fmtBDT(n: number): string {
+  return `BDT ${Math.round(n).toLocaleString('en-IN')}`;
+}
+
 export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  const page = doc.addPage(PageSizes.A4);
-  const { width, height } = page.getSize();
 
   const regularFont = await doc.embedFont(StandardFonts.Helvetica);
   const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -46,30 +58,39 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   const gray = rgb(0.282, 0.345, 0.408);
   const lightGray = rgb(0.973, 0.984, 0.992);
   const green = rgb(0.024, 0.584, 0.416);
+  const red = rgb(0.863, 0.149, 0.149);
   const white = rgb(1, 1, 1);
 
-  // ── Optional pad background image ─────────────────────────────────────────
+  const padTop = data.padMarginTop ?? 150;
+  const padBottom = data.padMarginBottom ?? 80;
+
+  // ── Embedded pad image (fetched once, reused across pages) ──────────────────
+  let embeddedPadImg: Awaited<ReturnType<typeof doc.embedPng>> | null = null;
   let usePad = false;
   if (data.padImageUrl) {
     try {
       const imgRes = await fetch(data.padImageUrl);
       const imgBuf = await imgRes.arrayBuffer();
-      const contentType = imgRes.headers.get('content-type') ?? '';
-      const embeddedImg = contentType.includes('png')
+      const ct = imgRes.headers.get('content-type') ?? '';
+      embeddedPadImg = ct.includes('png')
         ? await doc.embedPng(imgBuf)
         : await doc.embedJpg(imgBuf);
-      page.drawImage(embeddedImg, { x: 0, y: 0, width, height });
       usePad = true;
-    } catch {
-      // Fallback to default blue header if image fails
-    }
+    } catch { /* fallback to default header */ }
   }
 
-  const padTop = data.padMarginTop ?? 150;
-  const padBottom = data.padMarginBottom ?? 100;
-  void padBottom; // reserved for footer offset when needed
+  // ── Helper: add a new page with optional pad background ────────────────────
+  function addPage() {
+    const p = doc.addPage(PageSizes.A4);
+    const { width, height } = p.getSize();
+    if (usePad && embeddedPadImg) {
+      p.drawImage(embeddedPadImg, { x: 0, y: 0, width, height });
+    }
+    return { page: p, width, height };
+  }
 
-  let y = usePad ? height - padTop : height - margin;
+  // ── Page 1 ─────────────────────────────────────────────────────────────────
+  let { page, width, height } = addPage();
 
   // ── Header (only when no pad background) ──────────────────────────────────
   if (!usePad) {
@@ -85,7 +106,21 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
       x: width - margin - regularFont.widthOfTextAtSize(data.invoiceNumber, 11),
       y: height - 68, size: 11, font: regularFont, color: rgb(0.749, 0.859, 1),
     });
-    y = height - 115;
+  }
+
+  // ── Current y position ─────────────────────────────────────────────────────
+  let y = usePad ? height - padTop : height - 110;
+
+  // ── Helper: ensure enough space, add page if not ───────────────────────────
+  function ensureSpace(needed: number) {
+    const minY = usePad ? padBottom : 50;
+    if (y - needed < minY) {
+      const next = addPage();
+      page = next.page;
+      width = next.width;
+      height = next.height;
+      y = usePad ? height - padTop : height - 50;
+    }
   }
 
   // ── Billing info ──────────────────────────────────────────────────────────
@@ -95,81 +130,175 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
 
   y -= 18;
   page.drawText(data.company.name, { x: margin, y, size: 12, font: boldFont, color: dark });
-  page.drawText(data.project.title, { x: width / 2, y, size: 11, font: regularFont, color: dark });
+  page.drawText(data.project.title.slice(0, 35), { x: width / 2, y, size: 11, font: regularFont, color: dark });
   page.drawText(data.invoiceDate, { x: width - 200, y, size: 11, font: regularFont, color: dark });
 
   y -= 16;
-  if (data.company.address) {
-    page.drawText(data.company.address.slice(0, 40), { x: margin, y, size: 9, font: regularFont, color: gray });
-  }
-  if (data.project.location) {
-    page.drawText(data.project.location, { x: width / 2, y, size: 9, font: regularFont, color: gray });
-  }
-  if (data.dueDate) {
-    page.drawText(`DUE: ${data.dueDate}`, { x: width - 200, y, size: 9, font: boldFont, color: rgb(0.863, 0.149, 0.149) });
-  }
+  if (data.company.address) page.drawText(data.company.address.slice(0, 40), { x: margin, y, size: 9, font: regularFont, color: gray });
+  if (data.project.location) page.drawText(data.project.location.slice(0, 35), { x: width / 2, y, size: 9, font: regularFont, color: gray });
+  if (data.dueDate) page.drawText(`DUE: ${data.dueDate}`, { x: width - 200, y, size: 9, font: boldFont, color: red });
 
   y -= 16;
-  if (data.company.phone) {
-    page.drawText(`Tel: ${data.company.phone}`, { x: margin, y, size: 9, font: regularFont, color: gray });
-  }
-  if (data.company.email) {
-    page.drawText(`Email: ${data.company.email}`, { x: margin, y: y - 14, size: 9, font: regularFont, color: gray });
-  }
+  if (data.company.phone) page.drawText(`Tel: ${data.company.phone}`, { x: margin, y, size: 9, font: regularFont, color: gray });
+  y -= 14;
+  if (data.company.email) page.drawText(`Email: ${data.company.email}`, { x: margin, y, size: 9, font: regularFont, color: gray });
 
-  y -= 50;
+  y -= 24;
 
-  // ── Table header ──────────────────────────────────────────────────────────
-  page.drawRectangle({ x: margin, y: y - 8, width: width - 2 * margin, height: 26, color: blue });
-  const cols = { desc: margin + 8, qty: width - 220, unit: width - 150, amount: width - 75 };
-  page.drawText('DESCRIPTION', { x: cols.desc, y: y + 4, size: 9, font: boldFont, color: white });
-  page.drawText('QTY', { x: cols.qty, y: y + 4, size: 9, font: boldFont, color: white });
-  page.drawText('UNIT PRICE', { x: cols.unit, y: y + 4, size: 9, font: boldFont, color: white });
-  page.drawText('AMOUNT', { x: cols.amount - 10, y: y + 4, size: 9, font: boldFont, color: white });
-
+  // ── Divider ────────────────────────────────────────────────────────────────
+  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
   y -= 20;
 
-  // ── Table rows ────────────────────────────────────────────────────────────
+  // ── Items Table Header ─────────────────────────────────────────────────────
+  page.drawRectangle({ x: margin, y: y - 8, width: width - 2 * margin, height: 26, color: blue });
+  const cols = { sl: margin + 6, desc: margin + 30, qty: width - 200, unit: width - 145, total: width - 80 };
+  page.drawText('SL', { x: cols.sl, y: y + 4, size: 8, font: boldFont, color: white });
+  page.drawText('DESCRIPTION', { x: cols.desc, y: y + 4, size: 8, font: boldFont, color: white });
+  page.drawText('QTY', { x: cols.qty, y: y + 4, size: 8, font: boldFont, color: white });
+  page.drawText('UNIT PRICE', { x: cols.unit - 8, y: y + 4, size: 8, font: boldFont, color: white });
+  page.drawText('TOTAL', { x: cols.total - 4, y: y + 4, size: 8, font: boldFont, color: white });
+  y -= 22;
+
+  // ── Items Rows ─────────────────────────────────────────────────────────────
   data.items.forEach((item, i) => {
+    ensureSpace(24);
     const rowBg = i % 2 === 0 ? lightGray : white;
     page.drawRectangle({ x: margin, y: y - 8, width: width - 2 * margin, height: 22, color: rowBg });
-    const truncDesc = item.description.length > 55 ? item.description.slice(0, 52) + '...' : item.description;
-    page.drawText(truncDesc, { x: cols.desc, y: y + 4, size: 9, font: regularFont, color: dark });
-    page.drawText(String(item.quantity), { x: cols.qty, y: y + 4, size: 9, font: regularFont, color: dark });
-    page.drawText(`BDT ${item.unitPrice.toLocaleString('en-IN')}`, { x: cols.unit, y: y + 4, size: 9, font: regularFont, color: dark });
-    page.drawText(`BDT ${item.amount.toLocaleString('en-IN')}`, { x: cols.amount - 10, y: y + 4, size: 9, font: regularFont, color: dark });
+    const truncDesc = item.description.length > 52 ? item.description.slice(0, 49) + '...' : item.description;
+    page.drawText(String(i + 1), { x: cols.sl, y: y + 4, size: 8, font: regularFont, color: dark });
+    page.drawText(truncDesc, { x: cols.desc, y: y + 4, size: 8, font: regularFont, color: dark });
+    page.drawText(String(item.quantity), { x: cols.qty, y: y + 4, size: 8, font: regularFont, color: dark });
+    page.drawText(fmtBDT(item.unitPrice), { x: cols.unit - 8, y: y + 4, size: 8, font: regularFont, color: dark });
+    page.drawText(fmtBDT(item.amount), { x: cols.total - 4, y: y + 4, size: 8, font: regularFont, color: dark });
     y -= 22;
   });
 
-  y -= 12;
+  y -= 10;
 
-  // ── Totals ────────────────────────────────────────────────────────────────
-  const totalsX = width - 230;
+  // ── Totals Section ─────────────────────────────────────────────────────────
+  const subtotal = data.totalAmount;
+  const discountAmt = data.discountType === 'percent'
+    ? subtotal * ((data.discountValue ?? 0) / 100)
+    : (data.discountValue ?? 0);
+  const totalPayable = Math.max(0, subtotal - discountAmt);
+  const totalPaid = (data.payments ?? []).reduce((s, p) => s + p.amount, 0);
+  const due = Math.max(0, totalPayable - totalPaid);
+
+  const totalsX = width - 270;
+
+  ensureSpace(120);
   page.drawLine({ start: { x: totalsX, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
-  y -= 20;
-  page.drawText('TOTAL AMOUNT', { x: totalsX, y, size: 10, font: boldFont, color: dark });
-  const totalStr = `BDT ${data.totalAmount.toLocaleString('en-IN')}`;
-  page.drawText(totalStr, {
-    x: width - margin - regularFont.widthOfTextAtSize(totalStr, 14),
-    y, size: 14, font: boldFont, color: green,
-  });
-
   y -= 18;
-  page.drawLine({ start: { x: totalsX, y }, end: { x: width - margin, y }, thickness: 1, color: blue });
 
-  // ── Notes ─────────────────────────────────────────────────────────────────
-  if (data.notes) {
-    y -= 30;
-    page.drawText('Notes:', { x: margin, y, size: 9, font: boldFont, color: dark });
-    y -= 15;
-    page.drawText(data.notes.slice(0, 120), { x: margin, y, size: 9, font: regularFont, color: gray });
+  // Subtotal row
+  page.drawText('Sub Total:', { x: totalsX, y, size: 9, font: boldFont, color: dark });
+  page.drawText(fmtBDT(subtotal), {
+    x: width - margin - regularFont.widthOfTextAtSize(fmtBDT(subtotal), 9),
+    y, size: 9, font: regularFont, color: dark,
+  });
+  y -= 16;
+
+  // Discount row
+  if (discountAmt > 0) {
+    const discLabel = data.discountType === 'percent'
+      ? `Discount (${data.discountValue}%):`
+      : 'Discount:';
+    page.drawText(discLabel, { x: totalsX, y, size: 9, font: boldFont, color: red });
+    page.drawText(`− ${fmtBDT(discountAmt)}`, {
+      x: width - margin - regularFont.widthOfTextAtSize(`− ${fmtBDT(discountAmt)}`, 9),
+      y, size: 9, font: regularFont, color: red,
+    });
+    y -= 16;
   }
 
-  // ── Footer (only when no pad background) ──────────────────────────────────
+  // Total payable row
+  page.drawText('Total Payable:', { x: totalsX, y, size: 10, font: boldFont, color: dark });
+  page.drawText(fmtBDT(totalPayable), {
+    x: width - margin - boldFont.widthOfTextAtSize(fmtBDT(totalPayable), 12),
+    y, size: 12, font: boldFont, color: blue,
+  });
+  y -= 20;
+
+  page.drawLine({ start: { x: totalsX, y }, end: { x: width - margin, y }, thickness: 1, color: blue });
+  y -= 10;
+
+  // ── Payment History ────────────────────────────────────────────────────────
+  if ((data.payments ?? []).length > 0) {
+    ensureSpace(16 + data.payments!.length * 18 + 30);
+
+    y -= 14;
+    page.drawText('PAYMENTS RECEIVED', { x: margin, y, size: 9, font: boldFont, color: blue });
+    y -= 14;
+
+    data.payments!.forEach(p => {
+      ensureSpace(20);
+      const methodStr = p.method ? ` (${p.method})` : '';
+      const noteStr = p.note ? ` — ${p.note.slice(0, 25)}` : '';
+      page.drawText(`${p.date}${methodStr}${noteStr}`, { x: margin + 8, y, size: 8, font: regularFont, color: gray });
+      page.drawText(`− ${fmtBDT(p.amount)}`, {
+        x: totalsX + 120,
+        y, size: 8, font: boldFont, color: gray,
+      });
+      y -= 16;
+    });
+
+    ensureSpace(50);
+
+    // Total paid row
+    y -= 6;
+    page.drawText('Total Paid:', { x: totalsX, y, size: 9, font: boldFont, color: dark });
+    page.drawText(`− ${fmtBDT(totalPaid)}`, {
+      x: width - margin - regularFont.widthOfTextAtSize(`− ${fmtBDT(totalPaid)}`, 9),
+      y, size: 9, font: regularFont, color: gray,
+    });
+    y -= 20;
+  }
+
+  // ── DUE BOX ───────────────────────────────────────────────────────────────
+  ensureSpace(45);
+  const dueColor = due > 0 ? red : green;
+  const dueLabel = due > 0 ? `AMOUNT DUE: ${fmtBDT(due)}` : 'FULLY PAID ✓';
+  page.drawRectangle({ x: totalsX - 8, y: y - 10, width: width - margin - totalsX + 8, height: 28, color: dueColor });
+  const dueTxtW = boldFont.widthOfTextAtSize(dueLabel, 11);
+  page.drawText(dueLabel, {
+    x: totalsX + (width - margin - totalsX - dueTxtW) / 2,
+    y: y + 5, size: 11, font: boldFont, color: white,
+  });
+  y -= 44;
+
+  // ── Notes ────────────────────────────────────────────────────────────────
+  if (data.notes) {
+    ensureSpace(40);
+    y -= 10;
+    page.drawText('Notes:', { x: margin, y, size: 9, font: boldFont, color: dark });
+    y -= 14;
+    const noteLines = data.notes.match(/.{1,90}/g) ?? [data.notes];
+    noteLines.slice(0, 3).forEach(line => {
+      ensureSpace(14);
+      page.drawText(line, { x: margin + 8, y, size: 9, font: regularFont, color: gray });
+      y -= 13;
+    });
+  }
+
+  // ── Thank You note ────────────────────────────────────────────────────────
+  ensureSpace(60);
+  y -= 20;
+  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+  y -= 18;
+  const thankMsg = 'Thank you for choosing us! We look forward to serving you again.';
+  const thankW = regularFont.widthOfTextAtSize(thankMsg, 9);
+  page.drawText(thankMsg, { x: (width - thankW) / 2, y, size: 9, font: regularFont, color: blue });
+  y -= 14;
+
+  // ── Footer (only when no pad background) ─────────────────────────────────
   if (!usePad) {
-    page.drawRectangle({ x: 0, y: 0, width, height: 40, color: lightGray });
-    page.drawText('Thank you for choosing Marketing Solution · hellotms.com.bd · hello@hellotms.com.bd', {
-      x: margin, y: 15, size: 8, font: regularFont, color: gray,
+    const pages = doc.getPages();
+    pages.forEach(p => {
+      const { width: pw } = p.getSize();
+      p.drawRectangle({ x: 0, y: 0, width: pw, height: 38, color: lightGray });
+      p.drawText('hellotms.com.bd · hello@hellotms.com.bd', {
+        x: margin, y: 14, size: 8, font: regularFont, color: gray,
+      });
     });
   }
 

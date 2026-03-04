@@ -7,9 +7,10 @@ import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Modal, ConfirmModal } from '@/components/Modal';
 import { formatBDT, formatDate, formatDateTime } from '@/lib/utils';
-import { ArrowLeft, Send, Download, Printer, Plus, Trash2, Edit, Save, X } from 'lucide-react';
-import type { Invoice, InvoiceItem } from '@hellotms/shared';
+import { ArrowLeft, Send, Download, Plus, Trash2, Edit, Save, X, Loader2, CheckCircle2 } from 'lucide-react';
+import type { Invoice, InvoiceItem, Collection } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
+import { toast } from '@/components/Toast';
 
 type InvoiceWithRelations = Invoice & {
   companies: { id: string; name: string; email: string; phone: string; address: string } | null;
@@ -27,6 +28,7 @@ export default function InvoiceDetailPage() {
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   const [sendError, setSendError] = useState('');
   const [sendSuccess, setSendSuccess] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const sendForm = useForm({ defaultValues: { recipient_email: '', recipient_name: '' } });
   const newItemForm = useForm({ defaultValues: { description: '', quantity: 1, unit_price: 0 } });
@@ -44,6 +46,20 @@ export default function InvoiceDetailPage() {
       return data as InvoiceWithRelations;
     },
     enabled: !!id,
+  });
+
+  // Fetch payment history from collections for this project
+  const { data: collections = [] } = useQuery<Collection[]>({
+    queryKey: ['collections-for-invoice', invoice?.project_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('collections')
+        .select('id, amount, payment_date, method, note')
+        .eq('project_id', invoice!.project_id)
+        .order('payment_date', { ascending: true });
+      return (data ?? []) as Collection[];
+    },
+    enabled: !!invoice?.project_id,
   });
 
   const updateStatusMutation = useMutation({
@@ -72,7 +88,6 @@ export default function InvoiceDetailPage() {
       const amount = values.quantity * values.unit_price;
       const { error } = await supabase.from('invoice_items').insert({ ...values, amount, invoice_id: id });
       if (error) throw error;
-      // Update total
       const newTotal = (invoice?.total_amount ?? 0) + amount;
       await supabase.from('invoices').update({ total_amount: newTotal }).eq('id', id!);
     },
@@ -88,7 +103,6 @@ export default function InvoiceDetailPage() {
       const amount = values.quantity * values.unit_price;
       const { error } = await supabase.from('invoice_items').update({ ...values, amount }).eq('id', itemId);
       if (error) throw error;
-      // Recalculate total
       const { data: items } = await supabase.from('invoice_items').select('amount').eq('invoice_id', id!);
       const newTotal = (items ?? []).reduce((s: number, i: { amount: number }) => s + i.amount, 0);
       await supabase.from('invoices').update({ total_amount: newTotal }).eq('id', id!);
@@ -116,14 +130,32 @@ export default function InvoiceDetailPage() {
   });
 
   const handleDownloadPdf = async () => {
-    const result = await invoicesApi.getPdf(id!) as { pdfUrl?: string | null };
-    if (result.pdfUrl) {
-      window.open(result.pdfUrl, '_blank');
+    try {
+      setPdfLoading(true);
+      const result = await invoicesApi.getPdf(id!) as { pdfUrl?: string | null; error?: string };
+      if (result.pdfUrl) {
+        window.open(result.pdfUrl, '_blank');
+        queryClient.invalidateQueries({ queryKey: ['invoice', id] });
+        toast('PDF generated successfully!', 'success');
+      } else {
+        toast(result.error ?? 'Failed to generate PDF', 'error');
+      }
+    } catch (err) {
+      toast('Failed to generate PDF', 'error');
+    } finally {
+      setPdfLoading(false);
     }
   };
 
   if (isLoading) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
   if (!invoice) return <div className="text-center py-12 text-muted-foreground">Invoice not found.</div>;
+
+  // ── Computed financials ─────────────────────────────────────────────────────
+  const subtotal = invoice.total_amount;
+  const discountValue = invoice.discount_value ?? 0;
+  const totalPayable = Math.max(0, subtotal - discountValue);
+  const totalPaid = collections.reduce((s, c) => s + c.amount, 0);
+  const due = Math.max(0, totalPayable - totalPaid);
 
   return (
     <div>
@@ -131,7 +163,7 @@ export default function InvoiceDetailPage() {
         title={`Invoice ${invoice.invoice_number}`}
         description={`${invoice.companies?.name ?? ''} — ${invoice.projects?.title ?? ''}`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-4 w-4" /> Back
             </button>
@@ -142,13 +174,21 @@ export default function InvoiceDetailPage() {
             )}
             {invoice.status === 'sent' && (
               <button onClick={() => updateStatusMutation.mutate('paid')} className="flex items-center gap-2 px-4 py-2 border border-green-600 text-green-700 rounded-lg text-sm hover:bg-green-50">
-                Mark Paid
+                <CheckCircle2 className="h-4 w-4" /> Mark Paid
               </button>
             )}
-            <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted">
-              <Download className="h-4 w-4" /> PDF
+            <button
+              onClick={handleDownloadPdf}
+              disabled={pdfLoading}
+              className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted disabled:opacity-60"
+            >
+              {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              PDF
             </button>
-            <button onClick={() => { setSendSuccess(false); setSendError(''); setIsSendOpen(true); }} className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90">
+            <button
+              onClick={() => { setSendSuccess(false); setSendError(''); setIsSendOpen(true); }}
+              className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
+            >
               <Send className="h-4 w-4" /> Send to Client
             </button>
           </div>
@@ -156,7 +196,7 @@ export default function InvoiceDetailPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Invoice Details */}
+        {/* Main Content */}
         <div className="lg:col-span-2 space-y-4">
           {/* Header Info */}
           <div className="bg-card border border-border rounded-xl p-6">
@@ -198,17 +238,20 @@ export default function InvoiceDetailPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
-                  {['Description', 'Qty', 'Unit Price', 'Amount', invoice.status === 'draft' ? 'Actions' : ''].filter(Boolean).map(h => (
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground w-10">SL</th>
+                  {['Description', 'Qty', 'Unit Price', 'Total'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">{h}</th>
                   ))}
+                  {invoice.status === 'draft' && <th className="w-24"></th>}
                 </tr>
               </thead>
               <tbody>
-                {invoice.invoice_items.map(item => (
+                {invoice.invoice_items.map((item, idx) => (
                   <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                     {isEditingItem === item.id ? (
-                      <td colSpan={5} className="px-4 py-2">
+                      <td colSpan={invoice.status === 'draft' ? 6 : 5} className="px-4 py-2">
                         <form onSubmit={editItemForm.handleSubmit((v) => editItemMutation.mutate({ itemId: item.id, values: v }))} className="flex gap-2 items-center">
+                          <span className="text-muted-foreground text-xs w-6">{idx + 1}</span>
                           <input {...editItemForm.register('description')} defaultValue={item.description} placeholder="Description" className="flex-1 border border-border rounded px-2 py-1 text-xs" />
                           <input type="number" {...editItemForm.register('quantity', { valueAsNumber: true })} defaultValue={item.quantity} className="w-16 border border-border rounded px-2 py-1 text-xs" />
                           <input type="number" {...editItemForm.register('unit_price', { valueAsNumber: true })} defaultValue={item.unit_price} className="w-24 border border-border rounded px-2 py-1 text-xs" />
@@ -218,6 +261,7 @@ export default function InvoiceDetailPage() {
                       </td>
                     ) : (
                       <>
+                        <td className="px-4 py-3 text-muted-foreground text-xs">{idx + 1}</td>
                         <td className="px-4 py-3">{item.description}</td>
                         <td className="px-4 py-3">{item.quantity}</td>
                         <td className="px-4 py-3">{formatBDT(item.unit_price)}</td>
@@ -236,7 +280,7 @@ export default function InvoiceDetailPage() {
                 ))}
                 {isAddingItem && (
                   <tr className="border-b border-border bg-muted/20">
-                    <td colSpan={5} className="px-4 py-2">
+                    <td colSpan={6} className="px-4 py-2">
                       <form onSubmit={newItemForm.handleSubmit((v) => addItemMutation.mutate(v))} className="flex gap-2 items-center">
                         <input {...newItemForm.register('description')} placeholder="Description" className="flex-1 border border-border rounded px-2 py-1 text-xs" />
                         <input type="number" {...newItemForm.register('quantity', { valueAsNumber: true })} placeholder="Qty" className="w-16 border border-border rounded px-2 py-1 text-xs" />
@@ -249,13 +293,71 @@ export default function InvoiceDetailPage() {
                 )}
               </tbody>
             </table>
-            <div className="flex justify-end px-6 py-4 border-t border-border">
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Total Amount</p>
-                <p className="text-3xl font-bold text-foreground mt-1">{formatBDT(invoice.total_amount)}</p>
+
+            {/* Totals breakdown */}
+            <div className="px-6 py-4 border-t border-border space-y-2 flex flex-col items-end">
+              <div className="flex justify-between w-52 text-sm">
+                <span className="text-muted-foreground">Sub Total</span>
+                <span className="font-medium">{formatBDT(subtotal)}</span>
+              </div>
+              {discountValue > 0 && (
+                <div className="flex justify-between w-52 text-sm text-red-600">
+                  <span>Discount {invoice.discount_type === 'percent' ? `(%)` : ''}</span>
+                  <span>− {formatBDT(discountValue)}</span>
+                </div>
+              )}
+              <div className="flex justify-between w-52 text-sm border-t border-border pt-2">
+                <span className="font-semibold">Total Payable</span>
+                <span className="font-bold text-primary">{formatBDT(totalPayable)}</span>
               </div>
             </div>
           </div>
+
+          {/* Payment History */}
+          {collections.length > 0 && (
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-border">
+                <h3 className="font-semibold">Payments Received</h3>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b border-border">
+                  <tr>
+                    {['Date', 'Method', 'Note', 'Amount'].map(h => (
+                      <th key={h} className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {collections.map(c => (
+                    <tr key={c.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-2.5">{formatDate(c.payment_date)}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{c.method ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{c.note ?? '—'}</td>
+                      <td className="px-4 py-2.5 font-semibold text-green-700">{formatBDT(c.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="px-6 py-4 border-t border-border flex flex-col items-end gap-2">
+                <div className="flex justify-between w-52 text-sm">
+                  <span className="text-muted-foreground">Total Paid</span>
+                  <span className="font-medium text-green-700">− {formatBDT(totalPaid)}</span>
+                </div>
+                <div className={`flex justify-between w-52 text-sm rounded-lg px-3 py-2 font-bold ${due > 0 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+                  <span>{due > 0 ? 'AMOUNT DUE' : 'FULLY PAID ✓'}</span>
+                  <span>{due > 0 ? formatBDT(due) : formatBDT(0)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          {invoice.notes && (
+            <div className="bg-card border border-border rounded-xl p-5">
+              <h3 className="font-semibold mb-2">Notes</h3>
+              <p className="text-sm text-muted-foreground whitespace-pre-line">{invoice.notes}</p>
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}
@@ -263,12 +365,26 @@ export default function InvoiceDetailPage() {
           <div className="bg-card border border-border rounded-xl p-5">
             <h3 className="font-semibold mb-3">Status</h3>
             <StatusBadge status={invoice.status} />
-            <p className="text-xs text-muted-foreground mt-2">{invoice.type} • Created {formatDate(invoice.created_at)}</p>
+            <p className="text-xs text-muted-foreground mt-2">{invoice.type} · Created {formatDate(invoice.created_at)}</p>
+          </div>
+
+          {/* Due summary in sidebar */}
+          <div className={`rounded-xl p-5 border ${due > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+            <h3 className={`font-semibold mb-2 text-sm ${due > 0 ? 'text-red-800' : 'text-green-800'}`}>
+              {due > 0 ? 'Outstanding Due' : 'Payment Status'}
+            </h3>
+            <p className={`text-2xl font-bold ${due > 0 ? 'text-red-700' : 'text-green-700'}`}>
+              {due > 0 ? formatBDT(due) : 'Fully Paid ✓'}
+            </p>
+            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+              <div className="flex justify-between"><span>Total Payable</span><span>{formatBDT(totalPayable)}</span></div>
+              <div className="flex justify-between"><span>Total Paid</span><span className="text-green-700">{formatBDT(totalPaid)}</span></div>
+            </div>
           </div>
 
           {invoice.pdf_url && (
             <div className="bg-card border border-border rounded-xl p-5">
-              <h3 className="font-semibold mb-3">PDF</h3>
+              <h3 className="font-semibold mb-3">Last PDF</h3>
               <a href={invoice.pdf_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline">
                 <Download className="h-4 w-4" /> Download PDF
               </a>
@@ -285,7 +401,7 @@ export default function InvoiceDetailPage() {
               <Send className="h-6 w-6 text-green-600" />
             </div>
             <p className="font-semibold text-foreground">Invoice sent!</p>
-            <p className="text-sm text-muted-foreground mt-1">The invoice has been emailed to the client.</p>
+            <p className="text-sm text-muted-foreground mt-1">The invoice has been emailed with a PDF attachment.</p>
             <button onClick={() => setIsSendOpen(false)} className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm">Close</button>
           </div>
         ) : (
@@ -302,7 +418,7 @@ export default function InvoiceDetailPage() {
             <div className="flex justify-end gap-3">
               <button type="button" onClick={() => setIsSendOpen(false)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
               <button type="submit" disabled={sendMutation.isPending} className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
-                <Send className="h-4 w-4" />
+                {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 {sendMutation.isPending ? 'Sending...' : 'Send Invoice'}
               </button>
             </div>

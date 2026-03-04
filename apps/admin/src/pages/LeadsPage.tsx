@@ -3,13 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
-import { Modal } from '@/components/Modal';
+import { Modal, ConfirmModal } from '@/components/Modal';
 import { DataTable } from '@/components/DataTable';
 import { formatDate } from '@/lib/utils';
 import { MessageSquare, Phone, Mail, Calendar, Star, Trash2 } from 'lucide-react';
 import type { Lead } from '@hellotms/shared';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useForm } from 'react-hook-form';
+import { toast } from '@/components/Toast';
 
 const STATUS_OPTIONS = ['all', 'new', 'contacted', 'closed', 'starred'];
 
@@ -17,6 +18,7 @@ export default function LeadsPage() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
 
   const noteForm = useForm({ defaultValues: { status: 'contacted', notes: '' } });
 
@@ -40,6 +42,10 @@ export default function LeadsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       setSelectedLead(null);
+      toast('Lead updated successfully', 'success');
+    },
+    onError: (error: any) => {
+      toast(`Failed to update lead: ${error.message || 'Unknown error'}`, 'error');
     },
   });
 
@@ -48,7 +54,13 @@ export default function LeadsPage() {
       const { error } = await supabase.from('leads').update({ is_starred }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leads'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast('Lead status updated', 'success');
+    },
+    onError: (error: any) => {
+      toast(`Action failed: ${error.message || 'Unknown error'}`, 'error');
+    },
   });
 
   const deleteMutation = useMutation({
@@ -59,6 +71,11 @@ export default function LeadsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       setSelectedLead(null);
+      setDeleteTarget(null);
+      toast('Lead deleted successfully', 'success');
+    },
+    onError: (error: any) => {
+      toast(`Failed to delete lead: ${error.message || 'Unknown error'}`, 'error');
     },
   });
 
@@ -69,9 +86,7 @@ export default function LeadsPage() {
 
   const handleDelete = (e: React.MouseEvent, lead: Lead) => {
     e.stopPropagation();
-    if (window.confirm('Are you sure you want to permanently delete this contact submission?')) {
-      deleteMutation.mutate(lead.id);
-    }
+    setDeleteTarget(lead);
   };
 
   const columns: ColumnDef<Lead, unknown>[] = [
@@ -244,6 +259,17 @@ export default function LeadsPage() {
           </div>
         )}
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        title="Delete Contact Submission"
+        message={`Are you sure you want to permanently delete the submission from "${deleteTarget?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete Permanently"
+        danger
+        loading={deleteMutation.isPending}
+      />
     </div>
   );
 }

@@ -16,7 +16,7 @@ async function buildAndStorePdf(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   id: string,
-  supabaseUrl: string,
+  env: Env,
 ): Promise<{ pdfUrl: string; pdfBytes: Uint8Array; pdfBase64: string } | { error: string }> {
   const { data: invoice, error: invoiceError } = await (supabase as any)
     .from('invoices')
@@ -32,6 +32,13 @@ async function buildAndStorePdf(
     .select('invoice_pad_url, pad_margin_top, pad_margin_bottom')
     .eq('id', 1)
     .single();
+
+  // Fetch payment history from collections for this project
+  const { data: collections } = await (supabase as any)
+    .from('collections')
+    .select('amount, payment_date, method, note')
+    .eq('project_id', invoice.project_id)
+    .order('payment_date', { ascending: true });
 
   const pdfData: InvoicePdfData = {
     invoiceNumber: invoice.invoice_number,
@@ -56,30 +63,38 @@ async function buildAndStorePdf(
       amount: item.amount,
     })),
     totalAmount: invoice.total_amount,
+    discountType: invoice.discount_type ?? 'flat',
+    discountValue: invoice.discount_value ?? 0,
+    payments: (collections ?? []).map((c: { amount: number; payment_date: string; method?: string; note?: string }) => ({
+      date: new Date(c.payment_date).toLocaleDateString('en-BD'),
+      amount: c.amount,
+      method: c.method ?? undefined,
+      note: c.note ?? undefined,
+    })),
+    notes: invoice.notes ?? undefined,
     padImageUrl: settings?.invoice_pad_url ?? undefined,
     padMarginTop: settings?.pad_margin_top ?? 150,
-    padMarginBottom: settings?.pad_margin_bottom ?? 100,
+    padMarginBottom: settings?.pad_margin_bottom ?? 80,
   };
 
   const pdfBytes = await generateInvoicePdf(pdfData);
   const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
 
-  // Store in a predictable, CDN-friendly folder: generated-invoices/<invoice-id>.pdf
-  const storagePath = `generated-invoices/${id}.pdf`;
-  const { error: uploadError } = await supabase.storage
-    .from('invoices')
-    .upload(storagePath, pdfBytes, {
-      contentType: 'application/pdf',
-      upsert: true,
-    });
+  // Store in Cloudflare R2: invoices/invoice_[number]_[id].pdf
+  const shortId = id.slice(0, 8);
+  const storagePath = `invoices/invoice_${invoice.invoice_number.replace(/[^a-zA-Z0-9]/g, '-')}_${shortId}.pdf`;
 
-  if (uploadError) {
-    console.error('[invoices] PDF upload error:', uploadError);
+  try {
+    await env.MEDIA_BUCKET.put(storagePath, pdfBytes, {
+      httpMetadata: { contentType: 'application/pdf' },
+    });
+  } catch (err) {
+    console.error('[invoices] R2 upload error:', err);
     return { error: 'Failed to upload PDF to storage' };
   }
 
-  // Use public CDN URL — works forever, no expiry
-  const pdfUrl = `${supabaseUrl}/storage/v1/object/public/invoices/${storagePath}`;
+  // Use public R2 CDN URL
+  const pdfUrl = `${env.R2_PUBLIC_URL}/${storagePath}`;
 
   // Persist the PDF URL on the invoice record
   await (supabase as any).from('invoices').update({ pdf_url: pdfUrl }).eq('id', id);
@@ -93,7 +108,7 @@ invoicesRoute.get('/:id/pdf', async (c) => {
   const { id } = c.req.param();
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
 
-  const result = await buildAndStorePdf(supabase, id, c.env.SUPABASE_URL);
+  const result = await buildAndStorePdf(supabase, id, c.env);
   if ('error' in result) {
     return c.json({ error: result.error }, result.error === 'Invoice not found' ? 404 : 500);
   }
@@ -111,7 +126,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
 
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
 
-  const pdfResult = await buildAndStorePdf(supabase, id, c.env.SUPABASE_URL);
+  const pdfResult = await buildAndStorePdf(supabase, id, c.env);
   if ('error' in pdfResult) {
     return c.json({ error: pdfResult.error }, pdfResult.error === 'Invoice not found' ? 404 : 500);
   }

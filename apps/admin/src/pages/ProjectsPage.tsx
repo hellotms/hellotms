@@ -5,8 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { DataTable } from '@/components/DataTable';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
-import { Modal } from '@/components/Modal';
-import { formatDate, slugify } from '@/lib/utils';
+import { Modal, ConfirmModal } from '@/components/Modal';
+import { formatBDT, formatDate, slugify } from '@/lib/utils';
 import { Plus, FolderOpen, ImageIcon } from 'lucide-react';
 import { ImageUpload } from '@/components/ImageUpload';
 import { projectSchema, EVENT_CATEGORIES } from '@hellotms/shared';
@@ -26,6 +26,7 @@ export default function ProjectsPage() {
   const [searchParams] = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') ?? 'all');
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
 
   const { data: companies = [] } = useQuery<Company[]>({
     queryKey: ['companies-list'],
@@ -69,7 +70,13 @@ export default function ProjectsPage() {
   const createMutation = useMutation({
     mutationFn: async (values: ProjectInput) => {
       // 1. Upload Cover Image Document if a crop happened
-      const finalCoverUrl = await mediaApi.uploadAndCleanMedia(coverImageUrl as string | File | null, null); // No old URL since this is creation
+      const finalCoverUrl = await mediaApi.uploadAndCleanMedia(
+        coverImageUrl as string | File | null,
+        null,
+        'projects',
+        'cover',
+        values.title
+      );
 
       // Default event_end_date to event_start_date if not provided
       const payload = {
@@ -106,7 +113,8 @@ export default function ProjectsPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['projects', statusFilter] });
+      setDeleteTarget(null);
       toast('Project deleted successfully!', 'success');
     },
     onError: (error: any) => {
@@ -115,9 +123,7 @@ export default function ProjectsPage() {
   });
 
   const handleDelete = (p: Project) => {
-    if (window.confirm(`Are you sure?\nThis will permanently delete the project "${p.title}".\nThis action cannot be undone and will also remove all associated financials, media, and invoices.`)) {
-      deleteMutation.mutate(p.id);
-    }
+    setDeleteTarget(p);
   };
 
   const columns: ColumnDef<Project & { companies: { name: string } | null }, unknown>[] = [
@@ -341,6 +347,17 @@ export default function ProjectsPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        title="Delete Project"
+        message={`Are you sure you want to permanently delete the project "${deleteTarget?.title}"? This will also remove all associated financials, media, and invoices. This action cannot be undone.`}
+        confirmLabel="Delete Project"
+        danger
+        loading={deleteMutation.isPending}
+      />
     </div>
   );
 }
