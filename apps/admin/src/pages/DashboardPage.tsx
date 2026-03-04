@@ -13,7 +13,7 @@ import { useDateFilter } from '@/context/DateFilterContext';
 import { formatBDT, formatDate } from '@/lib/utils';
 import {
   DollarSign, TrendingDown, TrendingUp, AlertCircle,
-  FolderOpen, CheckCircle2, Users
+  FolderOpen, CheckCircle2, Users, MessageSquare
 } from 'lucide-react';
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
@@ -68,7 +68,7 @@ export default function DashboardPage() {
         totalRevenue,
         totalExpense,
         netProfit: totalRevenue - totalExpense,
-        totalDue: totalRevenue - totalCollected,
+        totalDue: Math.max(0, totalRevenue - totalCollected),
         activeProjects,
         completedProjects,
         leadsCount: leadsRes.data?.length ?? 0,
@@ -157,6 +157,7 @@ export default function DashboardPage() {
         .limit(6);
       return data ?? [];
     },
+    refetchInterval: 5000,
   });
 
   return (
@@ -175,7 +176,7 @@ export default function DashboardPage() {
         <StatCard title="Total Due" value={kpis?.totalDue ?? 0} isCurrency icon={AlertCircle} iconColor="text-orange-600" iconBg="bg-orange-50" />
         <StatCard title="Active Projects" value={kpis?.activeProjects ?? 0} icon={FolderOpen} iconColor="text-blue-600" iconBg="bg-blue-50" onClick={() => navigate('/projects?status=active')} />
         <StatCard title="Completed" value={kpis?.completedProjects ?? 0} icon={CheckCircle2} iconColor="text-emerald-600" iconBg="bg-emerald-50" onClick={() => navigate('/projects?status=completed')} />
-        <StatCard title="Leads" value={kpis?.leadsCount ?? 0} icon={Users} iconColor="text-purple-600" iconBg="bg-purple-50" onClick={() => navigate('/leads')} />
+        <StatCard title="Contact Forms" value={kpis?.leadsCount ?? 0} icon={MessageSquare} iconColor="text-purple-600" iconBg="bg-purple-50" onClick={() => navigate('/leads')} />
       </div>
 
       {/* Charts row */}

@@ -15,7 +15,6 @@ import CmsPage from '@/pages/CmsPage';
 import StaffPage from '@/pages/StaffPage';
 import SettingsPage from '@/pages/SettingsPage';
 import NotFoundPage from '@/pages/NotFoundPage';
-import ContactSubmissionsPage from '@/pages/ContactSubmissionsPage';
 import WorkLogsPage from '@/pages/WorkLogsPage';
 import { ToastContainer } from '@/components/Toast';
 
@@ -60,7 +59,6 @@ function AppRoutes() {
         <Route path="cms" element={<CmsPage />} />
         <Route path="staff" element={<StaffPage />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="contacts" element={<ContactSubmissionsPage />} />
         <Route path="work-logs" element={<WorkLogsPage />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />

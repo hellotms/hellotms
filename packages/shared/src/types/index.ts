@@ -130,6 +130,7 @@ export interface Lead {
   location?: string | null;
   budget_range?: string | null;
   message?: string | null;
+  is_starred?: boolean;
   status: LeadStatus;
   notes?: string | null;
   created_at: string;

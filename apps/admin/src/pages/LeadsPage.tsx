@@ -6,12 +6,12 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { Modal } from '@/components/Modal';
 import { DataTable } from '@/components/DataTable';
 import { formatDate } from '@/lib/utils';
-import { MessageSquare, Phone, Mail, Calendar } from 'lucide-react';
+import { MessageSquare, Phone, Mail, Calendar, Star, Trash2 } from 'lucide-react';
 import type { Lead } from '@hellotms/shared';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useForm } from 'react-hook-form';
 
-const STATUS_OPTIONS = ['all', 'new', 'contacted', 'closed'];
+const STATUS_OPTIONS = ['all', 'new', 'contacted', 'closed', 'starred'];
 
 export default function LeadsPage() {
   const queryClient = useQueryClient();
@@ -24,7 +24,8 @@ export default function LeadsPage() {
     queryKey: ['leads', statusFilter],
     queryFn: async () => {
       let q = supabase.from('leads').select('*').order('created_at', { ascending: false });
-      if (statusFilter !== 'all') q = q.eq('status', statusFilter);
+      if (statusFilter === 'starred') q = q.eq('is_starred', true);
+      else if (statusFilter !== 'all') q = q.eq('status', statusFilter);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as Lead[];
@@ -41,6 +42,37 @@ export default function LeadsPage() {
       setSelectedLead(null);
     },
   });
+
+  const toggleStarMutation = useMutation({
+    mutationFn: async ({ id, is_starred }: { id: string; is_starred: boolean }) => {
+      const { error } = await supabase.from('leads').update({ is_starred }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leads'] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('leads').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      setSelectedLead(null);
+    },
+  });
+
+  const handleToggleStar = (e: React.MouseEvent, lead: Lead) => {
+    e.stopPropagation();
+    toggleStarMutation.mutate({ id: lead.id, is_starred: !lead.is_starred });
+  };
+
+  const handleDelete = (e: React.MouseEvent, lead: Lead) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to permanently delete this contact submission?')) {
+      deleteMutation.mutate(lead.id);
+    }
+  };
 
   const columns: ColumnDef<Lead, unknown>[] = [
     {
@@ -71,11 +103,31 @@ export default function LeadsPage() {
     },
     { accessorKey: 'status', header: 'Status', cell: ({ getValue }) => <StatusBadge status={getValue() as string} /> },
     { accessorKey: 'created_at', header: 'Submitted', cell: ({ getValue }) => formatDate(getValue() as string) },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2 justify-end">
+          <button
+            onClick={(e) => handleToggleStar(e, row.original)}
+            className={`p-1.5 rounded-md hover:bg-muted transition-colors ${row.original.is_starred ? 'text-yellow-500' : 'text-muted-foreground hover:text-yellow-500'}`}
+          >
+            <Star className={`h-4 w-4 ${row.original.is_starred ? 'fill-current' : ''}`} />
+          </button>
+          <button
+            onClick={(e) => handleDelete(e, row.original)}
+            className="p-1.5 text-muted-foreground hover:text-red-500 rounded-md hover:bg-muted transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      )
+    }
   ];
 
   return (
     <div>
-      <PageHeader title="Leads" description="Incoming inquiries from potential clients" />
+      <PageHeader title="Contact Forms" description="Messages and inquiries from the public website" />
 
       <div className="flex gap-2 mb-4">
         {STATUS_OPTIONS.map(s => (
@@ -114,21 +166,21 @@ export default function LeadsPage() {
             data={leads}
             columns={columns}
             searchKey="name"
-            searchPlaceholder="Search leads..."
+            searchPlaceholder="Search contact forms..."
             onRowClick={(row) => { setSelectedLead(row); noteForm.reset({ status: row.status, notes: row.notes ?? '' }); }}
           />
         )}
       </div>
 
-      {/* Lead Detail Modal */}
-      <Modal isOpen={!!selectedLead} onClose={() => setSelectedLead(null)} title="Lead Details" size="lg">
+      {/* Detail Modal */}
+      <Modal isOpen={!!selectedLead} onClose={() => setSelectedLead(null)} title="Contact Details" size="lg">
         {selectedLead && (
           <div className="space-y-5">
             {/* Contact Info */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-muted/40 rounded-lg p-3">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Contact</p>
-            <p className="font-semibold">{selectedLead.name}</p>
+                <p className="font-semibold">{selectedLead.name}</p>
               </div>
               <div className="bg-muted/40 rounded-lg p-3 space-y-1">
                 {selectedLead.email && (

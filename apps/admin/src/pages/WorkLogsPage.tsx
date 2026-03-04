@@ -51,7 +51,11 @@ export default function WorkLogsPage() {
         setLoading(false);
     }, []);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => {
+        load();
+        const interval = setInterval(load, 5000);
+        return () => clearInterval(interval);
+    }, [load]);
 
     const actionTypes = ['all', ...Array.from(new Set(logs.map(l => l.action)))];
 
