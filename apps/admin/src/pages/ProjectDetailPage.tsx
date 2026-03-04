@@ -321,14 +321,14 @@ export default function ProjectDetailPage() {
               status: project.status,
               location: project.location ?? '',
               category: EVENT_CATEGORIES.includes(project.category as any) ? (project.category ?? '') : (project.category ? 'Others' : ''),
-              event_start_date: project.event_start_date,
-              event_end_date: project.event_end_date ?? '',
-              proposal_date: project.proposal_date ?? '',
+              event_start_date: project.event_start_date ? project.event_start_date.split('T')[0] : '',
+              event_end_date: project.event_end_date ? project.event_end_date.split('T')[0] : '',
+              proposal_date: project.proposal_date ? project.proposal_date.split('T')[0] : '',
               budget: project.budget ?? '',
               advance_received: project.advance_received ?? '',
               notes: project.notes ?? '',
               is_featured: project.is_featured ?? false,
-              project_completed_at: project.project_completed_at ?? '',
+              project_completed_at: project.project_completed_at ? project.project_completed_at.split('T')[0] : '',
               description: project.description ?? '',
               cover_image_url: project.cover_image_url ?? '',
             });
@@ -856,6 +856,17 @@ export default function ProjectDetailPage() {
               />
             </div>
           )}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Event Start Date *</label>
+              <input type="date" {...registerEdit('event_start_date', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Event End Date</label>
+              <input type="date" {...registerEdit('event_end_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Proposal Date</label>
