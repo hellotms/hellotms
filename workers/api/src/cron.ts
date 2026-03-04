@@ -2,13 +2,23 @@ import { createClient } from '@supabase/supabase-js';
 import type { Env } from './types.js';
 
 export async function scheduledHandler(
-  event: ScheduledEvent,
+  _event: ScheduledEvent,
   env: Env,
-  ctx: ExecutionContext
+  _ctx: ExecutionContext
 ): Promise<void> {
   console.log('[cron] Scheduled keepalive running at', new Date().toISOString());
 
   const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
+
+  // Stochastic check: run ~2 times a week. 
+  // With hourly cron, probability is 2/168 ~= 0.0119. 
+  // We'll use 0.015 to be safer (roughly 2.5 times a week).
+  const shouldRun = Math.random() < 0.015;
+
+  if (!shouldRun) {
+    console.log('[cron] Skipping keepalive for this hour.');
+    return;
+  }
 
   try {
     // Ping Supabase with a lightweight query

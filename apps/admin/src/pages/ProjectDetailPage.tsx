@@ -266,24 +266,36 @@ export default function ProjectDetailPage() {
     setIsUploading(true);
     setUploadError('');
     try {
+      let successCount = 0;
       for (const file of stagedFiles) {
-        // Descriptive name for gallery photos: photo_[project-title]_[timestamp]
-        const res = await mediaApi.upload(file, 'projects/gallery', 'photo', project?.title || 'project');
-        if (res.success) {
-          await supabase.from('project_media').insert({
-            project_id: id,
-            path: res.key,
-            url: res.url
-          });
+        try {
+          // Descriptive name for gallery photos: photo_[project-title]_[timestamp]
+          const res = await mediaApi.upload(file, 'projects/gallery', 'photo', project?.title || 'project');
+          if (res.success) {
+            const { error: insertError } = await supabase.from('project_media').insert({
+              project_id: id,
+              path: res.key,
+              url: res.url
+            });
+            if (insertError) throw insertError;
+            successCount++;
+          } else {
+            throw new Error('Upload to R2 failed');
+          }
+        } catch (fileError: any) {
+          console.error(`[File Upload Error] ${file.name}:`, fileError);
+          toast(`Failed to upload ${file.name}: ${fileError.message}`, 'error');
         }
       }
       setStagedFiles([]);
       refetchGallery();
-      toast(`${stagedFiles.length} photo(s) uploaded`, 'success');
+      if (successCount > 0) {
+        toast(`${successCount} photo(s) uploaded successfully`, 'success');
+      }
     } catch (e: any) {
-      console.error('[Gallery Upload Error]', e);
-      setUploadError(e.message || 'Gallery upload failed. Check internet or server logs.');
-      toast('Upload failed', 'error');
+      console.error('[Gallery Upload Mega Error]', e);
+      setUploadError(e.message || 'Gallery upload failed.');
+      toast('Upload process encountered errors', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -523,6 +535,17 @@ export default function ProjectDetailPage() {
             </button>
           </div>
           <div className="space-y-2">
+            {/* Show Advance Received as a special entry if it exists */}
+            {advanceReceived > 0 && (
+              <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-700">{formatBDT(advanceReceived)}</p>
+                  <p className="text-xs text-emerald-600 font-medium">Advance Payment · Initial</p>
+                </div>
+                <p className="text-xs text-emerald-600 italic">Project Setup</p>
+              </div>
+            )}
+
             {collections.map(c => (
               <div key={c.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
                 <div>
@@ -532,7 +555,7 @@ export default function ProjectDetailPage() {
                 {c.note && <p className="text-xs text-muted-foreground">{c.note}</p>}
               </div>
             ))}
-            {collections.length === 0 && <p className="text-center py-10 text-sm text-muted-foreground">No payments recorded yet</p>}
+            {(collections.length === 0 && advanceReceived === 0) && <p className="text-center py-10 text-sm text-muted-foreground">No payments recorded yet</p>}
           </div>
         </div>
       )}

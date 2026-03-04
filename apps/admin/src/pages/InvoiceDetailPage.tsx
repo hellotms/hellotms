@@ -14,7 +14,7 @@ import { toast } from '@/components/Toast';
 
 type InvoiceWithRelations = Invoice & {
   companies: { id: string; name: string; email: string; phone: string; address: string } | null;
-  projects: { id: string; title: string } | null;
+  projects: { id: string; title: string, advance_received: number } | null;
   invoice_items: InvoiceItem[];
 };
 
@@ -39,7 +39,7 @@ export default function InvoiceDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('invoices')
-        .select('*, companies(*), projects(id, title), invoice_items(*)')
+        .select('*, companies(*), projects(id, title, advance_received), invoice_items(*)')
         .eq('id', id!)
         .single();
       if (error) throw error;
@@ -154,7 +154,7 @@ export default function InvoiceDetailPage() {
   const subtotal = invoice.total_amount;
   const discountValue = invoice.discount_value ?? 0;
   const totalPayable = Math.max(0, subtotal - discountValue);
-  const totalPaid = collections.reduce((s, c) => s + c.amount, 0);
+  const totalPaid = collections.reduce((s, c) => s + c.amount, 0) + (invoice.projects?.advance_received ?? 0);
   const due = Math.max(0, totalPayable - totalPaid);
 
   return (
@@ -309,6 +309,20 @@ export default function InvoiceDetailPage() {
               <div className="flex justify-between w-52 text-sm border-t border-border pt-2">
                 <span className="font-semibold">Total Payable</span>
                 <span className="font-bold text-primary">{formatBDT(totalPayable)}</span>
+              </div>
+              {invoice.projects?.advance_received && invoice.projects.advance_received > 0 && (
+                <div className="flex justify-between w-52 text-sm italic text-emerald-600 font-medium pb-1">
+                  <span>Advance Payment</span>
+                  <span>− {formatBDT(invoice.projects.advance_received)}</span>
+                </div>
+              )}
+              <div className="flex justify-between w-52 text-sm font-bold border-t border-border pt-2 text-foreground">
+                <span>Total Paid</span>
+                <span>{formatBDT(totalPaid)}</span>
+              </div>
+              <div className="flex justify-between w-52 text-lg font-bold text-primary pt-1">
+                <span>{due > 0 ? 'Amount Due' : 'Fully Paid'}</span>
+                <span>{due > 0 ? formatBDT(due) : formatBDT(0)}</span>
               </div>
             </div>
           </div>

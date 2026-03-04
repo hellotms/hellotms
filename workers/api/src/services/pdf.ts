@@ -32,6 +32,7 @@ export interface InvoicePdfData {
   totalAmount: number;
   discountType?: 'flat' | 'percent';
   discountValue?: number;
+  advanceReceived?: number;
   payments?: PaymentRecord[];
   notes?: string;
   /** Optional: URL of the invoice pad background image (from site_settings) */
@@ -181,7 +182,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
     ? subtotal * ((data.discountValue ?? 0) / 100)
     : (data.discountValue ?? 0);
   const totalPayable = Math.max(0, subtotal - discountAmt);
-  const totalPaid = (data.payments ?? []).reduce((s, p) => s + p.amount, 0);
+  const totalPaid = (data.payments ?? []).reduce((s, p) => s + p.amount, 0) + (data.advanceReceived ?? 0);
   const due = Math.max(0, totalPayable - totalPaid);
 
   const totalsX = width - 270;
@@ -223,12 +224,26 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   y -= 10;
 
   // ── Payment History ────────────────────────────────────────────────────────
-  if ((data.payments ?? []).length > 0) {
-    ensureSpace(16 + data.payments!.length * 18 + 30);
+  const hasPayments = (data.payments ?? []).length > 0;
+  const hasAdvance = (data.advanceReceived ?? 0) > 0;
+
+  if (hasPayments || hasAdvance) {
+    ensureSpace(16 + (data.payments?.length ?? 0) * 18 + (hasAdvance ? 18 : 0) + 30);
 
     y -= 14;
     page.drawText('PAYMENTS RECEIVED', { x: margin, y, size: 9, font: boldFont, color: blue });
     y -= 14;
+
+    // Show Advance Payment first if it exists
+    if ((data.advanceReceived ?? 0) > 0) {
+      ensureSpace(20);
+      page.drawText('Project Advance Payment', { x: margin + 8, y, size: 8, font: regularFont, color: gray });
+      page.drawText(`− ${fmtBDT(data.advanceReceived!)}`, {
+        x: totalsX + 120,
+        y, size: 8, font: boldFont, color: gray,
+      });
+      y -= 16;
+    }
 
     data.payments!.forEach(p => {
       ensureSpace(20);

@@ -5,7 +5,7 @@ compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
 [triggers]
-crons = ["0 8 * * *"]   # daily at 8 AM UTC — keepalive ping
+crons = ["0 * * * *"]   # every hour — for random keepalive ping (stochastic)
 
 # No custom routes for now, will use workers.dev substring
 

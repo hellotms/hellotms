@@ -20,7 +20,7 @@ async function buildAndStorePdf(
 ): Promise<{ pdfUrl: string; pdfBytes: Uint8Array; pdfBase64: string } | { error: string }> {
   const { data: invoice, error: invoiceError } = await (supabase as any)
     .from('invoices')
-    .select('*, invoice_items(*), projects(*), companies(*)')
+    .select('*, companies(*), projects(title, event_start_date, location, advance_received), invoice_items(*)')
     .eq('id', id)
     .single();
 
@@ -40,10 +40,18 @@ async function buildAndStorePdf(
     .eq('project_id', invoice.project_id)
     .order('payment_date', { ascending: true });
 
+  const formatDate = (date: Date) => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getMonth()];
+    const year = String(date.getFullYear()).slice(-2);
+    return `${day}-${month}-${year}`;
+  };
+
   const pdfData: InvoicePdfData = {
     invoiceNumber: invoice.invoice_number,
-    invoiceDate: new Date(invoice.created_at).toLocaleDateString('en-BD'),
-    dueDate: invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-BD') : undefined,
+    invoiceDate: formatDate(new Date(invoice.created_at)),
+    dueDate: invoice.due_date ? formatDate(new Date(invoice.due_date)) : undefined,
     type: invoice.type as 'invoice' | 'estimate',
     company: {
       name: invoice.companies?.name ?? 'Client',
@@ -56,7 +64,7 @@ async function buildAndStorePdf(
       eventStartDate: invoice.projects?.event_start_date ?? '',
       location: invoice.projects?.location ?? undefined,
     },
-    items: (invoice.invoice_items ?? []).map((item: { description: string; quantity: number; unit_price: number; amount: number }) => ({
+    items: (invoice.invoice_items ?? []).map((item: any) => ({
       description: item.description,
       quantity: item.quantity,
       unitPrice: item.unit_price,
@@ -65,11 +73,12 @@ async function buildAndStorePdf(
     totalAmount: invoice.total_amount,
     discountType: invoice.discount_type ?? 'flat',
     discountValue: invoice.discount_value ?? 0,
-    payments: (collections ?? []).map((c: { amount: number; payment_date: string; method?: string; note?: string }) => ({
-      date: new Date(c.payment_date).toLocaleDateString('en-BD'),
+    advanceReceived: invoice.projects?.advance_received ?? 0,
+    payments: (collections ?? []).map((c: any) => ({
+      date: formatDate(new Date(c.payment_date)),
       amount: c.amount,
-      method: c.method ?? undefined,
-      note: c.note ?? undefined,
+      method: c.method,
+      note: c.note,
     })),
     notes: invoice.notes ?? undefined,
     padImageUrl: settings?.invoice_pad_url ?? undefined,
