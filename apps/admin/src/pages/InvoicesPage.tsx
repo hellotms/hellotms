@@ -35,13 +35,18 @@ export default function InvoicesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+
+  // Read pre-selection from URL (e.g. coming from a project page)
+  const preProjectId = searchParams.get('project') ?? '';
+  const preCompanyId = searchParams.get('company') ?? '';
+
   const [isOpen, setIsOpen] = useState(searchParams.get('new') === '1');
   const [statusFilter, setStatusFilter] = useState('all');
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
 
-  // Creation form state
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState('');
+  // Creation form state — pre-initialize with URL params
+  const [selectedCompanyId, setSelectedCompanyId] = useState(preCompanyId);
+  const [selectedProjectId, setSelectedProjectId] = useState(preProjectId);
   const [invoiceNum, setInvoiceNum] = useState('');
   const [invoiceType, setInvoiceType] = useState<'invoice' | 'estimate'>('invoice');
   const [invoiceStatus, setInvoiceStatus] = useState('draft');

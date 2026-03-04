@@ -231,8 +231,8 @@ export default function ProjectDetailPage() {
         ...values,
         event_end_date: values.event_end_date || values.event_start_date || null,
         proposal_date: values.proposal_date || null,
-        budget: values.budget || null,
-        advance_received: values.advance_received || null,
+        budget: values.budget ?? null,
+        advance_received: Number(values.advance_received ?? 0),
         project_completed_at: values.project_completed_at || null,
         location: values.location || null,
         notes: values.notes || null,
@@ -542,7 +542,7 @@ export default function ProjectDetailPage() {
         <div>
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold text-foreground">Invoices</h3>
-            <button onClick={() => navigate(`/invoices/new?project=${id}`)} className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
+            <button onClick={() => navigate(`/invoices?new=1&project=${id}&company=${project?.company_id ?? ''}`)} className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
               <Plus className="h-3.5 w-3.5" /> Create Invoice
             </button>
           </div>
