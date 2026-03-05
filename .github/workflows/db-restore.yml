@@ -1,0 +1,69 @@
+name: Manual Database Restore
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_filename:
+        description: 'The filename of the backup to restore (e.g., backup-2026-03-05-120000.sql)'
+        required: true
+      supabase_db_url:
+        description: 'Target Supabase DB URL (leave empty to use repository secret SUPABASE_DB_URL)'
+        required: false
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Backup from R2
+        run: |
+          npm install @aws-sdk/client-s3
+          cat << 'EOF' > download.js
+          const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
+          const fs = require('fs');
+          const client = new S3Client({
+            region: "auto",
+            endpoint: process.env.R2_ENDPOINT,
+            credentials: {
+              accessKeyId: process.env.R2_ACCESS_KEY_ID,
+              secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+            },
+          });
+
+          async function download() {
+            const command = new GetObjectCommand({
+              Bucket: process.env.R2_BUCKET_NAME,
+              Key: `database-backups/${process.env.BACKUP_FILENAME}`,
+            });
+            const { Body } = await client.send(command);
+            const writeStream = fs.createWriteStream('restore.sql');
+            Body.pipe(writeStream);
+            return new Promise((resolve, reject) => {
+              writeStream.on('finish', resolve);
+              writeStream.on('error', reject);
+            });
+          }
+          download().then(() => console.log("Download complete")).catch(console.error);
+          EOF
+          node download.js
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          BACKUP_FILENAME: ${{ github.event.inputs.backup_filename }}
+
+      - name: Restore Database
+        run: |
+          DB_URL="${{ github.event.inputs.supabase_db_url }}"
+          if [ -z "$DB_URL" ]; then
+            DB_URL="${{ secrets.SUPABASE_DB_URL }}"
+          fi
+          # Install psql client
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          # Execute restoration
+          psql "$DB_URL" -f restore.sql
+        env:
+          PGPASSWORD: "" # Psql usually takes password from URL string if provided in the format postgres://user:pass@host:port/db
