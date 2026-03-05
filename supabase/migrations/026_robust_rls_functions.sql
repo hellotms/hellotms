@@ -28,6 +28,7 @@ DROP POLICY IF EXISTS "invoices_select_simple" ON public.invoices;
 DROP POLICY IF EXISTS "invoices_all_staff" ON public.invoices;
 DROP POLICY IF EXISTS "invoices_manage" ON public.invoices;
 DROP POLICY IF EXISTS "invoices_select_auth" ON public.invoices;
+DROP POLICY IF EXISTS "invoices_access_staff" ON public.invoices;
 
 CREATE POLICY "invoices_access_staff" ON public.invoices
   FOR ALL TO authenticated
@@ -38,6 +39,7 @@ CREATE POLICY "invoices_access_staff" ON public.invoices
 DROP POLICY IF EXISTS "invoice_items_all_staff" ON public.invoice_items;
 DROP POLICY IF EXISTS "invoice_items_manage" ON public.invoice_items;
 DROP POLICY IF EXISTS "invoice_items_select_auth" ON public.invoice_items;
+DROP POLICY IF EXISTS "invoice_items_access_staff" ON public.invoice_items;
 
 CREATE POLICY "invoice_items_access_staff" ON public.invoice_items
   FOR ALL TO authenticated

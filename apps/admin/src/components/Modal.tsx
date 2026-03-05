@@ -1,4 +1,4 @@
-import { X, AlertTriangle, Info } from 'lucide-react';
+import { X, AlertTriangle, Info, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ModalProps {
@@ -106,6 +106,92 @@ export function ConfirmModal({
         >
           {loading ? 'Processing...' : confirmLabel}
         </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Cascade Confirm Modal ────────────────────────────────────────────────────
+export interface CascadeItem {
+  icon: string;
+  label: string;
+  description?: string;
+}
+
+interface CascadeConfirmModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  targetName: string;
+  targetType: string;
+  cascadeItems: CascadeItem[];
+  confirmLabel?: string;
+  loading?: boolean;
+}
+
+export function CascadeConfirmModal({
+  isOpen, onClose, onConfirm, title, targetName, targetType,
+  cascadeItems, confirmLabel = 'Delete', loading = false,
+}: CascadeConfirmModalProps) {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl">
+          <div className="h-9 w-9 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center shrink-0">
+            <Trash2 className="h-4 w-4 text-red-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+              Permanently delete {targetType}
+            </p>
+            <p className="text-xs text-red-600 dark:text-red-400 mt-0.5 font-medium truncate max-w-[220px]">
+              "{targetName}"
+            </p>
+          </div>
+        </div>
+
+        {cascadeItems.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              This will also permanently delete:
+            </p>
+            <div className="space-y-1.5">
+              {cascadeItems.map((item, i) => (
+                <div key={i} className="flex items-start gap-2.5 p-2.5 bg-muted/50 rounded-lg border border-border/60">
+                  <span className="text-base leading-none mt-0.5 shrink-0">{item.icon}</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">{item.label}</p>
+                    {item.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <span>This action <strong>cannot be undone</strong>. All data will be permanently removed.</span>
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 text-sm font-medium border border-border rounded-xl hover:bg-muted transition-all active:scale-95"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl bg-red-600 text-white hover:bg-red-700 transition-all active:scale-95 disabled:opacity-60 shadow-sm shadow-red-200"
+          >
+            {loading ? 'Deleting...' : confirmLabel}
+          </button>
+        </div>
       </div>
     </Modal>
   );

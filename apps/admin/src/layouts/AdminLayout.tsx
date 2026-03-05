@@ -4,9 +4,11 @@ import { cn, getInitials } from '@/lib/utils';
 import {
   LayoutDashboard, Building2, FolderOpen, Receipt, Users,
   Globe, UserCog, Settings, LogOut, Menu, X, Bell, ChevronRight,
-  MessageSquare, ClipboardList
+  MessageSquare, ClipboardList, Megaphone, Trash2
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }, // Always visible
@@ -17,6 +19,8 @@ const navItems = [
   { to: '/cms', label: 'CMS / Website', icon: Globe, permission: 'manage_cms' },
   { to: '/staff', label: 'Staff & Roles', icon: UserCog, permission: 'view_staff' },
   { to: '/work-logs', label: 'Work Logs', icon: ClipboardList, permission: 'view_audit_logs' },
+  { to: '/notices', label: 'Notice Board', icon: Megaphone, permission: 'view_notices' },
+  { to: '/recycle-bin', label: 'Recycle Bin', icon: Trash2 },
   { to: '/settings', label: 'Settings', icon: Settings, permission: 'manage_settings' },
 ];
 
@@ -24,6 +28,37 @@ export default function AdminLayout() {
   const { profile, role, signOut, can } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Unread notices logic
+  const lastSeenNoticesAt = localStorage.getItem(`last_seen_notices_${profile?.id}`) || new Date(0).toISOString();
+
+  const { data: unreadNoticesCount = 0 } = useQuery({
+    queryKey: ['unread-notices', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return 0;
+      const { count } = await supabase
+        .from('notices')
+        .select('*', { count: 'exact', head: true })
+        .gt('created_at', lastSeenNoticesAt);
+      return count ?? 0;
+    },
+    enabled: !!profile?.id,
+    refetchInterval: 30000, // Check every 30s
+  });
+
+  const handleOpenNotices = () => {
+    localStorage.setItem(`last_seen_notices_${profile?.id}`, new Date().toISOString());
+    navigate('/notices');
+  };
+
+  // Fetch site settings for logo and public URL
+  const { data: siteSettings } = useQuery({
+    queryKey: ['site-settings-layout'],
+    queryFn: async () => {
+      const { data } = await supabase.from('site_settings').select('company_logo_url, public_site_url').eq('id', 1).single();
+      return data;
+    }
+  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -37,15 +72,19 @@ export default function AdminLayout() {
     )}>
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
-        <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
-          <span className="text-white font-bold text-sm">MS</span>
-        </div>
-        <div>
-          <p className="text-sidebar-foreground font-semibold text-sm leading-none">The Marketing Solution</p>
-          <p className="text-sidebar-foreground/60 text-xs mt-0.5">hellotms.com.bd</p>
+        {siteSettings?.company_logo_url ? (
+          <img src={siteSettings.company_logo_url} alt="Logo" className="h-9 w-9 rounded-lg object-cover bg-white" />
+        ) : (
+          <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
+            <span className="text-white font-bold text-sm">MS</span>
+          </div>
+        )}
+        <div className="min-w-0 pr-2">
+          <p className="text-sidebar-foreground font-semibold text-sm leading-none truncate">The Marketing Solution</p>
+          <p className="text-sidebar-foreground/60 text-xs mt-0.5 truncate">hellotms.com.bd</p>
         </div>
         {mobile && (
-          <button onClick={() => setSidebarOpen(false)} className="ml-auto text-sidebar-foreground/60 hover:text-sidebar-foreground">
+          <button onClick={() => setSidebarOpen(false)} className="ml-auto shrink-0 text-sidebar-foreground/60 hover:text-sidebar-foreground">
             <X className="h-5 w-5" />
           </button>
         )}
@@ -135,14 +174,35 @@ export default function AdminLayout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-2 rounded-md hover:bg-muted transition-colors relative">
-              <Bell className="h-5 w-5 text-muted-foreground" />
+            {siteSettings?.public_site_url && (
+              <a
+                href={siteSettings.public_site_url}
+                target="_blank"
+                rel="noreferrer"
+                title="View Public Website"
+                className="p-2 rounded-md hover:bg-muted transition-colors relative text-muted-foreground mr-1"
+              >
+                <Globe className="h-5 w-5" />
+              </a>
+            )}
+
+            <button
+              onClick={handleOpenNotices}
+              className="p-2 rounded-md hover:bg-muted transition-colors relative mr-2"
+              title="Notice Board"
+            >
+              <Megaphone className="h-5 w-5 text-muted-foreground" />
+              {unreadNoticesCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 h-4 min-w-[16px] flex items-center justify-center px-1 rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-background">
+                  {unreadNoticesCount > 99 ? '99+' : unreadNoticesCount}
+                </span>
+              )}
             </button>
-            <div className="flex items-center gap-2 pl-2 border-l border-border">
+            <div className="flex items-center gap-2 pl-3 border-l border-border cursor-pointer hover:bg-muted p-1.5 pr-3 rounded-lg transition-colors group" onClick={() => navigate('/profile')}>
               {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt={profile.name} className="h-7 w-7 rounded-full object-cover shrink-0" />
+                <img src={profile.avatar_url} alt={profile.name} className="h-8 w-8 rounded-full object-cover shrink-0 ring-2 ring-transparent group-hover:ring-primary/20 transition-all" />
               ) : (
-                <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white">
+                <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white shrink-0 ring-2 ring-transparent group-hover:ring-primary/20 transition-all">
                   {getInitials(profile?.name ?? 'U')}
                 </div>
               )}

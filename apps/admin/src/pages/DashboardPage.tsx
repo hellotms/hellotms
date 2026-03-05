@@ -167,6 +167,56 @@ export default function DashboardPage() {
     refetchInterval: 5000,
   });
 
+  // Per-Project P&L
+  const { data: projectPnL } = useQuery({
+    queryKey: ['dashboard-project-pnl', fromISO, toISO],
+    queryFn: async () => {
+      // 1. Get projects in range
+      const { data: projects } = await supabase
+        .from('projects')
+        .select('id, title, status, companies(name)')
+        .gte('event_start_date', fromISO)
+        .lte('event_start_date', toISO);
+
+      if (!projects || projects.length === 0) return [];
+
+      const pIds = projects.map(p => p.id);
+
+      // 2. Get Income and Expense for these projects
+      const { data: ledger } = await supabase
+        .from('ledger_entries')
+        .select('project_id, type, amount')
+        .in('project_id', pIds)
+        .is('deleted_at', null);
+
+      const pnlMap: Record<string, { income: number; expense: number }> = {};
+      pIds.forEach(id => pnlMap[id] = { income: 0, expense: 0 });
+
+      ledger?.forEach(row => {
+        if (row.project_id && pnlMap[row.project_id]) {
+          if (row.type === 'income') pnlMap[row.project_id].income += Number(row.amount);
+          else pnlMap[row.project_id].expense += Number(row.amount);
+        }
+      });
+
+      return projects.map(p => {
+        const stats = pnlMap[p.id];
+        const profit = stats.income - stats.expense;
+        const margin = stats.income > 0 ? (profit / stats.income) * 100 : 0;
+        return {
+          id: p.id,
+          title: p.title,
+          company: (p.companies as unknown as { name: string } | null)?.name ?? '—',
+          status: p.status,
+          income: stats.income,
+          expense: stats.expense,
+          profit,
+          margin
+        };
+      }).sort((a, b) => b.profit - a.profit); // Sort highest profit first
+    }
+  });
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -239,6 +289,48 @@ export default function DashboardPage() {
           ) : (
             <div className="h-[180px] flex items-center justify-center text-muted-foreground text-sm">No data</div>
           )}
+        </div>
+      </div>
+
+      {/* Per-Project P&L Table */}
+      <div className="bg-card border border-border rounded-xl p-6 overflow-hidden">
+        <h3 className="text-base font-semibold text-foreground mb-4">Project Profit & Loss</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead>
+              <tr className="bg-muted/50 border-y border-border">
+                <th className="px-4 py-3 font-semibold text-foreground">Project Name</th>
+                <th className="px-4 py-3 font-semibold text-foreground">Company</th>
+                <th className="px-4 py-3 font-semibold text-foreground">Status</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">Income (Ledger)</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">Expense (Ledger)</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">Net Profit</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">Margin</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {projectPnL?.map((p) => (
+                <tr key={p.id} onClick={() => navigate(`/projects/${p.id}`)} className="hover:bg-muted/50 cursor-pointer transition-colors">
+                  <td className="px-4 py-3 font-medium text-foreground">{p.title}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{p.company}</td>
+                  <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
+                  <td className="px-4 py-3 text-right text-emerald-600 font-mono">{formatBDT(p.income)}</td>
+                  <td className="px-4 py-3 text-right text-red-600 font-mono">{formatBDT(p.expense)}</td>
+                  <td className={`px-4 py-3 text-right font-bold font-mono ${p.profit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                    {p.profit > 0 ? '+' : ''}{formatBDT(p.profit)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-muted-foreground">
+                    {p.margin.toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+              {!projectPnL?.length && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">No projects found in this period.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

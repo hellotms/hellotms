@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { DataTable } from '@/components/DataTable';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
-import { Modal, ConfirmModal } from '@/components/Modal';
+import { Modal, CascadeConfirmModal } from '@/components/Modal';
 import { formatBDT, formatDate } from '@/lib/utils';
 import { Plus, Receipt, Trash, Pencil, Trash2, ReceiptText } from 'lucide-react';
 import type { Invoice, Company, Project } from '@hellotms/shared';
@@ -150,7 +150,7 @@ export default function InvoicesPage() {
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['invoices', statusFilter],
     queryFn: async () => {
-      let q = supabase.from('invoices').select('*, companies(name), projects(title)').order('created_at', { ascending: false });
+      let q = supabase.from('invoices').select('*, companies(name), projects(title)').is('deleted_at', null).order('created_at', { ascending: false });
       if (statusFilter !== 'all') q = q.eq('status', statusFilter);
       const { data, error } = await q;
       if (error) throw error;
@@ -266,18 +266,29 @@ export default function InvoicesPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('invoices').delete().eq('id', id);
+    mutationFn: async (invoice: Invoice) => {
+      // 1. Insert into trash_bin
+      const { error: trashError } = await supabase.from('trash_bin').insert({
+        entity_type: 'invoice',
+        entity_id: invoice.id,
+        entity_name: `Invoice #${invoice.invoice_number}`,
+        entity_data: invoice,
+      });
+      if (trashError) throw trashError;
+
+      // 2. Soft delete
+      const { error } = await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', invoice.id);
       if (error) throw error;
     },
-    onSuccess: (_, id) => {
+    onSuccess: (_, invoice) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       setDeleteTarget(null);
       toast('Invoice deleted successfully!', 'success');
       auditApi.log({
         action: 'delete_invoice',
         entity_type: 'invoice',
-        entity_id: id
+        entity_id: invoice.id,
+        before: invoice
       });
     },
     onError: (e: Error) => toast(e.message, 'error'),
@@ -590,14 +601,17 @@ export default function InvoicesPage() {
         </div>
       </Modal>
 
-      <ConfirmModal
+      <CascadeConfirmModal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
         title="Delete Invoice"
-        message={`Are you sure you want to permanently delete Invoice "${deleteTarget?.invoice_number}"? This action cannot be undone.`}
-        confirmLabel="Delete Invoice"
-        danger
+        targetName={`Invoice #${deleteTarget?.invoice_number ?? ''}`}
+        targetType="invoice"
+        cascadeItems={[
+          { icon: '📝', label: 'Invoice line items', description: 'All products/services listed in this invoice' }
+        ]}
+        confirmLabel="Move to Recycle Bin"
         loading={deleteMutation.isPending}
       />
     </div>

@@ -48,6 +48,8 @@ const ALL_PERMISSIONS: { key: string; label: string; group: string }[] = [
   { key: 'view_leads', label: 'View Leads', group: 'Leads' },
   { key: 'manage_cms', label: 'Manage CMS', group: 'Settings' },
   { key: 'manage_settings', label: 'Manage Settings', group: 'Settings' },
+  { key: 'manage_notices', label: 'Manage Notices', group: 'Notices' },
+  { key: 'view_notices', label: 'View Notices', group: 'Notices' },
   { key: 'view_audit_logs', label: 'View Audit Logs', group: 'Settings' },
 ];
 

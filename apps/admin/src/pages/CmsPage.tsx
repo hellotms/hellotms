@@ -7,7 +7,8 @@ import { Plus, Save, Trash2, Globe, Phone, Mail, LayoutDashboard } from 'lucide-
 import { toast } from '@/components/Toast';
 import { useForm, useFieldArray } from 'react-hook-form';
 import type { SiteSettings } from '@hellotms/shared';
-import { auditApi } from '@/lib/api';
+import { mediaApi, auditApi } from '@/lib/api';
+import { ImageUpload } from '@/components/ImageUpload';
 
 type CmsFormValues = {
   hero_title: string;
@@ -23,6 +24,7 @@ type CmsFormValues = {
   whatsapp_number: string;
   cta_label: string;
   cta_url: string;
+  company_logo_url: string;
   services: { title: string; description: string; icon: string }[];
 };
 
@@ -42,7 +44,9 @@ export default function CmsPage() {
       about_text: '',
       contact_phone: '', contact_email: '', contact_address: '',
       facebook_url: '', instagram_url: '', youtube_url: '', whatsapp_number: '',
-      cta_label: '', cta_url: '',
+      cta_label: '',
+      cta_url: '',
+      company_logo_url: '',
       services: [],
     },
   });
@@ -74,6 +78,7 @@ export default function CmsPage() {
         whatsapp_number: settings.whatsapp ?? '',
         cta_label: settings.hero_cta_primary_label ?? '',
         cta_url: settings.hero_cta_primary_url ?? '',
+        company_logo_url: settings.company_logo_url ?? '',
         services: (settings.services ?? []).map((s) => ({
           title: (s as { title?: string; name?: string }).title ?? (s as { name?: string }).name ?? '',
           description: (s as { description?: string }).description ?? '',
@@ -104,6 +109,13 @@ export default function CmsPage() {
           instagram: values.instagram_url,
           youtube: values.youtube_url,
         },
+        company_logo_url: await mediaApi.uploadAndCleanMedia(
+          values.company_logo_url,
+          settings?.company_logo_url,
+          'cms',
+          'logo',
+          'company_logo'
+        ),
         updated_at: new Date().toISOString(),
       };
       const { error } = await supabase.from('site_settings').update(payload).eq('id', 1);
@@ -188,7 +200,23 @@ export default function CmsPage() {
       <form className="space-y-6">
         {/* General Tab */}
         {activeTab === 'general' && (
-          <div className="bg-card border border-border rounded-xl p-6 space-y-5">
+          <div className="bg-card border border-border rounded-xl p-6 space-y-6">
+            <div className="flex flex-col md:flex-row gap-6 pb-6 border-b border-border mb-2">
+              <div className="w-32 h-32 shrink-0">
+                <ImageUpload
+                  label="Company Logo"
+                  value={form.watch('company_logo_url')}
+                  onChange={(val) => form.setValue('company_logo_url', val as string, { shouldDirty: true })}
+                  disabled={!isEditing}
+                  aspect={1}
+                />
+              </div>
+              <div className="flex-1 space-y-4 pt-1">
+                <h3 className="font-semibold text-lg">Identity & Branding</h3>
+                <p className="text-sm text-muted-foreground">Upload your company logo and define your primary site motto. This logo appears in the admin sidebar and header.</p>
+              </div>
+            </div>
+
             <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Hero Section</h3>
             <div>
               <label className="block text-sm font-medium mb-1">Hero Title</label>

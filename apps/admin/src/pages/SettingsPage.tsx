@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/context/AuthContext';
@@ -12,6 +12,7 @@ import { mediaApi, auditApi } from '@/lib/api';
 
 export default function SettingsPage() {
   const { user, profile, refreshProfile } = useAuth();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'system' | 'invoice'>('profile');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingInvoice, setIsEditingInvoice] = useState(false);
@@ -54,6 +55,18 @@ export default function SettingsPage() {
       refreshProfile();
       setIsEditingProfile(false);
       toast('Profile updated successfully!', 'success');
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  const updatePublicUrlMutation = useMutation({
+    mutationFn: async (url: string) => {
+      const { error } = await supabase.from('site_settings').update({ public_site_url: url }).eq('id', 1);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['site-settings-layout'] });
+      toast('Public site URL updated!', 'success');
     },
     onError: (e: Error) => toast(e.message, 'error'),
   });
@@ -445,7 +458,7 @@ export default function SettingsPage() {
 
           <div className="bg-card border border-border rounded-xl p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2"><Bell className="h-4 w-4" /> Application Info</h3>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-4 text-sm">
               <div className="flex justify-between items-center py-1.5 border-b border-border/50">
                 <span className="text-muted-foreground">App Name</span>
                 <span>The Marketing Solution</span>
@@ -454,11 +467,26 @@ export default function SettingsPage() {
                 <span className="text-muted-foreground">Domain</span>
                 <span>hellotms.com.bd</span>
               </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-border/50">
-                <span className="text-muted-foreground">Admin Panel</span>
-                <span>admin.hellotms.com.bd</span>
+
+              <div className="space-y-2 pt-2">
+                <label className="text-muted-foreground block">Public Site URL</label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    defaultValue={siteSettings?.public_site_url ?? ''}
+                    onBlur={(e) => {
+                      if (e.target.value !== siteSettings?.public_site_url) {
+                        updatePublicUrlMutation.mutate(e.target.value);
+                      }
+                    }}
+                    placeholder="https://hellotms.com.bd"
+                    className="flex-1 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground">This URL is used for the globe icon button in the header.</p>
               </div>
-              <div className="flex justify-between items-center py-1.5">
+
+              <div className="flex justify-between items-center py-1.5 border-t border-border/50 mt-4">
                 <span className="text-muted-foreground">Currency</span>
                 <span>BDT (৳)</span>
               </div>

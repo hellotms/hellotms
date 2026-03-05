@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { DataTable } from '@/components/DataTable';
 import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader } from '@/components/PageHeader';
-import { Modal, ConfirmModal } from '@/components/Modal';
+import { Modal, CascadeConfirmModal } from '@/components/Modal';
 import { ImageUpload } from '@/components/ImageUpload';
 import { formatDate, slugify } from '@/lib/utils';
 import { Plus, Building2, Pencil, Trash } from 'lucide-react';
@@ -31,6 +31,7 @@ export default function CompaniesPage() {
       const { data, error } = await supabase
         .from('companies')
         .select('*')
+        .is('deleted_at', null)
         .order('name');
       if (error) {
         toast(`Failed to load companies: ${error.message}`, 'error');
@@ -88,14 +89,25 @@ export default function CompaniesPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('companies').delete().eq('id', id);
+    mutationFn: async (company: Company) => {
+      // Insert to trash
+      const { error: trashError } = await supabase.from('trash_bin').insert({
+        entity_type: 'company',
+        entity_id: company.id,
+        entity_name: company.name,
+        entity_data: company,
+      });
+      if (trashError) throw trashError;
+
+      // Soft delete
+      const { error } = await supabase.from('companies').update({ deleted_at: new Date().toISOString() }).eq('id', company.id);
       if (error) throw error;
+
       auditApi.log({
         action: 'delete_company',
         entity_type: 'company',
-        entity_id: id,
-        before: { id }
+        entity_id: company.id,
+        before: company
       });
     },
     onSuccess: () => {
@@ -225,14 +237,20 @@ export default function CompaniesPage() {
         </form>
       </Modal>
 
-      <ConfirmModal
+      <CascadeConfirmModal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
         title="Delete Company"
-        message={`Are you sure you want to permanently delete the company "${deleteTarget?.name}"? This might affect associated projects or invoices. This action cannot be undone.`}
+        targetName={deleteTarget?.name ?? ''}
+        targetType="company"
+        cascadeItems={[
+          { icon: '📁', label: 'All projects', description: 'Every project associated with this company' },
+          { icon: '🖼️', label: 'All gallery photos', description: 'Project photos stored in cloud storage' },
+          { icon: '💰', label: 'All ledger entries & collections', description: 'Income, expense records and payment history' },
+          { icon: '🧾', label: 'All invoices', description: 'Invoices and their line items' },
+        ]}
         confirmLabel="Delete Company"
-        danger
         loading={deleteMutation.isPending}
       />
     </div>

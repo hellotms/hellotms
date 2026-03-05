@@ -53,6 +53,8 @@ export default function ProjectDetailPage() {
   const [uploadError, setUploadError] = useState('');
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [deleteCollectionTarget, setDeleteCollectionTarget] = useState<string | null>(null);
+  const [deletePhotoTarget, setDeletePhotoTarget] = useState<{ id: string; path: string } | null>(null);
 
 
   const { data: project, isLoading } = useQuery<Project & { companies: { name: string; phone?: string; email?: string } | null }>({
@@ -233,6 +235,27 @@ export default function ProjectDetailPage() {
     }
   });
 
+  const deleteCollectionMutation = useMutation({
+    mutationFn: async (collectionId: string) => {
+      const { error } = await supabase.from('collections').delete().eq('id', collectionId);
+      if (error) throw error;
+      auditApi.log({
+        action: 'delete_collection',
+        entity_type: 'collection',
+        entity_id: collectionId,
+        before: { id: collectionId }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['collections', id] });
+      setDeleteCollectionTarget(null);
+      toast('Payment deleted', 'success');
+    },
+    onError: (error: any) => {
+      toast(`Failed to delete payment: ${error.message}`, 'error');
+    }
+  });
+
   // Toggle published
   const togglePublished = async () => {
     if (!project) return;
@@ -320,7 +343,10 @@ export default function ProjectDetailPage() {
               action: 'upload_gallery_photo',
               entity_type: 'project',
               entity_id: id,
-              after: { url: res.url, path: res.key }
+              after: {
+                project_name: project?.title || 'Unknown Project',
+                photo_name: file.name
+              }
             });
           } else {
             throw new Error('Upload to R2 failed');
@@ -364,13 +390,39 @@ export default function ProjectDetailPage() {
   };
 
   // Gallery delete
-  const deletePhoto = async (photo: { id: string; path: string }) => {
+  const confirmDeletePhoto = async () => {
+    if (!deletePhotoTarget) return;
     try {
-      await mediaApi.delete(photo.path);
-      await supabase.from('project_media').delete().eq('id', photo.id);
+      // 1. Move to Trash Bin instead of deleting immediately from storage
+      const { error: trashError } = await supabase.from('trash_bin').insert({
+        entity_type: 'collection', // Storing as 'collection' temporarily or ideally 'photo' if enum allowed. We'll use 'collection' since we don't have 'photo' enum in migration, but let's just save the JSON.
+        entity_id: deletePhotoTarget.id,
+        entity_name: `Photo from ${project?.title}`,
+        entity_data: { ...deletePhotoTarget, _is_gallery_photo: true },
+      });
+      if (trashError) throw trashError;
+
+      // 2. We don't have deleted_at on project_media, so we delete from project_media
+      // BUT we don't delete from mediaApi. When it's restored, we re-insert.
+      const { error } = await supabase.from('project_media').delete().eq('id', deletePhotoTarget.id);
+      if (error) throw error;
+
+      auditApi.log({
+        action: 'delete_gallery_photo',
+        entity_type: 'project',
+        entity_id: id!,
+        before: {
+          project_name: project?.title || 'Unknown Project',
+          photo_name: deletePhotoTarget.path.split('/').pop() || 'photo'
+        }
+      });
+
       refetchGallery();
-    } catch (e) {
+      setDeletePhotoTarget(null);
+      toast('Photo deleted', 'success');
+    } catch (e: any) {
       console.error('Delete error:', e);
+      toast(`Failed to delete photo: ${e.message}`, 'error');
     }
   };
 
@@ -532,21 +584,23 @@ export default function ProjectDetailPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
-                  {['Date', 'Category', 'Amount', 'Status', 'Note', ''].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">{h}</th>
+                  {['Date', 'Category', 'Quantity', 'Sell Price', 'Total Cost', 'Status', 'Note', ''].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {ledger.filter(e => e.type === 'expense').map((entry, i) => (
                   <tr key={entry.id} className={`border-b border-border last:border-0 ${i % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
-                    <td className="px-4 py-2.5 text-muted-foreground">{formatDate(entry.entry_date)}</td>
-                    <td className="px-4 py-2.5">{entry.category}</td>
-                    <td className="px-4 py-2.5 font-semibold text-red-500">−{formatBDT(Number(entry.amount))}</td>
-                    <td className="px-4 py-2.5"><StatusBadge status={entry.paid_status ?? 'unpaid'} /></td>
+                    <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{formatDate(entry.entry_date)}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">{entry.category}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">{entry.quantity ?? 1}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">{entry.face_value ? formatBDT(Number(entry.face_value)) : '—'}</td>
+                    <td className="px-4 py-2.5 font-semibold text-red-500 whitespace-nowrap">−{formatBDT(Number(entry.amount))}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap"><StatusBadge status={entry.paid_status ?? 'unpaid'} /></td>
                     <td className="px-4 py-2.5 text-muted-foreground max-w-[150px] truncate">{entry.note ?? '—'}</td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-1">
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      <div className="flex items-center gap-1 justify-end">
                         <button onClick={() => { setEditingEntry(entry); ledgerForm.reset({ ...entry, project_id: id! }); setIsLedgerOpen(true); }} className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
@@ -558,13 +612,13 @@ export default function ProjectDetailPage() {
                   </tr>
                 ))}
                 {ledger.filter(e => e.type === 'expense').length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">No expense entries yet</td></tr>
+                  <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">No expense entries yet</td></tr>
                 )}
               </tbody>
               {ledger.filter(e => e.type === 'expense').length > 0 && (
                 <tfoot className="bg-muted/30 border-t border-border">
                   <tr>
-                    <td colSpan={2} className="px-4 py-3 text-sm font-semibold text-foreground">Total Expenses</td>
+                    <td colSpan={4} className="px-4 py-3 text-sm font-semibold text-foreground text-right">Total Expenses</td>
                     <td className="px-4 py-3 text-sm font-bold text-red-500">−{formatBDT(totalExpense)}</td>
                     <td colSpan={3}></td>
                   </tr>
@@ -600,12 +654,17 @@ export default function ProjectDetailPage() {
             )}
 
             {collections.map(c => (
-              <div key={c.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
+              <div key={c.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between group">
                 <div>
                   <p className="text-sm font-semibold text-foreground">{formatBDT(Number(c.amount))}</p>
                   <p className="text-xs text-muted-foreground">{formatDate(c.payment_date)}{c.method ? ` · ${c.method}` : ''}</p>
                 </div>
-                {c.note && <p className="text-xs text-muted-foreground">{c.note}</p>}
+                <div className="flex items-center gap-4">
+                  {c.note && <p className="text-xs text-muted-foreground mr-2">{c.note}</p>}
+                  <button onClick={() => setDeleteCollectionTarget(c.id)} className="p-1.5 rounded-md hover:bg-red-50 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             ))}
             {(collections.length === 0 && advanceReceived === 0) && <p className="text-center py-10 text-sm text-muted-foreground">No payments recorded yet</p>}
@@ -786,7 +845,7 @@ export default function ProjectDetailPage() {
                       <Download className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => deletePhoto(photo)}
+                      onClick={() => setDeletePhotoTarget(photo)}
                       className="p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
                       title="Delete"
                     >
@@ -899,16 +958,37 @@ export default function ProjectDetailPage() {
         </form>
       </Modal>
 
-      {/* Delete confirm */}
+      {/* Delete confirms */}
       <ConfirmModal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget && deleteLedgerMutation.mutate(deleteTarget)}
-        title="Delete Entry"
-        message="Are you sure you want to delete this ledger entry? This action cannot be undone."
+        title="Delete Expense Entry"
+        message="Are you sure you want to delete this expense entry? This action cannot be undone."
         confirmLabel="Delete"
         danger
         loading={deleteLedgerMutation.isPending}
+      />
+
+      <ConfirmModal
+        isOpen={!!deleteCollectionTarget}
+        onClose={() => setDeleteCollectionTarget(null)}
+        onConfirm={() => deleteCollectionTarget && deleteCollectionMutation.mutate(deleteCollectionTarget)}
+        title="Delete Payment Collection"
+        message="Are you sure you want to delete this payment record? This will affect the total received balance."
+        confirmLabel="Delete Payment"
+        danger
+        loading={deleteCollectionMutation.isPending}
+      />
+
+      <ConfirmModal
+        isOpen={!!deletePhotoTarget}
+        onClose={() => setDeletePhotoTarget(null)}
+        onConfirm={confirmDeletePhoto}
+        title="Delete Gallery Photo"
+        message="Are you sure you want to permanently delete this photo? It will be removed from cloud storage."
+        confirmLabel="Delete Photo"
+        danger
       />
 
       <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Project">

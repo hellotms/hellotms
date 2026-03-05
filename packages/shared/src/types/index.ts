@@ -73,6 +73,8 @@ export interface LedgerEntry {
   type: LedgerEntryType;
   category: string;
   amount: number;
+  quantity?: number | null;
+  face_value?: number | null;
   entry_date: string; // ISO date
   paid_status?: PaidStatus | null;
   note?: string | null;
@@ -151,6 +153,8 @@ export interface SiteSettings {
   hero_cta_primary_url?: string | null;
   hero_cta_secondary_label?: string | null;
   hero_cta_secondary_url?: string | null;
+  company_logo_url?: string | null;
+  public_site_url?: string | null;
   phone?: string | null;
   whatsapp?: string | null;
   services: ServiceItem[];
@@ -158,6 +162,31 @@ export interface SiteSettings {
   contact_info: ContactInfo;
   socials: Socials;
   updated_at: string;
+}
+
+export interface Notice {
+  id: string;
+  title: string;
+  body?: string | null;
+  cover_url?: string | null;
+  attachments?: unknown[] | null;
+  is_pinned: boolean;
+  expires_at?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  profiles?: { name: string; avatar_url: string | null } | null;
+}
+
+export interface TrashBinItem {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  entity_name: string;
+  entity_data: Record<string, unknown>;
+  deleted_by?: string | null;
+  deleted_at: string;
+  expires_at: string;
 }
 
 export interface ServiceItem {

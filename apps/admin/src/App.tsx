@@ -17,6 +17,10 @@ import StaffProfilePage from '@/pages/StaffProfilePage';
 import SettingsPage from '@/pages/SettingsPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import WorkLogsPage from '@/pages/WorkLogsPage';
+import NoticesPage from '@/pages/NoticesPage';
+import NoticeDetailPage from '@/pages/NoticeDetailPage';
+import ProfilePage from '@/pages/ProfilePage';
+import RecycleBinPage from '@/pages/RecycleBinPage';
 import { ToastContainer } from '@/components/Toast';
 import SetupPage from '@/pages/SetupPage';
 
@@ -84,8 +88,12 @@ function AppRoutes() {
         <Route path="cms" element={<PermissionRoute permission="manage_cms"><CmsPage /></PermissionRoute>} />
         <Route path="staff" element={<PermissionRoute permission="view_staff"><StaffPage /></PermissionRoute>} />
         <Route path="staff/:id" element={<PermissionRoute permission="view_staff"><StaffProfilePage /></PermissionRoute>} />
+        <Route path="profile" element={<ProfilePage />} />
         <Route path="settings" element={<PermissionRoute permission="manage_settings"><SettingsPage /></PermissionRoute>} />
         <Route path="work-logs" element={<PermissionRoute permission="view_audit_logs"><WorkLogsPage /></PermissionRoute>} />
+        <Route path="notices" element={<PermissionRoute permission="view_notices"><NoticesPage /></PermissionRoute>} />
+        <Route path="notices/:id" element={<PermissionRoute permission="view_notices"><NoticeDetailPage /></PermissionRoute>} />
+        <Route path="recycle-bin" element={<RecycleBinPage />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

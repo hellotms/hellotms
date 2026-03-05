@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { DataTable } from '@/components/DataTable';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
-import { Modal, ConfirmModal } from '@/components/Modal';
+import { Modal, CascadeConfirmModal } from '@/components/Modal';
 import { formatBDT, formatDate, slugify } from '@/lib/utils';
 import { Plus, FolderOpen, ImageIcon } from 'lucide-react';
 import { ImageUpload } from '@/components/ImageUpload';
@@ -39,7 +39,7 @@ export default function ProjectsPage() {
   const { data: projects = [], isLoading, error: queryError } = useQuery<(Project & { companies: { name: string } | null })[]>({
     queryKey: ['projects', statusFilter],
     queryFn: async () => {
-      let q = supabase.from('projects').select('*, companies(name)').order('event_start_date', { ascending: false });
+      let q = supabase.from('projects').select('*, companies(name)').is('deleted_at', null).order('event_start_date', { ascending: false });
       if (statusFilter !== 'all') q = q.eq('status', statusFilter);
       const { data, error } = await q;
       if (error) {
@@ -114,14 +114,25 @@ export default function ProjectsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('projects').delete().eq('id', id);
+    mutationFn: async (project: Project) => {
+      // 1. Insert into trash_bin
+      const { error: trashError } = await supabase.from('trash_bin').insert({
+        entity_type: 'project',
+        entity_id: project.id,
+        entity_name: project.title,
+        entity_data: project,
+      });
+      if (trashError) throw trashError;
+
+      // 2. Soft delete
+      const { error } = await supabase.from('projects').update({ deleted_at: new Date().toISOString() }).eq('id', project.id);
       if (error) throw error;
+
       auditApi.log({
         action: 'delete_project',
         entity_type: 'project',
-        entity_id: id,
-        before: { id }
+        entity_id: project.id,
+        before: project
       });
     },
     onSuccess: () => {
@@ -360,14 +371,20 @@ export default function ProjectsPage() {
         </form>
       </Modal>
 
-      <ConfirmModal
+      <CascadeConfirmModal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
         title="Delete Project"
-        message={`Are you sure you want to permanently delete the project "${deleteTarget?.title}"? This will also remove all associated financials, media, and invoices. This action cannot be undone.`}
+        targetName={deleteTarget?.title ?? ''}
+        targetType="project"
+        cascadeItems={[
+          { icon: '🖼️', label: 'All gallery photos', description: 'Project photos stored in cloud storage' },
+          { icon: '💰', label: 'All ledger entries', description: 'Income and expense records for this project' },
+          { icon: '💳', label: 'All collections', description: 'Payment collection history' },
+          { icon: '🧾', label: 'All invoices', description: 'Invoices and their line items' },
+        ]}
         confirmLabel="Delete Project"
-        danger
         loading={deleteMutation.isPending}
       />
     </div>
