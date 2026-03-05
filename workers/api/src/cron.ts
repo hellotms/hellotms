@@ -6,34 +6,23 @@ export async function scheduledHandler(
   env: Env,
   _ctx: ExecutionContext
 ): Promise<void> {
-  console.log('[cron] Scheduled keepalive running at', new Date().toISOString());
+  console.log('[cron] Audit log cleanup check running at', new Date().toISOString());
 
   const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
 
-  // Stochastic check: run ~2 times a week. 
-  // With 30-min cron, we have 336 slots/week. Probability = 2/336 ~= 0.006.
-  const shouldRun = Math.random() < 0.006;
-
-  if (!shouldRun) {
-    return;
-  }
-
-  // Stealth: Wait for a random number of seconds (up to 15 seconds) to avoid "on-the-dot" patterns
-  // Cloudflare Workers have a 30s limit for free, so we stay well below that.
-  const delayMs = Math.floor(Math.random() * 15000);
-  await new Promise(resolve => setTimeout(resolve, delayMs));
-
   try {
-    // Stealth: Query a real application table instead of a dedicated 'health' table.
-    // This looks like normal API activity.
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const dateStr = thirtyDaysAgo.toISOString();
+
     const { count, error } = await supabase
-      .from('projects')
-      .select('id', { count: 'exact', head: true })
-      .limit(1);
+      .from('audit_logs')
+      .delete({ count: 'exact' })
+      .lt('created_at', dateStr);
 
     if (error) throw error;
-    console.log('[cron] Stealth keepalive success. Projects count:', count);
+    console.log(`[cron] Cleanup successful. Deleted ${count} audit logs older than ${dateStr}`);
   } catch (err) {
-    console.error('[cron] Stealth keepalive failed:', err);
+    console.error('[cron] Cleanup failed:', err);
   }
 }

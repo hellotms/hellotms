@@ -16,12 +16,10 @@ const navItems = [
   { to: '/projects', label: 'Projects', icon: FolderOpen, permission: 'view_projects' },
   { to: '/invoices', label: 'Invoices', icon: Receipt, permission: 'manage_invoices' },
   { to: '/leads', label: 'Contact Form', icon: MessageSquare, permission: 'view_leads' },
-  { to: '/cms', label: 'CMS / Website', icon: Globe, permission: 'manage_cms' },
   { to: '/staff', label: 'Staff & Roles', icon: UserCog, permission: 'view_staff' },
+  { to: '/settings', label: 'Profile Settings', icon: Settings },
   { to: '/work-logs', label: 'Work Logs', icon: ClipboardList, permission: 'view_audit_logs' },
-  { to: '/notices', label: 'Notice Board', icon: Megaphone, permission: 'view_notices' },
-  { to: '/recycle-bin', label: 'Recycle Bin', icon: Trash2 },
-  { to: '/settings', label: 'Settings', icon: Settings, permission: 'manage_settings' },
+  { to: '/cms', label: 'Core Settings', icon: Globe, permission: 'manage_cms' },
 ];
 
 export default function AdminLayout() {

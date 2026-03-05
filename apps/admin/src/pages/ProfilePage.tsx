@@ -32,7 +32,7 @@ export default function ProfilePage() {
 
     const updateMutation = useMutation({
         mutationFn: async (values: ProfileInput) => {
-            let finalAvatarUrl = avatarUrl;
+            let finalAvatarUrl: string | null = avatarUrl;
             if (avatarUrl !== profile?.avatar_url) {
                 finalAvatarUrl = await mediaApi.uploadAndCleanMedia(
                     avatarUrl,
@@ -88,7 +88,7 @@ export default function ProfilePage() {
                             <p className="text-muted-foreground">{profile.email}</p>
                             <div className="flex items-center gap-4 text-sm mt-3">
                                 <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">
-                                    <ShieldCheck className="h-4 w-4" /> {role?.label ?? 'Staff'}
+                                    <ShieldCheck className="h-4 w-4" /> {role?.name ?? 'Staff'}
                                 </span>
                                 <span className="flex items-center gap-1.5 text-muted-foreground">
                                     <Calendar className="h-4 w-4" /> Joined {formatDate(profile.created_at)}

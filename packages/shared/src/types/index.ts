@@ -155,6 +155,9 @@ export interface SiteSettings {
   hero_cta_secondary_url?: string | null;
   company_logo_url?: string | null;
   public_site_url?: string | null;
+  invoice_pad_url?: string | null;
+  pad_margin_top?: number | null;
+  pad_margin_bottom?: number | null;
   phone?: string | null;
   whatsapp?: string | null;
   services: ServiceItem[];

@@ -89,7 +89,7 @@ function AppRoutes() {
         <Route path="staff" element={<PermissionRoute permission="view_staff"><StaffPage /></PermissionRoute>} />
         <Route path="staff/:id" element={<PermissionRoute permission="view_staff"><StaffProfilePage /></PermissionRoute>} />
         <Route path="profile" element={<ProfilePage />} />
-        <Route path="settings" element={<PermissionRoute permission="manage_settings"><SettingsPage /></PermissionRoute>} />
+        <Route path="settings" element={<SettingsPage />} />
         <Route path="work-logs" element={<PermissionRoute permission="view_audit_logs"><WorkLogsPage /></PermissionRoute>} />
         <Route path="notices" element={<PermissionRoute permission="view_notices"><NoticesPage /></PermissionRoute>} />
         <Route path="notices/:id" element={<PermissionRoute permission="view_notices"><NoticeDetailPage /></PermissionRoute>} />
