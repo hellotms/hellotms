@@ -239,6 +239,26 @@ Cloudflare Worker serving as a secure gateway:
 - Invoice builder with PDF generation and email delivery
 - CMS for public website content management
 
+## Maintenance & Backups
+
+এই প্রজেক্টে ডেটাবেস অটোমেটিক ব্যাকআপ এবং রিস্টোর করার জন্য GitHub Actions ব্যবহার করা হয়েছে।
+
+### ১. ডেটাবেস ব্যাকআপ (Database Backup)
+- **অটোমেটিক**: প্রতিদিন রাত ১২টায় (UTC) ডাটাবেস ব্যাকআপ নিয়ে Cloudflare R2 বাকেটে (`database-backups` ফোল্ডারে) জমা হবে। এটি শেষ ৭ দিনের ব্যাকআপ সংরক্ষণ করবে।
+- **ম্যানুয়ালি রান করতে**:
+  1. GitHub-এ গিয়ে **Actions** ট্যাবে ক্লিক করুন।
+  2. বাম পাশের লিস্ট থেকে **"Database Backup"** সিলেক্ট করুন।
+  3. ডান দিকে **"Run workflow"** বাটনে ক্লিক করে পুনরায় **"Run workflow"** নীল বাটনে ক্লিক করুন।
+
+### ২. ডেটাবেস রিস্টোর (Manual Database Restore)
+যদি কোনো কারণে পুরনো ডেটা রিস্টোর করার প্রয়োজন হয়:
+1. GitHub-এ গিয়ে **Actions** ট্যাবে ক্লিক করুন।
+2. বাম পাশের লিস্ট থেকে **"Manual Database Restore"** সিলেক্ট করুন।
+3. **"Run workflow"** বাটনে ক্লিক করুন এবং ইনপুট ফিল্ডগুলো পূরণ করুন:
+   - **`backup_filename`**: R2 বাকেটে থাকা নির্দিষ্ট ফাইলের নাম (উদা: `backup-2026-03-05-120000.sql`)।
+   - **`supabase_db_url`**: নতুন কোনো ডেটাবেসে রিস্টোর করতে চাইলে তার কানেকশন লিংক দিন। বর্তমান ডেটাবেসে রিস্টোর করতে চাইলে এটি খালি রাখুন।
+4. **"Run workflow"** বাটনে চাপ দিন।
+
 ---
 
 ## License
