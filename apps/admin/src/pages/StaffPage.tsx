@@ -455,7 +455,13 @@ export default function StaffPage() {
                         <code className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{role.name}</code>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {grantedCount} / {ALL_PERMISSIONS.length} permissions granted
+                        {role.name === 'super_admin' ? (
+                          <span className="text-primary font-semibold flex items-center gap-1">
+                            <ShieldCheck className="h-3 w-3" /> Full System Access
+                          </span>
+                        ) : (
+                          `${grantedCount} / ${ALL_PERMISSIONS.length} permissions granted`
+                        )}
                       </p>
                     </div>
                     {can('manage_roles') && role.name !== 'super_admin' && (
@@ -477,7 +483,14 @@ export default function StaffPage() {
                   </div>
 
                   {/* Permission badges preview */}
-                  {grantedCount > 0 && (
+                  {role.name === 'super_admin' ? (
+                    <div className="mt-3">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/5 border border-primary/10">
+                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                        <span className="text-[11px] font-bold text-primary uppercase tracking-wider">All permissions granted (Universal Access)</span>
+                      </div>
+                    </div>
+                  ) : grantedCount > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {ALL_PERMISSIONS.filter((p) => role.permissions?.[p.key]).map((p) => (
                         <span key={p.key} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">

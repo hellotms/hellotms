@@ -11,11 +11,13 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
 const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }, // Always visible
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/notices', label: 'Notice Board', icon: Megaphone, permission: 'view_notices' },
   { to: '/companies', label: 'Companies', icon: Building2, permission: 'manage_companies' },
   { to: '/projects', label: 'Projects', icon: FolderOpen, permission: 'view_projects' },
   { to: '/invoices', label: 'Invoices', icon: Receipt, permission: 'manage_invoices' },
   { to: '/leads', label: 'Contact Form', icon: MessageSquare, permission: 'view_leads' },
+  { to: '/recycle-bin', label: 'Recycle Bin', icon: Trash2, permission: 'manage_staff' }, // Only admins/super_admins
   { to: '/staff', label: 'Staff & Roles', icon: UserCog, permission: 'view_staff' },
   { to: '/settings', label: 'Profile Settings', icon: Settings },
   { to: '/work-logs', label: 'Work Logs', icon: ClipboardList, permission: 'view_audit_logs' },
@@ -78,8 +80,12 @@ export default function AdminLayout() {
           </div>
         )}
         <div className="min-w-0 pr-2">
-          <p className="text-sidebar-foreground font-semibold text-sm leading-none truncate">The Marketing Solution</p>
-          <p className="text-sidebar-foreground/60 text-xs mt-0.5 truncate">hellotms.com.bd</p>
+          <p className="text-sidebar-foreground font-semibold text-sm leading-none truncate">
+            {profile?.name ? 'Hello TMS' : 'The Marketing Solution'}
+          </p>
+          <p className="text-sidebar-foreground/60 text-xs mt-0.5 truncate">
+            {siteSettings?.public_site_url ? new URL(siteSettings.public_site_url).hostname : 'hellotms.com.bd'}
+          </p>
         </div>
         {mobile && (
           <button onClick={() => setSidebarOpen(false)} className="ml-auto shrink-0 text-sidebar-foreground/60 hover:text-sidebar-foreground">
@@ -90,7 +96,11 @@ export default function AdminLayout() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        {navItems.filter(item => !item.permission || can(item.permission)).map(({ to, label, icon: Icon }) => (
+        {navItems.filter(item => {
+          if (!item.permission) return true;
+          if (role?.name === 'super_admin') return true;
+          return can(item.permission);
+        }).map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
