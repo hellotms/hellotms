@@ -17,7 +17,7 @@ jobs:
           corepack enable
           pnpm install --frozen-lockfile
       - name: Publish Worker (wrangler)
-        uses: cloudflare/wrangler-action@v1
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
-          workingDirectory: apps/workers
+          workingDirectory: workers/api
