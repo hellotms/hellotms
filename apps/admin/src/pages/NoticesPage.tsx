@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { cn, formatDate, getInitials } from '@/lib/utils';
 import { mediaApi, auditApi } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { PageHeader } from '@/components/PageHeader';
 import { Modal, ConfirmModal } from '@/components/Modal';
 import { ImageUpload } from '@/components/ImageUpload';
-import { formatDate, getInitials } from '@/lib/utils';
 import { toast } from '@/components/Toast';
-import { Plus, Megaphone, Pin, Search, MoreVertical, Pencil, Trash2, Calendar, FileText, Image as ImageIcon } from 'lucide-react';
+import { Plus, Megaphone, Pin, Search, MoreVertical, Pencil, Trash2, Calendar, FileText, Image as ImageIcon, LayoutGrid, List } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import type { Notice } from '@hellotms/shared';
 
@@ -28,6 +28,7 @@ export default function NoticesPage() {
     const [editingNotice, setEditingNotice] = useState<Notice | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Notice | null>(null);
     const [search, setSearch] = useState('');
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
     // Form states
     const { register, handleSubmit, reset, watch, setValue } = useForm<NoticeInput>();
@@ -173,8 +174,30 @@ export default function NoticesPage() {
                         placeholder="Search notices..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 bg-card border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        className="w-full pl-9 pr-4 py-2 bg-card border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
                     />
+                </div>
+                <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-lg border border-border">
+                    <button
+                        onClick={() => setViewMode('grid')}
+                        className={cn(
+                            "p-1.5 rounded-md transition-all",
+                            viewMode === 'grid' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        )}
+                        title="Grid View"
+                    >
+                        <LayoutGrid className="h-4 w-4" />
+                    </button>
+                    <button
+                        onClick={() => setViewMode('list')}
+                        className={cn(
+                            "p-1.5 rounded-md transition-all",
+                            viewMode === 'list' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        )}
+                        title="List View"
+                    >
+                        <List className="h-4 w-4" />
+                    </button>
                 </div>
             </div>
 
@@ -185,7 +208,7 @@ export default function NoticesPage() {
                     <Megaphone className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
                     <p className="text-muted-foreground">No notices found</p>
                 </div>
-            ) : (
+            ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredNotices.map((notice) => {
                         const isExpired = notice.expires_at && new Date(notice.expires_at) < now;
@@ -264,6 +287,81 @@ export default function NoticesPage() {
                             </div>
                         );
                     })}
+                </div>
+            ) : (
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead>
+                                <tr className="border-b border-border bg-muted/30">
+                                    <th className="px-5 py-4 font-semibold text-muted-foreground">Title</th>
+                                    <th className="px-5 py-4 font-semibold text-muted-foreground">Author</th>
+                                    <th className="px-5 py-4 font-semibold text-muted-foreground">Created</th>
+                                    <th className="px-5 py-4 font-semibold text-muted-foreground text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                                {filteredNotices.map((notice) => {
+                                    const isExpired = notice.expires_at && new Date(notice.expires_at) < now;
+                                    const atts = (notice.attachments as any[]) ?? [];
+
+                                    return (
+                                        <tr key={notice.id} className={cn(
+                                            "hover:bg-muted/30 transition-colors group",
+                                            notice.is_pinned && "bg-primary/[0.02]",
+                                            isExpired && "opacity-60"
+                                        )}>
+                                            <td className="px-5 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    {notice.is_pinned && <Pin className="h-3.5 w-3.5 text-primary shrink-0" />}
+                                                    <div>
+                                                        <h4 onClick={() => navigate(`/notices/${notice.id}`)} className="font-semibold text-foreground cursor-pointer hover:text-primary transition-colors">
+                                                            {notice.title}
+                                                        </h4>
+                                                        <div className="flex items-center gap-3 mt-1">
+                                                            {atts.length > 0 && (
+                                                                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                                    <FileText className="h-3 w-3" /> {atts.length} files
+                                                                </span>
+                                                            )}
+                                                            {isExpired && <span className="text-[10px] font-bold text-red-500 uppercase">Expired</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    {notice.profiles?.avatar_url ? (
+                                                        <img src={notice.profiles.avatar_url} alt="" className="h-5 w-5 rounded-full object-cover" />
+                                                    ) : (
+                                                        <div className="h-5 w-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[9px] font-bold">
+                                                            {getInitials(notice.profiles?.name ?? 'A')}
+                                                        </div>
+                                                    )}
+                                                    <span className="text-xs font-medium">{notice.profiles?.name ?? 'Admin'}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-4 text-muted-foreground text-xs">
+                                                {formatDate(notice.created_at)}
+                                            </td>
+                                            <td className="px-5 py-4 text-right">
+                                                {can('manage_notices') && (
+                                                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={() => openEdit(notice)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+                                                            <Pencil className="h-3.5 w-3.5" />
+                                                        </button>
+                                                        <button onClick={() => setDeleteTarget(notice)} className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 text-muted-foreground hover:text-red-500">
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
