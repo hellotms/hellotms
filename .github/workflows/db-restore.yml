@@ -63,7 +63,10 @@ jobs:
           fi
           # Install psql client
           sudo apt-get update && sudo apt-get install -y postgresql-client
-          # Execute restoration
+          # Execute restoration (Clean start by dropping public schema)
+          echo "Dropping and recreating public schema..."
+          psql "$DB_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+          echo "Applying backup..."
           psql "$DB_URL" -f restore.sql
         env:
           PGPASSWORD: "" # Psql usually takes password from URL string if provided in the format postgres://user:pass@host:port/db
