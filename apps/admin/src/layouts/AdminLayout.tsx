@@ -13,11 +13,11 @@ import { useTheme } from 'next-themes';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/notices', label: 'Notice Board', icon: Megaphone, permission: 'view_notices' },
   { to: '/companies', label: 'Companies', icon: Building2, permission: 'manage_companies' },
   { to: '/projects', label: 'Projects', icon: FolderOpen, permission: 'view_projects' },
   { to: '/invoices', label: 'Invoices', icon: Receipt, permission: 'manage_invoices' },
   { to: '/leads', label: 'Contact Form', icon: MessageSquare, permission: 'view_leads' },
+  { to: '/notices', label: 'Notice Board', icon: Megaphone, permission: 'view_notices' },
   { to: '/staff', label: 'All Staff', icon: Users, permission: 'view_staff' },
   { to: '/settings', label: 'Profile Settings', icon: Settings },
   { to: '/recycle-bin', label: 'Recycle Bin', icon: Trash2, permission: 'manage_staff' },

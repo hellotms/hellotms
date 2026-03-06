@@ -12,6 +12,7 @@ interface ImageUploadProps {
     disabled?: boolean;
     aspect?: number;
     guide?: string;
+    noCrop?: boolean;
 }
 
 export function ImageUpload({
@@ -22,6 +23,7 @@ export function ImageUpload({
     disabled = false,
     aspect = 1,
     guide,
+    noCrop = false,
 }: ImageUploadProps) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [preview, setPreview] = useState<string | null>(null);
@@ -74,10 +76,24 @@ export function ImageUpload({
         }
     };
 
-    const handleFile = (file: File) => {
+    const handleFile = async (file: File) => {
         setError('');
-        const objectUrl = URL.createObjectURL(file);
-        setCropModalSrc(objectUrl);
+        if (noCrop) {
+            setUploading(true);
+            try {
+                const { compressToHD } = await import('@/lib/compressImage');
+                const compressed = await compressToHD(file);
+                onChange(compressed);
+            } catch (e) {
+                setError("Compression failed");
+                onChange(file); // Fallback to original
+            } finally {
+                setUploading(false);
+            }
+        } else {
+            const objectUrl = URL.createObjectURL(file);
+            setCropModalSrc(objectUrl);
+        }
     };
 
     const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {

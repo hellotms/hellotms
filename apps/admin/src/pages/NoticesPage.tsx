@@ -31,8 +31,9 @@ export default function NoticesPage() {
 
     // Form states
     const { register, handleSubmit, reset, watch, setValue } = useForm<NoticeInput>();
-    const [coverUrl, setCoverUrl] = useState<string>('');
-    const [attachments, setAttachments] = useState<{ type: string; url: string; name: string }[]>([]);
+    const [coverUrl, setCoverUrl] = useState<string | File>('');
+    const [attachments, setAttachments] = useState<{ type: string; url: string; name: string; file?: File }[]>([]);
+    const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
 
     const { data: notices = [], isLoading } = useQuery<Notice[]>({
         queryKey: ['notices'],
@@ -62,12 +63,21 @@ export default function NoticesPage() {
                 values.title
             );
 
+            // 2. Handle attachments (upload new files if any)
+            const processedAttachments = await Promise.all(attachments.map(async (att) => {
+                if (att.file) {
+                    const res = await mediaApi.upload(att.file, 'notices', 'attachment', att.name);
+                    return { type: 'file', url: res.url, name: att.name };
+                }
+                return { type: att.type, url: att.url, name: att.name };
+            }));
+
             const payload = {
                 ...values,
                 expires_at: values.expires_at || null,
                 body: values.body || null,
                 cover_url: finalCoverUrl || null,
-                attachments: attachments, // JSONB
+                attachments: processedAttachments, // JSONB
             };
 
             if (editingNotice) {
@@ -268,8 +278,10 @@ export default function NoticesPage() {
                     <ImageUpload
                         label="Cover Image (Optional)"
                         value={coverUrl}
-                        onChange={(val) => setCoverUrl(val as string)}
+                        onChange={(val) => setCoverUrl(val as string | File)}
                         aspect={21 / 9}
+                        noCrop
+                        guide="HD Direct Upload (No Cropping)"
                     />
 
                     <div>
@@ -290,47 +302,72 @@ export default function NoticesPage() {
                         </div>
                     </div>
 
-                    {/* Attachments UI (simplistic for now - link based) */}
+                    {/* Attachments UI */}
                     <div className="pt-2 border-t border-border">
-                        <div className="flex items-center justify-between mb-2">
-                            <label className="block text-sm font-medium">Attachments</label>
-                            <button
-                                type="button"
-                                onClick={() => setAttachments([...attachments, { type: 'link', url: '', name: '' }])}
-                                className="text-xs text-primary hover:underline flex items-center gap-1"
-                            >
-                                <Plus className="h-3 w-3" /> Add Link
-                            </button>
+                        <div className="flex items-center justify-between mb-3">
+                            <label className="block text-sm font-medium">Attachments & Links</label>
+                            <div className="flex items-center gap-2">
+                                <label className="cursor-pointer text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 px-2 py-1 rounded hover:bg-emerald-500/20 transition-colors flex items-center gap-1">
+                                    <Plus className="h-3 w-3" /> Add File (PDF/Doc)
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                setAttachments([...attachments, { type: 'file', url: '', name: file.name, file }]);
+                                            }
+                                            e.target.value = '';
+                                        }}
+                                    />
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => setAttachments([...attachments, { type: 'link', url: '', name: '' }])}
+                                    className="text-[11px] font-semibold bg-primary/10 text-primary px-2 py-1 rounded hover:bg-primary/20 transition-colors flex items-center gap-1"
+                                >
+                                    <Plus className="h-3 w-3" /> Add Link
+                                </button>
+                            </div>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                             {attachments.map((att, idx) => (
-                                <div key={idx} className="flex gap-2 items-start">
-                                    <input
-                                        placeholder="Link Title (e.g. Schedule PDF)"
-                                        value={att.name}
-                                        onChange={(e) => {
-                                            const newAtts = [...attachments];
-                                            newAtts[idx].name = e.target.value;
-                                            setAttachments(newAtts);
-                                        }}
-                                        className="flex-1 border border-border rounded-lg px-3 py-1.5 text-sm"
-                                    />
-                                    <input
-                                        placeholder="URL (https://...)"
-                                        value={att.url}
-                                        onChange={(e) => {
-                                            const newAtts = [...attachments];
-                                            newAtts[idx].url = e.target.value;
-                                            setAttachments(newAtts);
-                                        }}
-                                        className="flex-[2] border border-border rounded-lg px-3 py-1.5 text-sm"
-                                    />
-                                    <button type="button" onClick={() => setAttachments(attachments.filter((_, i) => i !== idx))} className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 rounded-lg">
+                                <div key={idx} className="flex gap-2 items-start bg-muted/30 p-2 rounded-lg border border-border/50">
+                                    <div className="flex-1 space-y-2">
+                                        <input
+                                            placeholder="Display Name"
+                                            value={att.name}
+                                            onChange={(e) => {
+                                                const newAtts = [...attachments];
+                                                newAtts[idx].name = e.target.value;
+                                                setAttachments(newAtts);
+                                            }}
+                                            className="w-full bg-card border border-border rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                        />
+                                        {att.type === 'link' ? (
+                                            <input
+                                                placeholder="URL (https://...)"
+                                                value={att.url}
+                                                onChange={(e) => {
+                                                    const newAtts = [...attachments];
+                                                    newAtts[idx].url = e.target.value;
+                                                    setAttachments(newAtts);
+                                                }}
+                                                className="w-full bg-card border border-border rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                            />
+                                        ) : (
+                                            <div className="flex items-center gap-2 px-2 py-1 bg-background border border-border rounded-md">
+                                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                                <span className="text-[11px] text-muted-foreground truncate max-w-[150px]">{att.file ? `Ready: ${att.file.name}` : `Linked: ${att.url.split('/').pop()}`}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button type="button" onClick={() => setAttachments(attachments.filter((_, i) => i !== idx))} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg shrink-0">
                                         <Trash2 className="h-4 w-4" />
                                     </button>
                                 </div>
                             ))}
-                            {attachments.length === 0 && <p className="text-xs text-muted-foreground italic">No external links attached.</p>}
+                            {attachments.length === 0 && <p className="text-xs text-muted-foreground italic text-center py-4 bg-muted/20 rounded-lg border border-dashed border-border">No attachments added.</p>}
                         </div>
                     </div>
 
