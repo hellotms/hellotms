@@ -6,13 +6,14 @@ import { DataTable } from '@/components/DataTable';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Modal, CascadeConfirmModal } from '@/components/Modal';
-import { formatBDT, formatDate } from '@/lib/utils';
+import { formatBDT, formatDate, formatDateTime } from '@/lib/utils';
 import { Plus, Receipt, Trash, Pencil, Trash2, ReceiptText } from 'lucide-react';
 import type { Invoice, Company, Project } from '@hellotms/shared';
 import { generateInvoiceNumber } from '@hellotms/shared';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from '@/components/Toast';
 import { auditApi } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 const STATUS_OPTIONS = ['all', 'draft', 'sent', 'paid', 'overdue'];
 
@@ -32,11 +33,13 @@ type InvoiceLineItem = {
   quantity: number;
   unit_price: number;
   amount: number;
+  ledger_id?: string; // Optional: link to project ledger entry
 };
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { profile } = useAuth();
   const [searchParams] = useSearchParams();
 
   // Read pre-selection from URL (e.g. coming from a project page)
@@ -135,13 +138,14 @@ export default function InvoicesPage() {
     if (ledgerEntries.length > 0) {
       setLineItems(ledgerEntries.map(e => {
         const qty = Number(e.quantity ?? 1);
-        const sellPrice = Number(e.face_value ?? 0);
+        const sellPrice = e.face_value !== null && e.face_value !== undefined ? Number(e.face_value) : Number(e.amount);
         return {
           description: e.category + (e.note ? ` — ${e.note}` : ''),
           costPrice: e.amount,
           quantity: qty,
           unit_price: sellPrice,
           amount: qty * sellPrice,
+          ledger_id: e.id,
         };
       }));
     }
@@ -221,6 +225,7 @@ export default function InvoicesPage() {
 
       const { data: { user } } = await supabase.auth.getUser();
 
+      // 1. Create Invoice
       const { data: inv, error } = await supabase
         .from('invoices')
         .insert({
@@ -240,16 +245,36 @@ export default function InvoicesPage() {
         .single();
       if (error) throw error;
 
+      // 2. Create Invoice Items
       if (items.length > 0) {
         await supabase.from('invoice_items').insert(items.map(i => ({ ...i, invoice_id: inv.id })));
       }
+
+      // 3. Sync back to Ledger (Update face_value and quantity)
+      const syncTasks = lineItems
+        .filter(item => item.ledger_id)
+        .map(item =>
+          supabase
+            .from('ledger_entries')
+            .update({
+              quantity: item.quantity,
+              face_value: item.unit_price,
+            })
+            .eq('id', item.ledger_id!)
+        );
+
+      if (syncTasks.length > 0) {
+        await Promise.all(syncTasks);
+      }
+
       return inv;
     },
     onSuccess: (inv) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-count'] });
+      queryClient.invalidateQueries({ queryKey: ['ledger', selectedProjectId] });
       closeModal();
-      toast('Invoice created successfully', 'success');
+      toast('Invoice created and ledger synced', 'success');
       auditApi.log({
         action: 'create_invoice',
         entity_type: 'invoice',
@@ -273,6 +298,7 @@ export default function InvoicesPage() {
         entity_id: invoice.id,
         entity_name: `Invoice #${invoice.invoice_number}`,
         entity_data: invoice,
+        deleted_by: profile?.id,
       });
       if (trashError) throw trashError;
 
@@ -300,7 +326,7 @@ export default function InvoicesPage() {
       header: 'Invoice #',
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
-          <Receipt className="h-4 w-4 text-purple-600" />
+          <Receipt className="h-4 w-4 text-purple-600 text-purple-600 dark:text-purple-400" />
           <span className="font-medium">{row.original.invoice_number}</span>
         </div>
       ),
@@ -311,7 +337,7 @@ export default function InvoicesPage() {
     { accessorKey: 'status', header: 'Status', cell: ({ getValue }) => <StatusBadge status={getValue() as string} /> },
     { accessorKey: 'total_amount', header: 'Amount', cell: ({ getValue }) => <span className="font-semibold">{formatBDT(Number(getValue()))}</span> },
     { accessorKey: 'due_date', header: 'Due Date', cell: ({ getValue }) => getValue() ? formatDate(getValue() as string) : '—' },
-    { accessorKey: 'created_at', header: 'Created', cell: ({ getValue }) => formatDate(getValue() as string) },
+    { accessorKey: 'created_at', header: 'Created', cell: ({ getValue }) => formatDateTime(getValue() as string) },
     {
       id: 'actions',
       header: '',
@@ -326,7 +352,7 @@ export default function InvoicesPage() {
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); setDeleteTarget(row.original); }}
-            className="p-1.5 rounded-md hover:bg-red-50 transition-colors text-muted-foreground hover:text-destructive"
+            className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 transition-colors text-muted-foreground hover:text-destructive"
             title="Delete Invoice"
           >
             <Trash className="h-4 w-4" />
@@ -446,7 +472,7 @@ export default function InvoicesPage() {
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold">Description</th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">
                       Cost Price
-                      <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-normal">admin only</span>
+                      <span className="ml-1 text-[10px] bg-amber-100 dark:bg-amber-500/20 text-amber-700 px-1 py-0.5 rounded font-normal">admin only</span>
                     </th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-16">Qty</th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-28">Sell Price (৳)</th>
@@ -555,7 +581,7 @@ export default function InvoicesPage() {
           {/* Totals Summary */}
           <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col items-end gap-1.5 text-sm relative overflow-hidden">
             {/* Admin Profit Badge */}
-            <div className="absolute top-4 left-4 border border-emerald-200 bg-emerald-50 text-emerald-700 px-3 py-2 rounded-lg text-xs">
+            <div className="absolute top-4 left-4 border border-emerald-200 border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 px-3 py-2 rounded-lg text-xs">
               <span className="block font-semibold mb-0.5">Admin Profit Prediction</span>
               <span className="font-mono text-sm">{formatBDT(adminProfit)}</span>
               <span className="block text-[10px] opacity-70 mt-0.5">Not printed on invoice</span>
@@ -570,7 +596,7 @@ export default function InvoicesPage() {
               <span className="font-mono">{formatBDT(totalCost)}</span>
             </div>
             {discountAmt > 0 && (
-              <div className="flex justify-between w-64 text-red-600">
+              <div className="flex justify-between w-64 text-red-600 text-red-600 dark:text-red-400">
                 <span>Discount:</span>
                 <span>− {formatBDT(discountAmt)}</span>
               </div>

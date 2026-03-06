@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { staffApi, auditApi, mediaApi } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { Modal, ConfirmModal } from '@/components/Modal';
-import { Plus, Save, Trash2, Globe, Phone, Mail, LayoutDashboard, Sliders, Database, Bell } from 'lucide-react';
+import { Plus, Save, Trash2, Globe, Phone, Mail, LayoutDashboard, Sliders, Database, Bell, ShieldCheck, Pencil, UserPlus, Users, KeyRound, Search } from 'lucide-react';
 import { toast } from '@/components/Toast';
 import { useForm, useFieldArray } from 'react-hook-form';
 import type { SiteSettings } from '@hellotms/shared';
-import { mediaApi, auditApi } from '@/lib/api';
 import { ImageUpload } from '@/components/ImageUpload';
 
 type CmsFormValues = {
@@ -28,9 +28,50 @@ type CmsFormValues = {
   services: { title: string; description: string; icon: string }[];
 };
 
+const ALL_PERMISSIONS: { key: string; label: string; group: string }[] = [
+  { key: 'view_dashboard', label: 'View Dashboard', group: 'Dashboard' },
+  { key: 'view_reports', label: 'View Reports', group: 'Dashboard' },
+  { key: 'manage_companies', label: 'Manage Companies', group: 'Companies' },
+  { key: 'manage_projects', label: 'Manage Projects', group: 'Projects' },
+  { key: 'view_projects', label: 'View Projects', group: 'Projects' },
+  { key: 'manage_ledger', label: 'Manage Ledger', group: 'Finance' },
+  { key: 'view_ledger', label: 'View Ledger', group: 'Finance' },
+  { key: 'manage_invoices', label: 'Manage Invoices', group: 'Finance' },
+  { key: 'send_invoice', label: 'Send Invoices', group: 'Finance' },
+  { key: 'manage_staff', label: 'Manage Staff', group: 'Staff' },
+  { key: 'view_staff', label: 'View Staff', group: 'Staff' },
+  { key: 'manage_roles', label: 'Manage Roles', group: 'Staff' },
+  { key: 'manage_leads', label: 'Manage Contact Forms', group: 'Leads' },
+  { key: 'view_leads', label: 'View Leads', group: 'Leads' },
+  { key: 'manage_cms', label: 'Manage CMS', group: 'Settings' },
+  { key: 'manage_settings', label: 'Manage Settings', group: 'Settings' },
+  { key: 'manage_notices', label: 'Manage Notices', group: 'Notices' },
+  { key: 'view_notices', label: 'View Notices', group: 'Notices' },
+  { key: 'view_audit_logs', label: 'View Audit Logs', group: 'Settings' },
+];
+
+const PERMISSION_GROUPS = Array.from(new Set(ALL_PERMISSIONS.map((p) => p.group)));
+
+type Role = {
+  id: string;
+  name: string;
+  label: string;
+  permissions: Record<string, boolean>;
+};
+
+type StaffMember = {
+  id: string;
+  name: string;
+  email: string;
+  avatar_url?: string;
+  is_active: boolean;
+  created_at: string;
+  roles: { id: string; name: string; label: string } | null;
+};
+
 export default function CmsPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'general' | 'services' | 'contact' | 'invoice' | 'system'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'services' | 'contact' | 'invoice' | 'system' | 'roles' | 'staff'>('general');
   const [isEditingGeneral, setIsEditingGeneral] = useState(false);
   const [isEditingServices, setIsEditingServices] = useState(false);
   const [isEditingContact, setIsEditingContact] = useState(false);
@@ -41,7 +82,26 @@ export default function CmsPage() {
   const [padMarginTop, setPadMarginTop] = useState(150);
   const [padMarginBottom, setPadMarginBottom] = useState(100);
   const [deleteIdx, setDeleteIdx] = useState<number | null>(null);
+
+  // Role management state
+  const [isRoleOpen, setIsRoleOpen] = useState(false);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [deleteRoleTarget, setDeleteRoleTarget] = useState<Role | null>(null);
+
+  // Staff management state
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [tempPasswordModal, setTempPasswordModal] = useState<{ name: string; email: string; password: string } | null>(null);
+  const [roleChangeTarget, setRoleChangeTarget] = useState<StaffMember | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<StaffMember | null>(null);
+  const [activateTarget, setActivateTarget] = useState<StaffMember | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
+  const [resetPasswordTarget, setResetPasswordTarget] = useState<StaffMember | null>(null);
+  const [inviteSearch, setInviteSearch] = useState('');
+
   const newServiceForm = useForm({ defaultValues: { title: '', description: '', icon: '' } });
+  const roleEditForm = useForm<{ name: string; label: string; permissions: Record<string, boolean> }>();
+  const inviteForm = useForm({ defaultValues: { email: '', full_name: '', role_id: '' } });
+  const roleForm = useForm({ defaultValues: { role_id: '' } });
 
   const form = useForm<CmsFormValues>({
     defaultValues: {
@@ -66,6 +126,26 @@ export default function CmsPage() {
       const { data, error } = await supabase.from('site_settings').select('*').eq('id', 1).single();
       if (error) throw error;
       return data as SiteSettings;
+    },
+  });
+
+  const { data: staff = [], isLoading: staffLoading } = useQuery<StaffMember[]>({
+    queryKey: ['staff-management'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name, email, avatar_url, is_active, created_at, roles(id, name, label)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as StaffMember[];
+    },
+  });
+
+  const { data: roles = [], isLoading: rolesLoading } = useQuery<Role[]>({
+    queryKey: ['roles'],
+    queryFn: async () => {
+      const { data } = await supabase.from('roles').select('id, name, label, permissions').order('label');
+      return (data ?? []) as Role[];
     },
   });
 
@@ -216,12 +296,188 @@ export default function CmsPage() {
     onError: (e: Error) => toast(e.message, 'error'),
   });
 
+  const saveRoleMutation = useMutation({
+    mutationFn: async (values: { name: string; label: string; permissions: Record<string, boolean> }) => {
+      if (editingRole) {
+        const { error } = await supabase.from('roles').update(values).eq('id', editingRole.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('roles').insert(values);
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, values) => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      setIsRoleOpen(false);
+      setEditingRole(null);
+      auditApi.log({
+        action: editingRole ? 'update_role' : 'create_role',
+        entity_type: 'role',
+        entity_id: editingRole?.id || undefined,
+        after: values
+      });
+      toast(editingRole ? 'Role updated' : 'Role created', 'success');
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  const deleteRoleMutation = useMutation({
+    mutationFn: async (roleId: string) => {
+      const { error } = await supabase.from('roles').delete().eq('id', roleId);
+      if (error) throw error;
+    },
+    onSuccess: (_, roleId) => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      setDeleteRoleTarget(null);
+      auditApi.log({
+        action: 'delete_role',
+        entity_type: 'role',
+        entity_id: roleId
+      });
+      toast('Role deleted', 'success');
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  const openCreateRole = () => {
+    setEditingRole(null);
+    roleEditForm.reset({ name: '', label: '', permissions: {} });
+    setIsRoleOpen(true);
+  };
+
+  const openEditRole = (role: Role) => {
+    if (role.name === 'super_admin') return;
+    setEditingRole(role);
+    roleEditForm.reset({ name: role.name, label: role.label, permissions: role.permissions ?? {} });
+    setIsRoleOpen(true);
+  };
+
+  const currentPermissions = roleEditForm.watch('permissions') ?? {};
+
+  // Staff Management Mutations
+  const inviteMutation = useMutation({
+    mutationFn: async (values: { email: string; full_name: string; role_id: string }) => {
+      const result = await staffApi.invite({ email: values.email, name: values.full_name, role_id: values.role_id, format: 'extended' }) as { success?: boolean; error?: string; tempPassword?: string; userId?: string };
+      if (!result.success) throw new Error(result.error ?? 'Failed to send invite');
+      return { tempPassword: result.tempPassword, email: values.email, name: values.full_name };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['staff-management'] });
+      setIsInviteOpen(false);
+      inviteForm.reset();
+      if (data?.tempPassword) {
+        setTempPasswordModal({ name: data.name, email: data.email, password: data.tempPassword });
+      }
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  const changeRoleMutation = useMutation({
+    mutationFn: async ({ staffId, roleId }: { staffId: string; roleId: string }) => {
+      const result = await staffApi.changeRole(staffId, roleId) as { success?: boolean; error?: string };
+      if (result.error) throw new Error(result.error);
+    },
+    onSuccess: (_, { staffId, roleId }) => {
+      toast('Role changed successfully', 'success');
+      setRoleChangeTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['staff-management'] });
+      auditApi.log({
+        action: 'change_staff_role',
+        entity_type: 'staff',
+        entity_id: staffId,
+        after: { role_id: roleId }
+      });
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: async (staffId: string) => {
+      const result = await staffApi.deactivate(staffId) as { success?: boolean; error?: string };
+      if (result.error) throw new Error(result.error);
+    },
+    onSuccess: (_, staffId) => {
+      toast('Staff deactivated', 'success');
+      setDeactivateTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['staff-management'] });
+      auditApi.log({
+        action: 'deactivate_staff',
+        entity_type: 'staff',
+        entity_id: staffId
+      });
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  const activateMutation = useMutation({
+    mutationFn: async (staffId: string) => {
+      const result = await staffApi.activate(staffId) as { success?: boolean; error?: string };
+      if (result.error) throw new Error(result.error);
+    },
+    onSuccess: (_, staffId) => {
+      toast('Staff activated', 'success');
+      setActivateTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['staff-management'] });
+      auditApi.log({
+        action: 'activate_staff',
+        entity_type: 'staff',
+        entity_id: staffId
+      });
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (staffId: string) => {
+      return await staffApi.resetPassword(staffId);
+    },
+    onSuccess: (data, staffId) => {
+      toast('Password reset successfully. Email sent.', 'success');
+      setResetPasswordTarget(null);
+      const member = staff.find(s => s.id === staffId);
+      if (member && data.tempPassword) {
+        setTempPasswordModal({ name: member.name, email: member.email, password: data.tempPassword });
+      }
+      auditApi.log({
+        action: 'reset_staff_password',
+        entity_type: 'staff',
+        entity_id: staffId
+      });
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  const deleteStaffMutation = useMutation({
+    mutationFn: async (staffId: string) => {
+      const { error } = await supabase.rpc('delete_user_by_id', { user_id: staffId });
+      if (error) throw error;
+    },
+    onSuccess: (_, staffId) => {
+      queryClient.invalidateQueries({ queryKey: ['staff-management'] });
+      setDeleteTarget(null);
+      auditApi.log({
+        action: 'delete_staff',
+        entity_type: 'staff',
+        entity_id: staffId
+      });
+    },
+  });
+
+  const activeSuperAdminsCount = staff.filter(s => s.is_active && s.roles?.name === 'super_admin').length;
+
+  const filteredStaff = staff.filter(s =>
+    s.name.toLowerCase().includes(inviteSearch.toLowerCase()) ||
+    s.email.toLowerCase().includes(inviteSearch.toLowerCase())
+  );
+
   const TABS = [
     { id: 'general', label: 'General', icon: LayoutDashboard },
     { id: 'services', label: 'Services', icon: Globe },
-    { id: 'contact', label: 'Contact & Social', icon: Phone },
+    { id: 'contact', label: 'Contact', icon: Phone },
     { id: 'invoice', label: 'Invoice Pad', icon: Sliders },
-    { id: 'system', label: 'System Settings', icon: Database },
+    { id: 'system', label: 'System', icon: Database },
+    { id: 'staff', label: 'Staff Management', icon: Users },
+    { id: 'roles', label: 'Roles & Permissions', icon: ShieldCheck },
   ] as const;
 
   if (isLoading) return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>;
@@ -500,7 +756,7 @@ export default function CmsPage() {
                 </div>
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+              <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 rounded-xl p-4 flex gap-3">
                 <Bell className="h-5 w-5 text-amber-500 shrink-0" />
                 <div className="text-xs text-amber-700 space-y-1">
                   <p className="font-bold uppercase">Pro Tip</p>
@@ -512,7 +768,7 @@ export default function CmsPage() {
             <div className="space-y-4">
               <h3 className="font-semibold flex items-center gap-2">Live Preview (Demo Data)</h3>
               <div className="bg-muted border border-border rounded-xl p-8 flex justify-center overflow-hidden">
-                <div className="relative bg-white shadow-2xl overflow-hidden border border-border" style={{ width: '300px', height: '424px', minWidth: '300px' }}>
+                <div className="relative bg-white dark:bg-[#1c1c1c] shadow-2xl overflow-hidden border border-border" style={{ width: '300px', height: '424px', minWidth: '300px' }}>
                   {settings?.invoice_pad_url && (
                     <img
                       src={settings.invoice_pad_url}
@@ -610,7 +866,393 @@ export default function CmsPage() {
             </div>
           </div>
         )}
+
+        {/* Staff Management Tab */}
+        {activeTab === 'staff' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-lg text-foreground">Staff Management</h3>
+              <button
+                type="button"
+                onClick={() => setIsInviteOpen(true)}
+                className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
+              >
+                <UserPlus className="h-4 w-4" /> Invite Staff
+              </button>
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search staff by name or email..."
+                value={inviteSearch}
+                onChange={(e) => setInviteSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-muted border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b border-border text-left">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold text-muted-foreground">Name</th>
+                    <th className="px-4 py-3 font-semibold text-muted-foreground">Role</th>
+                    <th className="px-4 py-3 font-semibold text-muted-foreground">Status</th>
+                    <th className="px-4 py-3 font-semibold text-muted-foreground text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {staffLoading ? (
+                    <tr><td colSpan={4} className="px-4 py-12 text-center text-muted-foreground italic">Loading users...</td></tr>
+                  ) : filteredStaff.map((member) => (
+                    <tr key={member.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold uppercase">
+                            {member.avatar_url ? <img src={member.avatar_url} className="w-8 h-8 rounded-lg object-cover" /> : member.name.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-medium">{member.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{member.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs bg-muted border border-border px-2 py-0.5 rounded uppercase font-mono tracking-tighter">
+                          {member.roles?.label ?? 'No Role'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {member.is_active ?
+                          <span className="text-green-500 font-bold uppercase tracking-widest text-[10px] bg-green-500/10 px-1.5 py-0.5 rounded">Active</span> :
+                          <span className="text-destructive font-bold uppercase tracking-widest text-[10px] bg-destructive/10 px-1.5 py-0.5 rounded">Inactive</span>
+                        }
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => { setRoleChangeTarget(member); roleForm.reset({ role_id: member.roles?.id ?? '' }); }}
+                            className="p-1.5 text-muted-foreground hover:text-primary transition-colors"
+                            title="Change Role"
+                          >
+                            <ShieldCheck className="h-4 w-4" />
+                          </button>
+                          {member.is_active ? (
+                            <button
+                              type="button"
+                              onClick={() => setDeactivateTarget(member)}
+                              className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                              title="Deactivate"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setActivateTarget(member)}
+                              className="p-1.5 text-muted-foreground hover:text-green-500 transition-colors"
+                              title="Activate"
+                            >
+                              <Users className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setResetPasswordTarget(member)}
+                            className="p-1.5 text-muted-foreground hover:text-amber-500 transition-colors"
+                            title="Reset Password"
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(member)}
+                            className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                            title="Delete Permanently"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Roles & Permissions Tab */}
+        {activeTab === 'roles' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-lg text-foreground">Roles & Permissions</h3>
+              <button
+                type="button"
+                onClick={openCreateRole}
+                className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4" /> New Role
+              </button>
+            </div>
+
+            {rolesLoading ? (
+              <div className="text-center py-12 text-muted-foreground">Loading roles...</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {roles.map((role) => {
+                  const grantedCount = Object.values(role.permissions ?? {}).filter(Boolean).length;
+                  return (
+                    <div key={role.id} className="bg-card border border-border rounded-xl p-5 hover:border-primary/30 transition-colors group">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <ShieldCheck className="h-4 w-4 text-primary" />
+                            <h3 className="font-bold text-foreground truncate">{role.label}</h3>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <code className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono uppercase tracking-wider">{role.name}</code>
+                            <span className="text-xs text-muted-foreground">
+                              {role.name === 'super_admin' ? 'Total Control' : `${grantedCount} permissions`}
+                            </span>
+                          </div>
+                        </div>
+                        {role.name !== 'super_admin' && (
+                          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => openEditRole(role)}
+                              className="p-2 text-muted-foreground hover:text-primary transition-colors"
+                              title="Edit Permissions"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteRoleTarget(role)}
+                              className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+                              title="Delete Role"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </form>
+
+      {/* Invite Modal */}
+      <Modal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} title="Invite Team Member">
+        <form onSubmit={inviteForm.handleSubmit((v) => inviteMutation.mutate(v))} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Full Name *</label>
+            <input {...inviteForm.register('full_name', { required: true })} placeholder="Rahim Ahmed" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Email Address *</label>
+            <input type="email" {...inviteForm.register('email', { required: true })} placeholder="staff@example.com" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Role *</label>
+            <select {...inviteForm.register('role_id', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="">Select role...</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+            </select>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setIsInviteOpen(false)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
+            <button type="submit" disabled={inviteMutation.isPending || roles.length === 0} className="flex items-center gap-2 px-5 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-semibold transition-all">
+              <UserPlus className="h-4 w-4" /> {inviteMutation.isPending ? 'Sending...' : 'Send Invite'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Role Change Modal */}
+      <Modal isOpen={!!roleChangeTarget} onClose={() => setRoleChangeTarget(null)} title={`Change Role — ${roleChangeTarget?.name}`}>
+        <form onSubmit={roleForm.handleSubmit((v) => changeRoleMutation.mutate({ staffId: roleChangeTarget!.id, roleId: v.role_id }))} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">New Role *</label>
+            <select {...roleForm.register('role_id', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="">Select role...</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+            </select>
+          </div>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setRoleChangeTarget(null)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
+            <button type="submit" disabled={changeRoleMutation.isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-semibold transition-all">
+              {changeRoleMutation.isPending ? 'Saving...' : 'Change Role'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmModal
+        isOpen={!!deactivateTarget}
+        onClose={() => setDeactivateTarget(null)}
+        onConfirm={() => deactivateTarget && deactivateMutation.mutate(deactivateTarget.id)}
+        title="Deactivate Staff Member"
+        message={`Are you sure you want to deactivate ${deactivateTarget?.name}? They will no longer be able to log in.`}
+        confirmLabel="Deactivate"
+        danger
+      />
+
+      <ConfirmModal
+        isOpen={!!resetPasswordTarget}
+        onClose={() => setResetPasswordTarget(null)}
+        onConfirm={() => resetPasswordTarget && resetPasswordMutation.mutate(resetPasswordTarget.id)}
+        title="Reset Staff Password"
+        message={`Are you sure you want to reset the password for ${resetPasswordTarget?.name}? They will be emailed a new temporary password instantly.`}
+        confirmLabel="Reset Password"
+        danger
+        loading={resetPasswordMutation.isPending}
+      />
+
+      <ConfirmModal
+        isOpen={!!activateTarget}
+        onClose={() => setActivateTarget(null)}
+        onConfirm={() => activateTarget && activateMutation.mutate(activateTarget.id)}
+        title="Activate Staff Member"
+        message={`Re-activate ${activateTarget?.name}? They will regain access.`}
+        confirmLabel="Activate"
+      />
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteStaffMutation.mutate(deleteTarget.id)}
+        title="Delete Staff Member"
+        message={`Are you sure you want to permanently delete ${deleteTarget?.name}? This action cannot be undone.`}
+        confirmLabel="Delete Permanently"
+        danger
+        loading={deleteStaffMutation.isPending}
+      />
+
+      {/* Temp Password Modal */}
+      {tempPasswordModal && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl relative">
+            <div className="p-8 text-center space-y-6">
+              <div className="h-16 w-16 rounded-2xl bg-green-500/10 flex items-center justify-center mx-auto ring-1 ring-green-500/20">
+                <UserPlus className="h-8 w-8 text-green-500" />
+              </div>
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold text-foreground">Invitation Successful!</h2>
+                <p className="text-muted-foreground text-sm">
+                  User <strong>{tempPasswordModal.name}</strong> has been added.
+                </p>
+              </div>
+              <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-5 text-left space-y-3">
+                <code className="flex-1 bg-background/50 rounded-xl px-4 py-4 font-mono text-xl font-bold text-foreground tracking-widest border border-border select-all shadow-inner block text-center">
+                  {tempPasswordModal.password}
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(tempPasswordModal.password);
+                    toast('Password copied!', 'success');
+                  }}
+                  className="w-full py-2 rounded-lg border border-border hover:bg-muted transition-all"
+                >
+                  Copy Password
+                </button>
+              </div>
+              <button
+                onClick={() => setTempPasswordModal(null)}
+                className="w-full bg-primary text-white py-3 rounded-xl text-sm font-bold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Role Editor Modal */}
+      <Modal
+        isOpen={isRoleOpen}
+        onClose={() => { setIsRoleOpen(false); setEditingRole(null); }}
+        title={editingRole ? `Edit Role: ${editingRole.label}` : 'Create New Role'}
+      >
+        <form onSubmit={roleEditForm.handleSubmit((v) => saveRoleMutation.mutate(v))} className="space-y-5">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Role Identifier (Slug)</label>
+              <input
+                {...roleEditForm.register('name', { required: true, pattern: /^[a-z_]+$/ })}
+                placeholder="e.g. site_manager"
+                disabled={!!editingRole}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">Lowercase letters and underscores only</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Display Label</label>
+              <input
+                {...roleEditForm.register('label', { required: true })}
+                placeholder="e.g. Site Manager"
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold mb-3">Permissions</p>
+            <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar border border-border/50 rounded-lg p-3 bg-muted/20">
+              {PERMISSION_GROUPS.map((group) => (
+                <div key={group}>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <span className="h-1 w-1 rounded-full bg-primary" /> {group}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                    {ALL_PERMISSIONS.filter((p) => p.group === group).map((p) => (
+                      <label key={p.key} className="flex items-center gap-2 text-xs cursor-pointer group hover:bg-muted p-1.5 rounded-md transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={!!currentPermissions[p.key]}
+                          onChange={(e) => {
+                            roleEditForm.setValue('permissions', {
+                              ...currentPermissions,
+                              [p.key]: e.target.checked,
+                            });
+                          }}
+                          className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                        />
+                        <span className="text-foreground group-hover:text-primary transition-colors">{p.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-border">
+            <button type="button" onClick={() => { setIsRoleOpen(false); setEditingRole(null); }} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
+            <button type="submit" disabled={saveRoleMutation.isPending} className="px-6 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-semibold shadow-sm transition-all">
+              {saveRoleMutation.isPending ? 'Saving...' : editingRole ? 'Update Role' : 'Create Role'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmModal
+        isOpen={!!deleteRoleTarget}
+        onClose={() => setDeleteRoleTarget(null)}
+        onConfirm={() => deleteRoleTarget && deleteRoleMutation.mutate(deleteRoleTarget.id)}
+        title="Delete Role"
+        message={`Are you sure you want to delete the "${deleteRoleTarget?.label}" role? This will leave staff members of this role with no assigned role. This action cannot be undone.`}
+        confirmLabel="Delete Role"
+        danger
+        loading={deleteRoleMutation.isPending}
+      />
 
       {/* Add Service Modal */}
       <Modal isOpen={isAddingService} onClose={() => setIsAddingService(false)} title="Add Service">

@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Eye, EyeOff, ShieldCheck, User } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck, User, LogOut } from 'lucide-react';
 import { toast } from '@/components/Toast';
 
 export default function SetupPage() {
-    const { user, profile, refreshProfile } = useAuth();
+    const { user, profile, refreshProfile, signOut } = useAuth();
     const navigate = useNavigate();
 
     const [newPassword, setNewPassword] = useState('');
@@ -71,7 +71,7 @@ export default function SetupPage() {
                     </p>
                 </div>
 
-                <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-2xl">
+                <div className="bg-white dark:bg-[#1c1c1c]/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-2xl">
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {/* Display Name */}
                         <div>
@@ -86,7 +86,7 @@ export default function SetupPage() {
                                     value={displayName}
                                     onChange={(e) => setDisplayName(e.target.value)}
                                     placeholder="Your full name"
-                                    className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                                    className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-white dark:bg-[#1c1c1c]/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                                 />
                             </div>
                         </div>
@@ -101,7 +101,7 @@ export default function SetupPage() {
                                 value={phone}
                                 onChange={(e) => setPhone(e.target.value)}
                                 placeholder="+880 1XXX-XXXXXX"
-                                className="w-full px-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                                className="w-full px-4 py-2.5 rounded-lg bg-white dark:bg-[#1c1c1c]/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                             />
                         </div>
 
@@ -118,7 +118,7 @@ export default function SetupPage() {
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value)}
                                         placeholder="Minimum 8 characters"
-                                        className="w-full px-4 py-2.5 pr-10 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                                        className="w-full px-4 py-2.5 pr-10 rounded-lg bg-white dark:bg-[#1c1c1c]/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                                     />
                                     <button
                                         type="button"
@@ -141,7 +141,7 @@ export default function SetupPage() {
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                     placeholder="Re-enter password"
-                                    className="w-full px-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                                    className="w-full px-4 py-2.5 rounded-lg bg-white dark:bg-[#1c1c1c]/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                                 />
                             </div>
                         </div>
@@ -163,6 +163,15 @@ export default function SetupPage() {
                                 <ShieldCheck className="h-4 w-4" />
                             )}
                             {loading ? 'Saving...' : 'Complete Setup & Continue'}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => signOut()}
+                            className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white font-medium py-2.5 rounded-lg transition-colors text-sm border border-white/10"
+                        >
+                            <LogOut className="h-4 w-4" />
+                            Log Out
                         </button>
                     </form>
                 </div>

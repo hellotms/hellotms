@@ -78,7 +78,7 @@ export function ConfirmModal({
       <div className="flex flex-col items-center text-center py-2">
         <div className={cn(
           "w-12 h-12 rounded-full flex items-center justify-center mb-4 animate-in zoom-in duration-300",
-          danger ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
+          danger ? "bg-red-50 dark:bg-red-500/10 text-red-600 text-red-600 dark:text-red-400" : "bg-blue-50 dark:bg-blue-500/10 text-blue-600 text-blue-600 dark:text-blue-400"
         )}>
           {danger ? <AlertTriangle className="h-6 w-6" /> : <Info className="h-6 w-6" />}
         </div>
@@ -137,15 +137,15 @@ export function CascadeConfirmModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
       <div className="space-y-4">
-        <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl">
-          <div className="h-9 w-9 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center shrink-0">
-            <Trash2 className="h-4 w-4 text-red-600" />
+        <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-500/10 dark:bg-red-950/30 border border-red-200 border-red-200 dark:border-red-500/30 dark:border-red-800 rounded-xl">
+          <div className="h-9 w-9 rounded-full bg-red-100 dark:bg-red-500/20 dark:bg-red-900/50 flex items-center justify-center shrink-0">
+            <Trash2 className="h-4 w-4 text-red-600 text-red-600 dark:text-red-400" />
           </div>
           <div>
             <p className="text-sm font-semibold text-red-800 dark:text-red-300">
               Permanently delete {targetType}
             </p>
-            <p className="text-xs text-red-600 dark:text-red-400 mt-0.5 font-medium truncate max-w-[220px]">
+            <p className="text-xs text-red-600 text-red-600 dark:text-red-400 dark:text-red-400 mt-0.5 font-medium truncate max-w-[220px]">
               "{targetName}"
             </p>
           </div>
@@ -172,7 +172,7 @@ export function CascadeConfirmModal({
           </div>
         )}
 
-        <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
+        <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <span>This action <strong>cannot be undone</strong>. All data will be permanently removed.</span>
         </div>

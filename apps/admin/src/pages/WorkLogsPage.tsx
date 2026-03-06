@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { getInitials } from '@/lib/utils';
+import { formatAuditLogMessage } from '@/components/AuditLogFormatter';
 
 interface AuditLog {
     id: string;
@@ -82,7 +83,7 @@ export default function WorkLogsPage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">Work Logs</h1>
+                    <h1 className="text-2xl font-bold text-foreground">Activity Log</h1>
                     <p className="text-muted-foreground text-sm mt-1">Full audit trail of all admin activity</p>
                 </div>
                 <button onClick={load} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:bg-muted text-sm transition-colors">
@@ -131,19 +132,20 @@ export default function WorkLogsPage() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <p className="text-sm font-medium text-foreground capitalize">{cfg.label}</p>
-                                            <span className="text-xs text-muted-foreground">·</span>
-                                            <p className="text-xs text-muted-foreground">{log.entity_type}</p>
+                                            <span className="text-sm text-foreground">
+                                                <span className="font-semibold">{log.profiles?.name ?? 'System'}</span>{' '}
+                                                {formatAuditLogMessage(log)}
+                                            </span>
                                         </div>
-                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                        <div className="flex items-center gap-1.5 mt-1">
                                             {log.profiles?.avatar_url ? (
-                                                <img src={log.profiles.avatar_url} alt="" className="h-3.5 w-3.5 rounded-full object-cover" />
+                                                <img src={log.profiles.avatar_url} alt="" className="h-4 w-4 rounded-full object-cover" />
                                             ) : (
-                                                <div className="h-3.5 w-3.5 rounded-full bg-primary/20 flex items-center justify-center text-[8px] font-bold text-primary">
+                                                <div className="h-4 w-4 rounded-full bg-primary/20 flex items-center justify-center text-[9px] font-bold text-primary">
                                                     {getInitials(log.profiles?.name ?? 'S')}
                                                 </div>
                                             )}
-                                            <p className="text-xs text-muted-foreground">{log.profiles?.name ?? 'System'}</p>
+                                            <p className="text-xs text-muted-foreground">{log.profiles?.email ?? 'system@hellotms.com.bd'}</p>
                                         </div>
                                     </div>
                                     <div className="text-right shrink-0">
@@ -196,7 +198,7 @@ export default function WorkLogsPage() {
                                                                 <span className="text-muted-foreground"> from </span>
                                                                 <span className="text-red-500/80 line-through bg-red-500/10 px-1.5 py-0.5 rounded">{displayB}</span>
                                                                 <span className="text-muted-foreground"> to </span>
-                                                                <span className="font-semibold text-green-600 bg-green-500/10 px-1.5 py-0.5 rounded">{displayA}</span>
+                                                                <span className="font-semibold text-green-600 text-green-600 dark:text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded">{displayA}</span>
                                                             </div>
                                                         );
                                                     })}

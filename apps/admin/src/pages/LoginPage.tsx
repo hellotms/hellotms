@@ -38,7 +38,7 @@ export default function LoginPage() {
         </div>
 
         {/* Form card */}
-        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-2xl">
+        <div className="bg-white dark:bg-[#1c1c1c]/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-2xl">
           <h2 className="text-xl font-semibold text-white mb-6">Sign in to your account</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -52,7 +52,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@hellotms.com.bd"
-                className="w-full px-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                className="w-full px-4 py-2.5 rounded-lg bg-white dark:bg-[#1c1c1c]/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
               />
             </div>
 
@@ -67,7 +67,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-4 py-2.5 pr-10 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                  className="w-full px-4 py-2.5 pr-10 rounded-lg bg-white dark:bg-[#1c1c1c]/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                 />
                 <button
                   type="button"

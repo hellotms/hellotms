@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { DataTable } from '@/components/DataTable';
 import { PageHeader } from '@/components/PageHeader';
+import { DataTable } from '@/components/DataTable';
 import { StatusBadge } from '@/components/StatusBadge';
-import { Modal, CascadeConfirmModal } from '@/components/Modal';
-import { formatBDT, formatDate, slugify } from '@/lib/utils';
-import { Plus, FolderOpen, ImageIcon } from 'lucide-react';
+import { Modal, ConfirmModal, CascadeConfirmModal } from '@/components/Modal';
+import { formatBDT, formatDate, formatDateTime, slugify } from '@/lib/utils';
+import { FolderOpen, Plus, Building2, MoreHorizontal, Trash, Pencil, ImageIcon } from 'lucide-react';
 import { ImageUpload } from '@/components/ImageUpload';
 import { projectSchema, EVENT_CATEGORIES } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
@@ -15,14 +15,15 @@ import { toast } from '@/components/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { Project, Company, ProjectInput } from '@hellotms/shared';
-import { MoreHorizontal, Trash, Pencil } from 'lucide-react';
 import { mediaApi, auditApi } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 const STATUS_OPTIONS = ['all', 'draft', 'active', 'completed'];
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { profile } = useAuth();
   const [searchParams] = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') ?? 'all');
@@ -121,12 +122,21 @@ export default function ProjectsPage() {
         entity_id: project.id,
         entity_name: project.title,
         entity_data: project,
+        deleted_by: profile?.id,
       });
       if (trashError) throw trashError;
 
       // 2. Soft delete
-      const { error } = await supabase.from('projects').update({ deleted_at: new Date().toISOString() }).eq('id', project.id);
+      const now = new Date().toISOString();
+      const { error } = await supabase.from('projects').update({ deleted_at: now }).eq('id', project.id);
       if (error) throw error;
+
+      // 3. Cascade soft deletes
+      await Promise.all([
+        supabase.from('invoices').update({ deleted_at: now }).eq('project_id', project.id),
+        supabase.from('collections').update({ deleted_at: now }).eq('project_id', project.id),
+        supabase.from('ledger_entries').update({ deleted_at: now }).eq('project_id', project.id)
+      ]);
 
       auditApi.log({
         action: 'delete_project',
@@ -155,8 +165,8 @@ export default function ProjectsPage() {
       header: 'Project / Event',
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-            <FolderOpen className="h-4 w-4 text-blue-600" />
+          <div className="h-8 w-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
+            <FolderOpen className="h-4 w-4 text-blue-600 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
             <p className="font-medium text-foreground">{row.original.title}</p>
@@ -172,11 +182,12 @@ export default function ProjectsPage() {
       id: 'published',
       header: 'Published',
       cell: ({ row }) => (
-        <span className={`text-xs font-medium ${row.original.is_published ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+        <span className={`text-xs font-medium ${row.original.is_published ? 'text-emerald-600 text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
           {row.original.is_published ? 'Published' : 'Draft'}
         </span>
       ),
     },
+    { accessorKey: 'created_at', header: 'Created', cell: ({ getValue }) => formatDateTime(getValue() as string) },
     {
       id: 'actions',
       header: '',
@@ -191,7 +202,7 @@ export default function ProjectsPage() {
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleDelete(row.original); }}
-            className="p-1.5 rounded-md hover:bg-red-50 transition-colors text-muted-foreground hover:text-destructive"
+            className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 transition-colors text-muted-foreground hover:text-destructive"
             title="Delete Project"
           >
             <Trash className="h-4 w-4" />

@@ -73,6 +73,12 @@ export const staffApi = {
   deactivate: (id: string) => apiFetch(`/staff/${id}/deactivate`, { method: 'PUT', body: '{}' }),
   activate: (id: string) => apiFetch(`/staff/${id}/activate`, { method: 'PUT', body: '{}' }),
   resetPassword: (id: string) => apiFetch<{ tempPassword: string; message: string }>(`/staff/${id}/reset-password`, { method: 'PUT', body: '{}' }),
+  getSessions: () => apiFetch<{ data: any[] }>('/staff/me/sessions'),
+  revokeSession: (sessionId: string) => apiFetch(`/staff/me/sessions/${sessionId}`, { method: 'DELETE' }),
+  revokeOtherSessions: (currentSessionId: string) => apiFetch('/staff/me/sessions', {
+    method: 'DELETE',
+    headers: { 'X-Session-Id': currentSessionId }
+  }),
 };
 
 // ─── Invoices ────────────────────────────────────────────────────────────────

@@ -12,20 +12,52 @@ const outfit = Outfit({
   display: 'swap',
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: 'The Marketing Solution',
-    template: '%s | The Marketing Solution',
-  },
-  description: 'Professional event management and marketing services in Bangladesh. We bring your vision to life.',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://acadome.dev'),
-  openGraph: {
-    type: 'website',
-    locale: 'en_BD',
-    siteName: 'The Marketing Solution',
-  },
-  twitter: { card: 'summary_large_image' },
-};
+import { supabase } from '@/lib/supabase';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { data: settings } = await supabase.from('site_settings').select('*').eq('id', 1).single();
+  const siteName = 'The Marketing Solution';
+  const description = settings?.hero_subtitle || 'Professional event management and marketing services in Bangladesh. We bring your vision to life.';
+  const logoUrl = settings?.company_logo_url || '/favicon.svg';
+
+  return {
+    title: {
+      default: siteName,
+      template: `%s | ${siteName}`,
+    },
+    description,
+    icons: {
+      icon: logoUrl,
+      shortcut: logoUrl,
+      apple: logoUrl,
+    },
+    openGraph: {
+      title: siteName,
+      description,
+      url: process.env.NEXT_PUBLIC_SITE_URL || 'https://hellotms.com.bd',
+      siteName,
+      images: [
+        {
+          url: logoUrl,
+          width: 800,
+          height: 600,
+        },
+      ],
+      locale: 'en_BD',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: siteName,
+      description,
+      images: [logoUrl],
+    },
+    robots: {
+      index: true,
+      follow: true,
+    },
+  };
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

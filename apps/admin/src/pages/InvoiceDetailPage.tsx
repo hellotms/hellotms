@@ -158,16 +158,15 @@ export default function InvoiceDetailPage() {
   const handleDownloadPdf = async () => {
     try {
       setPdfLoading(true);
-      const result = await invoicesApi.getPdf(id!) as { pdfUrl?: string | null; error?: string };
+      const result = await invoicesApi.getPdf(id!, false) as { pdfUrl?: string | null; error?: string };
       if (result.pdfUrl) {
         window.open(result.pdfUrl, '_blank');
         queryClient.invalidateQueries({ queryKey: ['invoice', id] });
-        toast('PDF fetched successfully!', 'success');
       } else {
-        toast(result.error ?? 'Failed to get PDF', 'error');
+        toast(result.error ?? 'Failed to download PDF', 'error');
       }
     } catch (err) {
-      toast('Failed to get PDF', 'error');
+      toast('Failed to download PDF', 'error');
     } finally {
       setPdfLoading(false);
     }
@@ -178,9 +177,8 @@ export default function InvoiceDetailPage() {
       setPdfLoading(true);
       const result = await invoicesApi.getPdf(id!, true) as { pdfUrl?: string | null; error?: string };
       if (result.pdfUrl) {
-        window.open(result.pdfUrl, '_blank');
         queryClient.invalidateQueries({ queryKey: ['invoice', id] });
-        toast('PDF regenerated successfully!', 'success');
+        toast('PDF Regenerated successfully', 'success');
       } else {
         toast(result.error ?? 'Failed to regenerate PDF', 'error');
       }
@@ -217,7 +215,7 @@ export default function InvoiceDetailPage() {
               </button>
             )}
             {invoice.status === 'sent' && (
-              <button onClick={() => updateStatusMutation.mutate('paid')} className="flex items-center gap-2 px-4 py-2 border border-green-600 text-green-700 rounded-lg text-sm hover:bg-green-50">
+              <button onClick={() => updateStatusMutation.mutate('paid')} className="flex items-center gap-2 px-4 py-2 border border-green-600 text-green-700 rounded-lg text-sm hover:bg-green-50 dark:bg-green-500/10">
                 <CheckCircle2 className="h-4 w-4" /> Mark Paid
               </button>
             )}
@@ -225,6 +223,7 @@ export default function InvoiceDetailPage() {
               onClick={handleRegeneratePdf}
               disabled={pdfLoading}
               className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted disabled:opacity-60"
+              title="Regenerate PDF file"
             >
               {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Generate
@@ -233,6 +232,7 @@ export default function InvoiceDetailPage() {
               onClick={handleDownloadPdf}
               disabled={pdfLoading}
               className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted disabled:opacity-60"
+              title="Download/View Current PDF"
             >
               {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Download
@@ -353,7 +353,7 @@ export default function InvoiceDetailPage() {
                 <span className="font-medium">{formatBDT(subtotal)}</span>
               </div>
               {discountValue > 0 && (
-                <div className="flex justify-between w-52 text-sm text-red-600">
+                <div className="flex justify-between w-52 text-sm text-red-600 text-red-600 dark:text-red-400">
                   <span>Discount {invoice.discount_type === 'percent' ? `(%)` : ''}</span>
                   <span>− {formatBDT(discountValue)}</span>
                 </div>
@@ -363,7 +363,7 @@ export default function InvoiceDetailPage() {
                 <span className="font-bold text-primary">{formatBDT(totalPayable)}</span>
               </div>
               {invoice.projects?.advance_received && invoice.projects.advance_received > 0 && (
-                <div className="flex justify-between w-52 text-sm italic text-emerald-600 font-medium pb-1">
+                <div className="flex justify-between w-52 text-sm italic text-emerald-600 text-emerald-600 dark:text-emerald-400 font-medium pb-1">
                   <span>Advance Payment</span>
                   <span>− {formatBDT(invoice.projects.advance_received)}</span>
                 </div>
@@ -409,8 +409,8 @@ export default function InvoiceDetailPage() {
                   <span className="text-muted-foreground">Total Paid</span>
                   <span className="font-medium text-green-700">− {formatBDT(totalPaid)}</span>
                 </div>
-                <div className={`flex justify-between w-52 text-sm rounded-lg px-3 py-2 font-bold ${due > 0 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-                  <span>{due > 0 ? 'AMOUNT DUE' : 'FULLY PAID ✓'}</span>
+                <div className={`flex justify-between w-52 text-sm rounded-lg px-3 py-2 font-bold ${due > 0 ? 'bg-red-50 dark:bg-red-500/10 text-red-700' : 'bg-green-50 dark:bg-green-500/10 text-green-700'}`}>
+                  <span>{due > 0 ? 'AMOUNT DUE' : 'FULLY PAID'}</span>
                   <span>{due > 0 ? formatBDT(due) : formatBDT(0)}</span>
                 </div>
               </div>
@@ -435,7 +435,7 @@ export default function InvoiceDetailPage() {
           </div>
 
           {/* Due summary in sidebar */}
-          <div className={`rounded-xl p-5 border ${due > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+          <div className={`rounded-xl p-5 border ${due > 0 ? 'bg-red-50 dark:bg-red-500/10 border-red-200 border-red-200 dark:border-red-500/30' : 'bg-green-50 dark:bg-green-500/10 border-green-200'}`}>
             <h3 className={`font-semibold mb-2 text-sm ${due > 0 ? 'text-red-800' : 'text-green-800'}`}>
               {due > 0 ? 'Outstanding Due' : 'Payment Status'}
             </h3>
@@ -463,8 +463,8 @@ export default function InvoiceDetailPage() {
       <Modal isOpen={isSendOpen} onClose={() => setIsSendOpen(false)} title="Send Invoice to Client">
         {sendSuccess ? (
           <div className="text-center py-6">
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Send className="h-6 w-6 text-green-600" />
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Send className="h-6 w-6 text-green-600 text-green-600 dark:text-green-400" />
             </div>
             <p className="font-semibold text-foreground">Invoice sent!</p>
             <p className="text-sm text-muted-foreground mt-1">The invoice has been emailed with a PDF attachment.</p>

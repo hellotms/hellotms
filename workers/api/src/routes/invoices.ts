@@ -151,8 +151,17 @@ async function buildAndStorePdf(
 
     const pdfUrl = `${env.R2_PUBLIC_URL}/${storagePath}`;
 
-    // Update DB in background
-    (supabase as any).from('invoices').update({ pdf_url: pdfUrl }).eq('id', id).then();
+    // Update DB
+    const { error: updateError } = await (supabase as any)
+      .from('invoices')
+      .update({ pdf_url: pdfUrl })
+      .eq('id', id);
+
+    if (updateError) {
+      console.error('[invoices] DB update error for pdf_url:', updateError);
+      // We don't throw here because the PDF was successfully stored in R2,
+      // but we should log it.
+    }
 
     return { pdfUrl, pdfBytes, pdfBase64 };
   } catch (err: any) {

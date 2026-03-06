@@ -107,7 +107,7 @@ export function ImageUpload({
                             <button
                                 type="button"
                                 onClick={() => inputRef.current?.click()}
-                                className="px-3 py-1.5 bg-white text-xs font-medium rounded-lg text-gray-900 hover:bg-gray-100"
+                                className="px-3 py-1.5 bg-white dark:bg-[#1c1c1c] text-xs font-medium rounded-lg text-foreground hover:bg-gray-100"
                             >
                                 Replace
                             </button>

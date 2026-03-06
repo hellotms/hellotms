@@ -4,12 +4,12 @@ import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { ConfirmModal } from '@/components/Modal';
 import { toast } from '@/components/Toast';
-import { Trash2, RotateCcw, Building2, FolderOpen, Receipt, Clock, AlertTriangle } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { Trash2, RotateCcw, Building2, FolderOpen, Receipt, Clock, AlertTriangle, MessageSquare } from 'lucide-react';
+import { formatDateTime } from '@/lib/utils';
 
 type TrashItem = {
     id: string;
-    entity_type: 'company' | 'project' | 'invoice' | 'collection';
+    entity_type: 'company' | 'project' | 'invoice' | 'collection' | 'lead';
     entity_id: string;
     entity_name: string;
     entity_data: any;
@@ -38,7 +38,14 @@ export default function RecycleBinPage() {
 
     const restoreMutation = useMutation({
         mutationFn: async (item: TrashItem) => {
-            if (item.entity_type === 'collection' && item.entity_data?._is_gallery_photo) {
+            if (item.entity_type === 'lead') {
+                // Restore lead: re-insert into leads table
+                const { error: insertError } = await supabase.from('leads').insert({
+                    id: item.entity_id,
+                    ...item.entity_data
+                });
+                if (insertError) throw insertError;
+            } else if (item.entity_type === 'collection' && item.entity_data?._is_gallery_photo) {
                 // Restore gallery photo: re-insert into project_media
                 const { error: insertError } = await supabase.from('project_media').insert({
                     id: item.entity_id,
@@ -84,10 +91,10 @@ export default function RecycleBinPage() {
 
     const permanentDeleteMutation = useMutation({
         mutationFn: async (item: TrashItem) => {
-            if (item.entity_type === 'collection' && item.entity_data?._is_gallery_photo) {
+            if (item.entity_type === 'lead') {
+                // Already hard-deleted from main table, do nothing here.
+            } else if (item.entity_type === 'collection' && item.entity_data?._is_gallery_photo) {
                 // Permanently delete gallery photo: call mediaApi.delete
-                // We don't have direct access here, so we will use dynamic import or just rely on API route if we had one.
-                // For now, let's assume mediaApi is available here or we import it.
                 const { mediaApi } = await import('@/lib/api');
                 await mediaApi.delete(item.entity_data.path);
             } else {
@@ -126,6 +133,7 @@ export default function RecycleBinPage() {
             case 'company': return Building2;
             case 'project': return FolderOpen;
             case 'invoice': return Receipt;
+            case 'lead': return MessageSquare;
             default: return Clock;
         }
     };
@@ -170,9 +178,9 @@ export default function RecycleBinPage() {
                                         <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-4">
-                                                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${item.entity_type === 'company' ? 'bg-blue-100 text-blue-600' :
-                                                        item.entity_type === 'project' ? 'bg-amber-100 text-amber-600' :
-                                                            item.entity_type === 'invoice' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-600'
+                                                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${item.entity_type === 'company' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 text-blue-600 dark:text-blue-400' :
+                                                        item.entity_type === 'project' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 text-amber-600 dark:text-amber-400' :
+                                                            item.entity_type === 'invoice' ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 text-emerald-600 dark:text-emerald-400' : 'bg-gray-100 text-muted-foreground'
                                                         }`}>
                                                         <Icon className="h-5 w-5" />
                                                     </div>
@@ -184,12 +192,12 @@ export default function RecycleBinPage() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="space-y-1">
-                                                    <p className="text-foreground">{formatDate(item.deleted_at)}</p>
-                                                    <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${expired ? 'text-red-500' : 'text-orange-500'}`}>
+                                                    <p className="text-foreground">{formatDateTime(item.deleted_at)}</p>
+                                                    <div className={`flex items-center gap-1.5 text-[10px] font-bold tracking-wider ${expired ? 'text-red-500 uppercase' : 'text-orange-500'}`}>
                                                         {expired ? (
                                                             <><AlertTriangle className="h-3 w-3" /> Expired - Auto Delete Soon</>
                                                         ) : (
-                                                            <><Clock className="h-3 w-3" /> Expires in {Math.ceil((new Date(item.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days</>
+                                                            <><Clock className="h-3 w-3" /> Final Delete: {formatDateTime(item.expires_at)}</>
                                                         )}
                                                     </div>
                                                 </div>
@@ -207,7 +215,7 @@ export default function RecycleBinPage() {
                                                     </button>
                                                     <button
                                                         onClick={() => setDeleteTarget(item)}
-                                                        className="p-2 rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold"
+                                                        className="p-2 rounded-md border border-red-200 border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-600 text-red-600 dark:text-red-400 hover:bg-red-100 dark:bg-red-500/20 transition-colors flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold"
                                                     >
                                                         <Trash2 className="h-3.5 w-3.5" /> Delete Forever
                                                     </button>

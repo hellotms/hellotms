@@ -255,7 +255,7 @@ export default function SettingsPage() {
                 <input type="password" {...passwordForm.register('confirm_password', { required: true })} placeholder="Repeat password" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
               </div>
               {pwError && <p className="text-sm text-destructive">{pwError}</p>}
-              {pwSaved && <p className="text-sm text-green-600">✓ Password changed successfully</p>}
+              {pwSaved && <p className="text-sm text-green-600 text-green-600 dark:text-green-400">✓ Password changed successfully</p>}
               <button type="submit" disabled={updatePasswordMutation.isPending} className="w-full py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-60">
                 {updatePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
               </button>

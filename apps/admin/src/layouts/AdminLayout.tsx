@@ -4,11 +4,12 @@ import { cn, getInitials } from '@/lib/utils';
 import {
   LayoutDashboard, Building2, FolderOpen, Receipt, Users,
   Globe, UserCog, Settings, LogOut, Menu, X, Bell, ChevronRight,
-  MessageSquare, ClipboardList, Megaphone, Trash2
+  MessageSquare, ClipboardList, Megaphone, Trash2, Sun, Moon
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useTheme } from 'next-themes';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -17,10 +18,10 @@ const navItems = [
   { to: '/projects', label: 'Projects', icon: FolderOpen, permission: 'view_projects' },
   { to: '/invoices', label: 'Invoices', icon: Receipt, permission: 'manage_invoices' },
   { to: '/leads', label: 'Contact Form', icon: MessageSquare, permission: 'view_leads' },
-  { to: '/recycle-bin', label: 'Recycle Bin', icon: Trash2, permission: 'manage_staff' }, // Only admins/super_admins
-  { to: '/staff', label: 'Staff & Roles', icon: UserCog, permission: 'view_staff' },
+  { to: '/staff', label: 'All Staff', icon: Users, permission: 'view_staff' },
   { to: '/settings', label: 'Profile Settings', icon: Settings },
-  { to: '/work-logs', label: 'Work Logs', icon: ClipboardList, permission: 'view_audit_logs' },
+  { to: '/recycle-bin', label: 'Recycle Bin', icon: Trash2, permission: 'manage_staff' },
+  { to: '/work-logs', label: 'Activity Log', icon: ClipboardList, permission: 'view_audit_logs' },
   { to: '/cms', label: 'Core Settings', icon: Globe, permission: 'manage_cms' },
 ];
 
@@ -28,6 +29,12 @@ export default function AdminLayout() {
   const { profile, role, signOut, can } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const { theme, setTheme } = useTheme();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Unread notices logic
   const lastSeenNoticesAt = localStorage.getItem(`last_seen_notices_${profile?.id}`) || new Date(0).toISOString();
@@ -70,25 +77,24 @@ export default function AdminLayout() {
       'flex flex-col h-full bg-sidebar text-sidebar-foreground',
       mobile ? 'w-72' : 'w-64'
     )}>
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
-        {siteSettings?.company_logo_url ? (
-          <img src={siteSettings.company_logo_url} alt="Logo" className="h-9 w-9 rounded-lg object-cover bg-white" />
+      {/* User Identity - Top of Sidebar */}
+      <div
+        className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border cursor-pointer hover:bg-sidebar-accent transition-colors group"
+        onClick={() => { navigate('/profile'); if (mobile) setSidebarOpen(false); }}
+      >
+        {profile?.avatar_url ? (
+          <img src={profile.avatar_url} alt={profile.name} className="h-9 w-9 rounded-full object-cover shrink-0 ring-2 ring-transparent group-hover:ring-primary/20 transition-all shadow-sm" />
         ) : (
-          <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-white font-bold text-sm">MS</span>
+          <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white shrink-0 ring-2 ring-primary/10 group-hover:ring-primary/20 transition-all shadow-sm">
+            {getInitials(profile?.name ?? 'U')}
           </div>
         )}
-        <div className="min-w-0 pr-2">
-          <p className="text-sidebar-foreground font-semibold text-sm leading-none truncate">
-            {profile?.name ? 'Hello TMS' : 'The Marketing Solution'}
-          </p>
-          <p className="text-sidebar-foreground/60 text-xs mt-0.5 truncate">
-            {siteSettings?.public_site_url ? new URL(siteSettings.public_site_url).hostname : 'hellotms.com.bd'}
-          </p>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-sidebar-foreground truncate">{profile?.name ?? 'User'}</p>
+          <p className="text-[10px] text-sidebar-foreground/60 truncate capitalize font-medium">{role?.name?.replace('_', ' ') ?? 'Viewer'}</p>
         </div>
         {mobile && (
-          <button onClick={() => setSidebarOpen(false)} className="ml-auto shrink-0 text-sidebar-foreground/60 hover:text-sidebar-foreground">
+          <button onClick={() => setSidebarOpen(false)} className="ml-2 shrink-0 text-sidebar-foreground/60 hover:text-sidebar-foreground">
             <X className="h-5 w-5" />
           </button>
         )}
@@ -123,28 +129,15 @@ export default function AdminLayout() {
         ))}
       </nav>
 
-      {/* User info */}
-      <div className="px-3 py-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-sidebar-accent transition-colors">
-          {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt={profile.name} className="h-8 w-8 rounded-full object-cover shrink-0" />
-          ) : (
-            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white shrink-0">
-              {getInitials(profile?.name ?? 'U')}
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">{profile?.name ?? 'User'}</p>
-            <p className="text-xs text-sidebar-foreground/60 truncate">{role?.name ?? 'viewer'}</p>
-          </div>
-          <button
-            onClick={handleSignOut}
-            className="text-sidebar-foreground/60 hover:text-destructive transition-colors"
-            title="Sign out"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
-        </div>
+      {/* Sign Out */}
+      <div className="px-3 py-4 border-t border-sidebar-border mt-auto">
+        <button
+          onClick={handleSignOut}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-destructive transition-colors group"
+        >
+          <LogOut className="h-4 w-4 shrink-0 opacity-60 group-hover:opacity-100" />
+          <span>Exit</span>
+        </button>
       </div>
     </div>
   );
@@ -173,12 +166,24 @@ export default function AdminLayout() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 rounded-md hover:bg-muted transition-colors"
+              className="md:hidden p-2 rounded-md hover:bg-muted transition-colors -ml-2"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <div className="hidden md:block text-base font-semibold text-foreground">
-              The Marketing Solution
+            <div className="flex items-center gap-2.5 md:gap-3">
+              {siteSettings?.company_logo_url ? (
+                <img src={siteSettings.company_logo_url} alt="Logo" className="h-8 w-8 rounded-lg object-cover bg-muted/20" />
+              ) : (
+                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <span className="text-primary font-bold text-[10px]">MS</span>
+                </div>
+              )}
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm md:text-base font-bold text-foreground leading-none truncate">The Marketing Solution</span>
+                <span className="text-[10px] md:text-[11px] text-muted-foreground mt-0.5 truncate hidden sm:block uppercase tracking-wider font-medium">
+                  {siteSettings?.public_site_url ? new URL(siteSettings.public_site_url).hostname : 'hellotms.com.bd'}
+                </span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -206,16 +211,19 @@ export default function AdminLayout() {
                 </span>
               )}
             </button>
-            <div className="flex items-center gap-2 pl-3 border-l border-border cursor-pointer hover:bg-muted p-1.5 pr-3 rounded-lg transition-colors group" onClick={() => navigate('/profile')}>
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt={profile.name} className="h-8 w-8 rounded-full object-cover shrink-0 ring-2 ring-transparent group-hover:ring-primary/20 transition-all" />
+
+            {/* Theme toggle */}
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="p-2 rounded-md hover:bg-muted transition-colors relative mr-1 text-muted-foreground"
+              title="Toggle theme"
+            >
+              {mounted ? (
+                theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />
               ) : (
-                <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white shrink-0 ring-2 ring-transparent group-hover:ring-primary/20 transition-all">
-                  {getInitials(profile?.name ?? 'U')}
-                </div>
+                <div className="h-5 w-5" />
               )}
-              <span className="text-sm font-medium hidden sm:block">{profile?.name ?? 'User'}</span>
-            </div>
+            </button>
           </div>
         </header>
 

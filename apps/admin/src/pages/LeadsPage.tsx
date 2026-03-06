@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Modal, ConfirmModal } from '@/components/Modal';
 import { DataTable } from '@/components/DataTable';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatDateTime } from '@/lib/utils';
 import { MessageSquare, Phone, Mail, Calendar, Star, Trash2 } from 'lucide-react';
 import type { Lead } from '@hellotms/shared';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -18,7 +18,7 @@ const STATUS_OPTIONS = ['all', 'new', 'contacted', 'closed', 'starred'];
 
 export default function LeadsPage() {
   const queryClient = useQueryClient();
-  const { can } = useAuth();
+  const { can, profile } = useAuth();
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
@@ -54,7 +54,7 @@ export default function LeadsPage() {
       toast('Lead updated successfully', 'success');
     },
     onError: (error: any) => {
-      toast(`Failed to update lead: ${error.message || 'Unknown error'}`, 'error');
+      toast(`Failed to update lead: ${error.message || 'Unknown error'} `, 'error');
     },
   });
 
@@ -68,19 +68,30 @@ export default function LeadsPage() {
       toast('Lead status updated', 'success');
     },
     onError: (error: any) => {
-      toast(`Action failed: ${error.message || 'Unknown error'}`, 'error');
+      toast(`Action failed: ${error.message || 'Unknown error'} `, 'error');
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('leads').delete().eq('id', id);
+    mutationFn: async (lead: Lead) => {
+      // 1. Insert into trash_bin
+      const { error: trashError } = await supabase.from('trash_bin').insert({
+        entity_type: 'lead',
+        entity_id: lead.id,
+        entity_name: lead.name,
+        entity_data: lead,
+        deleted_by: profile?.id,
+      });
+      if (trashError) throw trashError;
+
+      // 2. Hard delete
+      const { error } = await supabase.from('leads').delete().eq('id', lead.id);
       if (error) throw error;
       auditApi.log({
         action: 'delete_contact_form',
         entity_type: 'lead',
-        entity_id: id,
-        before: { id }
+        entity_id: lead.id,
+        before: lead
       });
     },
     onSuccess: () => {
@@ -90,7 +101,7 @@ export default function LeadsPage() {
       toast('Lead deleted successfully', 'success');
     },
     onError: (error: any) => {
-      toast(`Failed to delete lead: ${error.message || 'Unknown error'}`, 'error');
+      toast(`Failed to delete lead: ${error.message || 'Unknown error'} `, 'error');
     },
   });
 
@@ -132,7 +143,7 @@ export default function LeadsPage() {
       cell: ({ getValue }) => getValue() ? <span className="text-sm text-muted-foreground">{getValue() as string}</span> : '—',
     },
     { accessorKey: 'status', header: 'Status', cell: ({ getValue }) => <StatusBadge status={getValue() as string} /> },
-    { accessorKey: 'created_at', header: 'Submitted', cell: ({ getValue }) => formatDate(getValue() as string) },
+    { accessorKey: 'created_at', header: 'Submitted', cell: ({ getValue }) => formatDateTime(getValue() as string) },
     {
       id: 'actions',
       header: '',
@@ -140,9 +151,9 @@ export default function LeadsPage() {
         <div className="flex items-center gap-2 justify-end">
           <button
             onClick={(e) => handleToggleStar(e, row.original)}
-            className={`p-1.5 rounded-md hover:bg-muted transition-colors ${row.original.is_starred ? 'text-yellow-500' : 'text-muted-foreground hover:text-yellow-500'}`}
+            className={`p - 1.5 rounded - md hover: bg - muted transition - colors ${row.original.is_starred ? 'text-yellow-500' : 'text-muted-foreground hover:text-yellow-500'} `}
           >
-            <Star className={`h-4 w-4 ${row.original.is_starred ? 'fill-current' : ''}`} />
+            <Star className={`h - 4 w - 4 ${row.original.is_starred ? 'fill-current' : ''} `} />
           </button>
           {can('manage_contact_forms') && (
             <button
@@ -163,7 +174,7 @@ export default function LeadsPage() {
 
       <div className="flex gap-2 mb-4">
         {STATUS_OPTIONS.map(s => (
-          <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-colors ${statusFilter === s ? 'bg-primary text-white' : 'border border-border text-muted-foreground hover:text-foreground'}`}>
+          <button key={s} onClick={() => setStatusFilter(s)} className={`px - 3 py - 1.5 rounded - full text - xs font - medium capitalize transition - colors ${statusFilter === s ? 'bg-primary text-white' : 'border border-border text-muted-foreground hover:text-foreground'} `}>
             {s}
           </button>
         ))}
@@ -174,14 +185,14 @@ export default function LeadsPage() {
         <div className="grid grid-cols-3 gap-4 mb-4">
           {(['new', 'contacted', 'closed'] as const).map(s => {
             const count = leads.filter(l => l.status === s).length;
-            const colorMap = { new: 'text-blue-600 bg-blue-50', contacted: 'text-yellow-600 bg-yellow-50', closed: 'text-green-600 bg-green-50' };
+            const colorMap = { new: 'text-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10', contacted: 'text-yellow-600 bg-yellow-50', closed: 'text-green-600 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10' };
             return (
               <div key={s} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide capitalize">{s}</p>
                   <p className="text-2xl font-bold mt-1">{count}</p>
                 </div>
-                <span className={`w-10 h-10 rounded-full flex items-center justify-center ${colorMap[s]}`}>
+                <span className={`w - 10 h - 10 rounded - full flex items - center justify - center ${colorMap[s]} `}>
                   <MessageSquare className="h-5 w-5" />
                 </span>
               </div>
@@ -216,12 +227,12 @@ export default function LeadsPage() {
               </div>
               <div className="bg-muted/40 rounded-lg p-3 space-y-1">
                 {selectedLead.email && (
-                  <a href={`mailto:${selectedLead.email}`} className="flex items-center gap-2 text-sm text-primary hover:underline">
+                  <a href={`mailto:${selectedLead.email} `} className="flex items-center gap-2 text-sm text-primary hover:underline">
                     <Mail className="h-3 w-3" /> {selectedLead.email}
                   </a>
                 )}
                 {selectedLead.phone && (
-                  <a href={`tel:${selectedLead.phone}`} className="flex items-center gap-2 text-sm text-primary hover:underline">
+                  <a href={`tel:${selectedLead.phone} `} className="flex items-center gap-2 text-sm text-primary hover:underline">
                     <Phone className="h-3 w-3" /> {selectedLead.phone}
                   </a>
                 )}
@@ -292,10 +303,10 @@ export default function LeadsPage() {
       <ConfirmModal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
-        title="Delete Contact Submission"
-        message={`Are you sure you want to permanently delete the submission from "${deleteTarget?.name}"? This action cannot be undone.`}
-        confirmLabel="Delete Permanently"
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
+        title="Delete Contact Form"
+        message={`Are you sure you want to delete the submission from "${deleteTarget?.name}"? You can restore it from the Recycle Bin within 30 days.`}
+        confirmLabel="Move to Recycle Bin"
         danger
         loading={deleteMutation.isPending}
       />

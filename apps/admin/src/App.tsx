@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { DateFilterProvider } from '@/context/DateFilterContext';
+import { ThemeProvider } from 'next-themes';
 import AdminLayout from '@/layouts/AdminLayout';
 import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
@@ -45,7 +46,7 @@ function PermissionRoute({ permission, children }: { permission: string; childre
   if (!can(permission)) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4">
-        <div className="h-16 w-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-4">
+        <div className="h-16 w-16 bg-red-100 dark:bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mb-4">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
@@ -103,10 +104,12 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <AuthProvider>
-        <AppRoutes />
-        <ToastContainer />
-      </AuthProvider>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <AuthProvider>
+          <AppRoutes />
+          <ToastContainer />
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

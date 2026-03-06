@@ -4,6 +4,7 @@ import {
   isAfter,
   isBefore,
   isValid,
+  format,
 } from 'date-fns';
 import type { Project, Collection, ProjectDurations } from '../types/index.js';
 
@@ -20,6 +21,28 @@ export function formatBDT(amount: number): string {
 /** Format number with commas, BDT sign */
 export function formatBDTSimple(amount: number): string {
   return `৳ ${amount.toLocaleString('en-IN')}`;
+}
+
+/** Format date string */
+export function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  try {
+    const d = parseISO(dateStr);
+    return isValid(d) ? format(d, 'dd-MMM-yy') : '—';
+  } catch {
+    return '—';
+  }
+}
+
+/** Format date and time string */
+export function formatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  try {
+    const d = parseISO(dateStr);
+    return isValid(d) ? format(d, 'dd-MMM-yy hh:mm a') : '—';
+  } catch {
+    return '—';
+  }
 }
 
 /** Compute durations for the timeline card */
@@ -166,3 +189,4 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     manage_cms: false, manage_settings: false, view_audit_logs: false,
   },
 };
+

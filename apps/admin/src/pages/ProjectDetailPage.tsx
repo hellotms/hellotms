@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { staffApi, mediaApi, auditApi } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
-import { Modal, ConfirmModal } from '@/components/Modal';
+import { Modal, ConfirmModal, CascadeConfirmModal } from '@/components/Modal';
 import { ImageUpload } from '@/components/ImageUpload';
-import { formatBDT, formatDate } from '@/lib/utils';
+import { formatBDT, formatDate, formatDateTime } from '@/lib/utils';
 import { computeProjectDurations } from '@hellotms/shared';
 import { ArrowLeft, Plus, Pencil, Trash2, Calendar, Clock, DollarSign, Upload, X, ImageIcon, Download } from 'lucide-react';
 import type { Project, LedgerEntry, Collection, Invoice } from '@hellotms/shared';
@@ -42,6 +43,7 @@ export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { profile: authProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
@@ -55,6 +57,7 @@ export default function ProjectDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deleteCollectionTarget, setDeleteCollectionTarget] = useState<string | null>(null);
   const [deletePhotoTarget, setDeletePhotoTarget] = useState<{ id: string; path: string } | null>(null);
+  const [deleteProjectTarget, setDeleteProjectTarget] = useState<string | null>(null);
 
 
   const { data: project, isLoading } = useQuery<Project & { companies: { name: string; phone?: string; email?: string } | null }>({
@@ -82,7 +85,7 @@ export default function ProjectDetailPage() {
   const { data: collections = [] } = useQuery<Collection[]>({
     queryKey: ['collections', id],
     queryFn: async () => {
-      const { data } = await supabase.from('collections').select('*').eq('project_id', id!).order('payment_date', { ascending: true });
+      const { data } = await supabase.from('collections').select('*').eq('project_id', id!).is('deleted_at', null).order('payment_date', { ascending: true });
       return (data ?? []) as Collection[];
     },
     enabled: !!id,
@@ -91,7 +94,7 @@ export default function ProjectDetailPage() {
   const { data: invoices = [] } = useQuery<Invoice[]>({
     queryKey: ['project-invoices', id],
     queryFn: async () => {
-      const { data } = await supabase.from('invoices').select('*').eq('project_id', id!).order('created_at', { ascending: false });
+      const { data } = await supabase.from('invoices').select('*').eq('project_id', id!).is('deleted_at', null).order('created_at', { ascending: false });
       return (data ?? []) as Invoice[];
     },
     enabled: !!id,
@@ -138,7 +141,12 @@ export default function ProjectDetailPage() {
   // Ledger form — default to expense (only expenses tracked here)
   const ledgerForm = useForm<LedgerEntryInput>({
     resolver: zodResolver(ledgerEntrySchema),
-    defaultValues: { project_id: id!, type: 'expense', paid_status: 'unpaid' },
+    defaultValues: {
+      project_id: id!,
+      type: 'expense',
+      paid_status: 'unpaid',
+      entry_date: new Date().toISOString().split('T')[0]
+    },
   });
 
   const saveLedgerMutation = useMutation({
@@ -199,7 +207,10 @@ export default function ProjectDetailPage() {
   // Collection form
   const collectionForm = useForm<CollectionInput>({
     resolver: zodResolver(collectionSchema),
-    defaultValues: { project_id: id! },
+    defaultValues: {
+      project_id: id!,
+      payment_date: new Date().toISOString().split('T')[0]
+    },
   });
 
   // Helper to open collection modal with today's date
@@ -269,6 +280,49 @@ export default function ProjectDetailPage() {
     });
     queryClient.invalidateQueries({ queryKey: ['project', id] });
   };
+
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      if (!project) return;
+      // 1. Move to Trash Bin instead of deleting immediately from storage
+      const { error: trashError } = await supabase.from('trash_bin').insert({
+        entity_type: 'project',
+        entity_id: project.id,
+        entity_name: project.title,
+        entity_data: project,
+        deleted_by: authProfile?.id,
+      });
+      if (trashError) throw trashError;
+
+      const now = new Date().toISOString();
+      const { error } = await supabase.from('projects').update({ deleted_at: now }).eq('id', project.id);
+      if (error) throw error;
+
+      // Cascade soft deletes
+      await Promise.all([
+        supabase.from('invoices').update({ deleted_at: now }).eq('project_id', project.id),
+        supabase.from('collections').update({ deleted_at: now }).eq('project_id', project.id),
+        supabase.from('ledger_entries').update({ deleted_at: now }).eq('project_id', project.id)
+      ]);
+
+      auditApi.log({
+        action: 'delete_project',
+        entity_type: 'project',
+        entity_id: project.id,
+        before: project
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      setDeleteProjectTarget(null);
+      toast('Project deleted successfully', 'success');
+      navigate('/projects');
+    },
+    onError: (error: any) => {
+      toast(`Failed to delete project: ${error.message || 'Unknown error'}`, 'error');
+    }
+  });
 
   const saveProjectMutation = useMutation({
     mutationFn: async (values: EditProjectInput) => {
@@ -399,6 +453,7 @@ export default function ProjectDetailPage() {
         entity_id: deletePhotoTarget.id,
         entity_name: `Photo from ${project?.title}`,
         entity_data: { ...deletePhotoTarget, _is_gallery_photo: true },
+        deleted_by: authProfile?.id,
       });
       if (trashError) throw trashError;
 
@@ -471,6 +526,13 @@ export default function ProjectDetailPage() {
             }`}
         >
           {project.is_published ? '● Published' : '○ Unpublished'}
+        </button>
+        <button
+          onClick={() => setDeleteProjectTarget(project.id)}
+          className="p-2 rounded-md hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-500"
+          title="Delete Project"
+        >
+          <Trash2 className="h-4 w-4" />
         </button>
       </div>
 
@@ -580,47 +642,54 @@ export default function ProjectDetailPage() {
               <Plus className="h-3.5 w-3.5" /> Add Expense
             </button>
           </div>
-          <div className="border border-border rounded-xl overflow-hidden">
+          <div className="border border-border rounded-xl overflow-x-auto pb-2">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
-                  {['Date', 'Category', 'Quantity', 'Sell Price', 'Total Cost', 'Status', 'Note', ''].map(h => (
+                  {['Date', 'Type', 'Category', 'Total Cost', 'Qty', 'Face Value', 'Status', 'Note', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {ledger.filter(e => e.type === 'expense').map((entry, i) => (
+                {ledger.map((entry, i) => (
                   <tr key={entry.id} className={`border-b border-border last:border-0 ${i % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
                     <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{formatDate(entry.entry_date)}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">{entry.category}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">{entry.quantity ?? 1}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">{entry.face_value ? formatBDT(Number(entry.face_value)) : '—'}</td>
-                    <td className="px-4 py-2.5 font-semibold text-red-500 whitespace-nowrap">−{formatBDT(Number(entry.amount))}</td>
+                    <td className="px-4 py-2.5 capitalize text-foreground">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${entry.type === 'income' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300'}`}>
+                        {entry.type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap max-w-[150px] truncate" title={entry.category}>{entry.category}</td>
+                    <td className={`px-4 py-2.5 font-bold font-mono whitespace-nowrap ${entry.type === 'income' ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {entry.type === 'income' ? '+' : '−'}{formatBDT(Number(entry.amount))}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-foreground font-mono">{entry.quantity ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground font-mono">{entry.face_value ? formatBDT(Number(entry.face_value)) : '—'}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap"><StatusBadge status={entry.paid_status ?? 'unpaid'} /></td>
-                    <td className="px-4 py-2.5 text-muted-foreground max-w-[150px] truncate">{entry.note ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground max-w-[150px] truncate" title={entry.note ?? '—'}>{entry.note ?? '—'}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap">
                       <div className="flex items-center gap-1 justify-end">
                         <button onClick={() => { setEditingEntry(entry); ledgerForm.reset({ ...entry, project_id: id! }); setIsLedgerOpen(true); }} className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => setDeleteTarget(entry.id)} className="p-1 rounded hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-500">
+                        <button onClick={() => setDeleteTarget(entry.id)} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 transition-colors text-muted-foreground hover:text-red-500">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </td>
                   </tr>
                 ))}
-                {ledger.filter(e => e.type === 'expense').length === 0 && (
-                  <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">No expense entries yet</td></tr>
+                {ledger.length === 0 && (
+                  <tr><td colSpan={9} className="text-center py-10 text-muted-foreground">No ledger entries yet</td></tr>
                 )}
               </tbody>
               {ledger.filter(e => e.type === 'expense').length > 0 && (
                 <tfoot className="bg-muted/30 border-t border-border">
                   <tr>
-                    <td colSpan={4} className="px-4 py-3 text-sm font-semibold text-foreground text-right">Total Expenses</td>
-                    <td className="px-4 py-3 text-sm font-bold text-red-500">−{formatBDT(totalExpense)}</td>
-                    <td colSpan={3}></td>
+                    <td colSpan={3} className="px-4 py-3 text-sm font-semibold text-foreground text-right">Total Expenses</td>
+                    <td className="px-4 py-3 text-sm font-bold text-red-500 font-mono">−{formatBDT(totalExpense)}</td>
+                    <td colSpan={5}></td>
                   </tr>
                 </tfoot>
               )}
@@ -635,21 +704,21 @@ export default function ProjectDetailPage() {
           <div className="flex justify-between items-center mb-4">
             <div>
               <h3 className="font-semibold text-foreground">Payment Collections</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Total collected: <strong className="text-emerald-600">{formatBDT(totalCollected)}</strong></p>
+              <p className="text-xs text-muted-foreground mt-0.5">Total collected: <strong className="text-emerald-600 text-emerald-600 dark:text-emerald-400">{formatBDT(totalCollected)}</strong></p>
             </div>
-            <button onClick={() => setIsCollectionOpen(true)} className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
+            <button onClick={openCollectionModal} className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
               <Plus className="h-3.5 w-3.5" /> Add Collection
             </button>
           </div>
           <div className="space-y-2">
             {/* Show Advance Received as a special entry if it exists */}
             {advanceReceived > 0 && (
-              <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4 flex items-center justify-between">
+              <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 rounded-lg p-4 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-emerald-700">{formatBDT(advanceReceived)}</p>
-                  <p className="text-xs text-emerald-600 font-medium">Advance Payment · Initial</p>
+                  <p className="text-xs text-emerald-600 text-emerald-600 dark:text-emerald-400 font-medium">Advance Payment · Initial</p>
                 </div>
-                <p className="text-xs text-emerald-600 italic">Project Setup</p>
+                <p className="text-xs text-emerald-600 text-emerald-600 dark:text-emerald-400 italic">Project Setup</p>
               </div>
             )}
 
@@ -661,7 +730,7 @@ export default function ProjectDetailPage() {
                 </div>
                 <div className="flex items-center gap-4">
                   {c.note && <p className="text-xs text-muted-foreground mr-2">{c.note}</p>}
-                  <button onClick={() => setDeleteCollectionTarget(c.id)} className="p-1.5 rounded-md hover:bg-red-50 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                  <button onClick={() => setDeleteCollectionTarget(c.id)} className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -686,7 +755,7 @@ export default function ProjectDetailPage() {
               <div key={inv.id} onClick={() => navigate(`/invoices/${inv.id}`)} className="bg-card border border-border rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-sm hover:border-primary/30 transition-all">
                 <div>
                   <p className="font-semibold text-foreground">{inv.invoice_number}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{inv.type} · {formatDate(inv.created_at)}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{inv.type} · {formatDateTime(inv.created_at)}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-bold text-foreground">{formatBDT(Number(inv.total_amount))}</span>
@@ -722,7 +791,7 @@ export default function ProjectDetailPage() {
 
           <div className="bg-card border border-border rounded-xl p-6 space-y-5">
             <div className="flex items-center gap-3 mb-2">
-              <DollarSign className="h-5 w-5 text-emerald-600" />
+              <DollarSign className="h-5 w-5 text-emerald-600 text-emerald-600 dark:text-emerald-400" />
               <h3 className="font-semibold text-foreground">Collection Timeline</h3>
             </div>
             {[
@@ -749,7 +818,7 @@ export default function ProjectDetailPage() {
               {[
                 { label: 'Event Start', value: formatDate(project.event_start_date) },
                 { label: 'Event End', value: project.event_end_date ? formatDate(project.event_end_date) : 'Same day' },
-                { label: 'Project Created', value: project.project_created_at ? formatDate(project.project_created_at) : '—' },
+                { label: 'Project Created', value: project.project_created_at ? formatDateTime(project.project_created_at) : formatDateTime(project.created_at) },
                 { label: 'Project Completed', value: project.project_completed_at ? formatDate(project.project_completed_at) : '—' },
               ].map(({ label, value }) => (
                 <div key={label}>
@@ -803,7 +872,7 @@ export default function ProjectDetailPage() {
 
           {/* Upload preview / staging area */}
           {stagedFiles.length > 0 && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 rounded-xl">
               <p className="text-xs font-medium text-amber-800 mb-2">{stagedFiles.length} photo(s) staged for upload — click "Upload" to confirm</p>
               <div className="flex gap-2 flex-wrap">
                 {stagedFiles.map((file, i) => (
@@ -839,7 +908,7 @@ export default function ProjectDetailPage() {
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                     <button
                       onClick={() => handleDownloadPhoto(photo.url, `photo_${project?.title || 'project'}_${photo.id.slice(0, 8)}.jpg`)}
-                      className="p-1.5 rounded-full bg-white/20 text-white hover:bg-white/40 transition-colors"
+                      className="p-1.5 rounded-full bg-white dark:bg-[#1c1c1c]/20 text-white hover:bg-white dark:bg-[#1c1c1c]/40 transition-colors"
                       title="Download"
                     >
                       <Download className="h-4 w-4" />
@@ -942,11 +1011,19 @@ export default function ProjectDetailPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Method</label>
-              <input {...collectionForm.register('method')} placeholder="e.g. bKash, Bank Transfer" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <select {...collectionForm.register('method')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
+                <option value="">Select Method</option>
+                <option value="Bkash">Bkash</option>
+                <option value="Nagad">Nagad</option>
+                <option value="Rocket">Rocket</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Others">Others</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Note</label>
-              <input {...collectionForm.register('note')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <input {...collectionForm.register('note')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="Optional note" />
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
@@ -989,6 +1066,17 @@ export default function ProjectDetailPage() {
         message="Are you sure you want to permanently delete this photo? It will be removed from cloud storage."
         confirmLabel="Delete Photo"
         danger
+      />
+
+      <ConfirmModal
+        isOpen={!!deleteProjectTarget}
+        onClose={() => setDeleteProjectTarget(null)}
+        onConfirm={() => deleteProjectTarget && deleteProjectMutation.mutate(deleteProjectTarget)}
+        title="Delete Project"
+        message="Are you sure you want to delete this project? Data will be moved to the Recycle Bin."
+        confirmLabel="Delete Project"
+        danger
+        loading={deleteProjectMutation.isPending}
       />
 
       <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Project">
@@ -1096,6 +1184,24 @@ export default function ProjectDetailPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Delete Project Modal */}
+      <CascadeConfirmModal
+        isOpen={!!deleteProjectTarget}
+        onClose={() => setDeleteProjectTarget(null)}
+        onConfirm={() => deleteProjectTarget && deleteProjectMutation.mutate(deleteProjectTarget)}
+        title="Delete Project"
+        targetName={project?.title ?? ''}
+        targetType="project"
+        cascadeItems={[
+          { icon: '🖼️', label: 'All gallery photos', description: 'Project photos stored in cloud storage' },
+          { icon: '💰', label: 'All ledger entries', description: 'Income and expense records for this project' },
+          { icon: '💳', label: 'All collections', description: 'Payment collection history' },
+          { icon: '🧾', label: 'All invoices', description: 'Invoices and their line items' },
+        ]}
+        confirmLabel="Delete Project"
+        loading={deleteProjectMutation.isPending}
+      />
     </div>
   );
 }

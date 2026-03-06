@@ -49,17 +49,17 @@ export function getInitials(name: string): string {
 export function statusColor(status: string): string {
   const map: Record<string, string> = {
     draft: 'bg-gray-100 text-gray-800',
-    active: 'bg-blue-100 text-blue-800',
-    completed: 'bg-green-100 text-green-800',
-    new: 'bg-purple-100 text-purple-800',
+    active: 'bg-blue-100 dark:bg-blue-500/20 text-blue-800',
+    completed: 'bg-green-100 dark:bg-green-500/20 text-green-800',
+    new: 'bg-purple-100 dark:bg-purple-500/20 text-purple-800',
     contacted: 'bg-yellow-100 text-yellow-800',
-    closed: 'bg-green-100 text-green-800',
-    sent: 'bg-blue-100 text-blue-800',
-    paid: 'bg-green-100 text-green-800',
-    overdue: 'bg-red-100 text-red-800',
-    unpaid: 'bg-orange-100 text-orange-800',
-    income: 'bg-green-100 text-green-800',
-    expense: 'bg-red-100 text-red-800',
+    closed: 'bg-green-100 dark:bg-green-500/20 text-green-800',
+    sent: 'bg-blue-100 dark:bg-blue-500/20 text-blue-800',
+    paid: 'bg-green-100 dark:bg-green-500/20 text-green-800',
+    overdue: 'bg-red-100 dark:bg-red-500/20 text-red-800',
+    unpaid: 'bg-orange-100 dark:bg-orange-500/20 text-orange-800',
+    income: 'bg-green-100 dark:bg-green-500/20 text-green-800',
+    expense: 'bg-red-100 dark:bg-red-500/20 text-red-800',
   };
   return map[status] ?? 'bg-gray-100 text-gray-800';
 }

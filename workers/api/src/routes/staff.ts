@@ -229,3 +229,66 @@ staffRoute.get('/', requirePermission('manage_staff'), async (c) => {
   if (error) return c.json({ error: error.message }, 500);
   return c.json({ data });
 });
+
+// ─── Session Management (Logged Devices) ─────────────────────────────────────
+
+// GET /staff/me/sessions
+staffRoute.get('/me/sessions', async (c) => {
+  const userId = c.get('userId');
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+
+  // We query the auth schema directly using service role
+  const { data, error } = await (supabase as any)
+    .schema('auth')
+    .from('sessions')
+    .select('id, created_at, updated_at, user_agent, ip')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false });
+
+  if (error) {
+    console.error('[staff/sessions] Error fetching sessions:', error);
+    return c.json({ error: error.message }, 500);
+  }
+
+  return c.json({ data });
+});
+
+// DELETE /staff/me/sessions/:id — revoke a specific session
+staffRoute.delete('/me/sessions/:id', async (c) => {
+  const { id } = c.req.param();
+  const userId = c.get('userId');
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+
+  // Correct way to revoke a session via service role:
+  const { error: sessionErr } = await (supabase as any)
+    .schema('auth')
+    .from('sessions')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', userId);
+
+  if (sessionErr) return c.json({ error: sessionErr.message }, 500);
+  return c.json({ success: true, message: 'Session revoked' });
+});
+
+// DELETE /staff/me/sessions — revoke ALL OTHER sessions
+staffRoute.delete('/me/sessions', async (c) => {
+  const userId = c.get('userId');
+  const currentSessionId = c.req.header('X-Session-Id'); // Admin should pass this if they want to keep current
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+
+  let query = (supabase as any)
+    .schema('auth')
+    .from('sessions')
+    .delete()
+    .eq('user_id', userId);
+
+  if (currentSessionId) {
+    query = query.neq('id', currentSessionId);
+  }
+
+  const { error: revokeErr } = await query;
+
+  if (revokeErr) return c.json({ error: revokeErr.message }, 500);
+  return c.json({ success: true, message: 'Other sessions revoked' });
+});

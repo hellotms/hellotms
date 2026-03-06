@@ -7,7 +7,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { PageHeader } from '@/components/PageHeader';
 import { Modal, CascadeConfirmModal } from '@/components/Modal';
 import { ImageUpload } from '@/components/ImageUpload';
-import { formatDate, slugify } from '@/lib/utils';
+import { formatDate, slugify, formatDateTime } from '@/lib/utils';
 import { Plus, Building2, Pencil, Trash } from 'lucide-react';
 import { companySchema } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
@@ -16,10 +16,12 @@ import { toast } from '@/components/Toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { Company, CompanyInput } from '@hellotms/shared';
 import { mediaApi, auditApi } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 export default function CompaniesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [logoUrl, setLogoUrl] = useState<string>('');
@@ -96,12 +98,29 @@ export default function CompaniesPage() {
         entity_id: company.id,
         entity_name: company.name,
         entity_data: company,
+        deleted_by: profile?.id,
       });
       if (trashError) throw trashError;
 
-      // Soft delete
-      const { error } = await supabase.from('companies').update({ deleted_at: new Date().toISOString() }).eq('id', company.id);
+      // Soft delete company and cascade
+      const now = new Date().toISOString();
+
+      // Fetch related projects
+      const { data: projs } = await supabase.from('projects').select('id').eq('company_id', company.id);
+      const projIds = projs?.map(p => p.id) || [];
+
+      const { error } = await supabase.from('companies').update({ deleted_at: now }).eq('id', company.id);
       if (error) throw error;
+
+      if (projIds.length > 0) {
+        // We do this concurrently for speed
+        await Promise.all([
+          supabase.from('projects').update({ deleted_at: now }).in('id', projIds),
+          supabase.from('invoices').update({ deleted_at: now }).in('project_id', projIds),
+          supabase.from('collections').update({ deleted_at: now }).in('project_id', projIds),
+          supabase.from('ledger_entries').update({ deleted_at: now }).in('project_id', projIds)
+        ]);
+      }
 
       auditApi.log({
         action: 'delete_company',
@@ -130,7 +149,7 @@ export default function CompaniesPage() {
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
           {row.original.logo_url ? (
-            <img src={row.original.logo_url} alt={row.original.name} className="h-8 w-8 rounded-lg object-cover bg-white" />
+            <img src={row.original.logo_url} alt={row.original.name} className="h-8 w-8 rounded-lg object-cover bg-white dark:bg-[#1c1c1c]" />
           ) : (
             <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Building2 className="h-4 w-4 text-primary" />
@@ -150,7 +169,7 @@ export default function CompaniesPage() {
     {
       accessorKey: 'created_at',
       header: 'Created',
-      cell: ({ getValue }) => formatDate(getValue() as string),
+      cell: ({ getValue }) => formatDateTime(getValue() as string),
     },
     {
       id: 'actions',
@@ -166,7 +185,7 @@ export default function CompaniesPage() {
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); setDeleteTarget(row.original); }}
-            className="p-1.5 rounded-md hover:bg-red-50 transition-colors text-muted-foreground hover:text-destructive"
+            className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 transition-colors text-muted-foreground hover:text-destructive"
             title="Delete Company"
           >
             <Trash className="h-4 w-4" />

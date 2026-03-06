@@ -82,8 +82,8 @@ export function DataTable<TData>({
                           {header.column.getCanSort() && (
                             <span className="text-muted-foreground/50">
                               {header.column.getIsSorted() === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> :
-                               header.column.getIsSorted() === 'desc' ? <ChevronDown className="h-3.5 w-3.5" /> :
-                               <ChevronsUpDown className="h-3.5 w-3.5" />}
+                                header.column.getIsSorted() === 'desc' ? <ChevronDown className="h-3.5 w-3.5" /> :
+                                  <ChevronsUpDown className="h-3.5 w-3.5" />}
                             </span>
                           )}
                         </div>
@@ -112,7 +112,7 @@ export function DataTable<TData>({
                     onClick={() => onRowClick?.(row.original)}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-4 py-3">
+                      <td key={cell.id} className="px-4 py-3 whitespace-nowrap">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     ))}

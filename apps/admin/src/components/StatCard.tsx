@@ -45,7 +45,7 @@ export function StatCard({
         {delta !== undefined && (
           <div className={cn(
             'flex items-center gap-1 mt-1 text-xs font-medium',
-            isPositive ? 'text-emerald-600' : 'text-red-500'
+            isPositive ? 'text-emerald-600 text-emerald-600 dark:text-emerald-400' : 'text-red-500'
           )}>
             {isPositive
               ? <TrendingUp className="h-3.5 w-3.5" />
