@@ -18,9 +18,8 @@ jobs:
           cache: 'pnpm'
       - name: Install deps
         run: pnpm install --no-frozen-lockfile
-      - name: Publish Worker (wrangler)
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          workingDirectory: workers/api
-          packageManager: pnpm
+      - name: Publish Worker
+        run: pnpm run deploy
+        working-directory: workers/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
