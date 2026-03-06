@@ -43,10 +43,20 @@ export async function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <Link href="/" className="flex items-center gap-2 mb-4 group w-fit">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center">
-                <Zap className="h-4 w-4 text-white" />
-              </div>
+            <Link href="/" className="flex items-center gap-3 mb-4 group w-fit">
+              {settings?.company_logo_url ? (
+                <div className="relative w-8 h-8">
+                  <img
+                    src={settings.company_logo_url}
+                    alt="Logo"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center">
+                  <Zap className="h-4 w-4 text-white" />
+                </div>
+              )}
               <span className="font-bold text-sm text-[var(--foreground)]">
                 The <span className="text-indigo-500">Marketing</span> Solution
               </span>

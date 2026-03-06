@@ -50,12 +50,22 @@ export function Navbar() {
       <div className="container">
         <div className="flex items-center justify-between h-16 md:h-18">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 shrink-0 group" suppressHydrationWarning>
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg group-hover:shadow-indigo-500/40 transition-shadow">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-white">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-              </svg>
-            </div>
+          <Link href="/" className="flex items-center gap-3 shrink-0 group" suppressHydrationWarning>
+            {settings?.company_logo_url ? (
+              <div className="relative w-10 h-10 transition-transform group-hover:scale-105 duration-300">
+                <img
+                  src={settings.company_logo_url}
+                  alt="Logo"
+                  className="w-full h-full object-contain filter drop-shadow-md"
+                />
+              </div>
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg group-hover:shadow-indigo-500/40 transition-shadow">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-white">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+              </div>
+            )}
             <div className="flex flex-col">
               <span className="font-bold text-sm md:text-lg text-[var(--foreground)] tracking-tight leading-none">
                 The <span className="text-indigo-500">Marketing</span> Solution
