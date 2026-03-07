@@ -41,6 +41,9 @@ export interface InvoicePdfData {
   padMarginTop?: number;
   /** Bottom content margin in points when padImageUrl is set (default: 100) */
   padMarginBottom?: number;
+  /** Branding fields */
+  ownerName?: string;
+  ownerUrl?: string;
 }
 
 function cleanText(val: any): string {
@@ -104,11 +107,14 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   // ── Page 1 ─────────────────────────────────────────────────────────────────
   let { page, width, height } = addPage();
 
+  const ownerName = data.ownerName || 'The Marketing Solution';
+  const ownerUrl = data.ownerUrl ? new URL(data.ownerUrl).hostname : 'hellotms.com.bd';
+
   // ── Header (only when no pad background) ──────────────────────────────────
   if (!usePad) {
     page.drawRectangle({ x: 0, y: height - 90, width, height: 90, color: blue });
-    page.drawText('Marketing Solution', { x: margin, y: height - 45, size: 22, font: boldFont, color: white });
-    page.drawText('hellotms.com.bd', { x: margin, y: height - 65, size: 11, font: regularFont, color: rgb(0.749, 0.859, 1) });
+    page.drawText(ownerName, { x: margin, y: height - 45, size: 22, font: boldFont, color: white });
+    page.drawText(ownerUrl, { x: margin, y: height - 65, size: 11, font: regularFont, color: rgb(0.749, 0.859, 1) });
     const label = data.type === 'estimate' ? 'ESTIMATE' : 'INVOICE';
     page.drawText(label, {
       x: width - margin - boldFont.widthOfTextAtSize(label, 26),
@@ -373,7 +379,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
     pages.forEach(p => {
       const { width: pw } = p.getSize();
       p.drawRectangle({ x: 0, y: 0, width: pw, height: 38, color: lightGray });
-      p.drawText('hellotms.com.bd · hello@hellotms.com.bd', {
+      p.drawText(`${ownerUrl} · hello@${ownerUrl}`, {
         x: margin, y: 14, size: 8, font: regularFont, color: gray,
       });
     });

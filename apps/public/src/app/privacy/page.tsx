@@ -1,11 +1,17 @@
 import type { Metadata } from 'next';
+import { supabase } from '@/lib/supabase';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
-  description: 'How Hello TMS collects, uses, and protects your information.',
+  description: 'How we collect, use, and protect your information.',
 };
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const { data: settings } = await supabase.from('site_settings').select('contact_info').eq('id', 1).single();
+  const contact = settings?.contact_info as { email?: string; phone?: string } | undefined;
+  const email = contact?.email || 'hello@hellotms.com.bd';
+  const phone = contact?.phone || '+880 1700 000 000';
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
       <h1 className="text-4xl font-black text-gray-900 mb-2">Privacy Policy</h1>
@@ -35,7 +41,7 @@ export default function PrivacyPage() {
           },
           {
             title: '6. Your Rights',
-            text: 'You have the right to access, update, or request deletion of your personal information at any time. Contact us at hello@hellotms.com.bd to exercise these rights.',
+            text: 'You have the right to access, update, or request deletion of your personal information at any time. Contact us to exercise these rights.',
           },
           {
             title: '7. Changes to This Policy',
@@ -43,7 +49,7 @@ export default function PrivacyPage() {
           },
           {
             title: '8. Contact Us',
-            text: 'If you have questions about this privacy policy, please contact us at hello@hellotms.com.bd or call +880 1700 000 000.',
+            text: `If you have questions about this privacy policy, please contact us at ${email} or call ${phone}.`,
           },
         ].map(({ title, text }) => (
           <div key={title}>

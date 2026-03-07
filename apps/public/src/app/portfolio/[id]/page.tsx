@@ -20,5 +20,5 @@ export async function generateStaticParams() {
 }
 
 export default function Page({ params }: { params: { id: string } }) {
-  return <ProjectDetailView slug={params.id} />;
+  return <ProjectDetailView id={params.id} />;
 }

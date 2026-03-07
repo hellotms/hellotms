@@ -47,7 +47,13 @@ export function buildInviteEmailHtml(params: {
   role: string;
   senderName: string;
   tempPassword?: string;
+  companyName?: string;
+  companyUrl?: string;
 }): string {
+  const companyName = params.companyName || 'The Marketing Solution';
+  const companyUrl = params.companyUrl || 'hellotms.com.bd';
+  const hostname = companyUrl.replace(/^https?:\/\//, '').split('/')[0];
+
   return `
 <!DOCTYPE html>
 <html>
@@ -55,15 +61,15 @@ export function buildInviteEmailHtml(params: {
 <body style="font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px">
   <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
     <div style="background:#1e40af;padding:30px;text-align:center">
-      <h1 style="color:#fff;margin:0;font-size:24px">Marketing Solution</h1>
-      <p style="color:#bfdbfe;margin:8px 0 0">hellotms.com.bd</p>
+      <h1 style="color:#fff;margin:0;font-size:24px">${companyName}</h1>
+      <p style="color:#bfdbfe;margin:8px 0 0">${hostname}</p>
     </div>
     <div style="padding:30px">
       <h2 style="color:#1e293b;margin:0 0 16px">You've been invited!</h2>
       <p style="color:#475569;line-height:1.6">
         Hi <strong>${params.recipientName}</strong>,<br><br>
         <strong>${params.senderName}</strong> has invited you to join the
-        <strong>Marketing Solution</strong> admin panel as a <strong>${params.role}</strong>.
+        <strong>${companyName}</strong> admin panel as a <strong>${params.role}</strong>.
       </p>
       ${params.tempPassword ? `
       <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px;margin:20px 0;text-align:center">
@@ -82,7 +88,7 @@ export function buildInviteEmailHtml(params: {
       </p>
     </div>
     <div style="background:#f8fafc;padding:16px;text-align:center;color:#94a3b8;font-size:12px">
-      © ${new Date().getFullYear()} hellotms.com.bd · All rights reserved
+      © ${new Date().getFullYear()} ${hostname} · All rights reserved
     </div>
   </div>
 </body>
@@ -93,7 +99,13 @@ export function buildPasswordResetEmailHtml(params: {
   recipientName: string;
   loginUrl: string;
   tempPassword: string;
+  companyName?: string;
+  companyUrl?: string;
 }): string {
+  const companyName = params.companyName || 'The Marketing Solution';
+  const companyUrl = params.companyUrl || 'hellotms.com.bd';
+  const hostname = companyUrl.replace(/^https?:\/\//, '').split('/')[0];
+
   return `
 <!DOCTYPE html>
 <html>
@@ -101,15 +113,15 @@ export function buildPasswordResetEmailHtml(params: {
 <body style="font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px">
   <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
     <div style="background:#1e40af;padding:30px;text-align:center">
-      <h1 style="color:#fff;margin:0;font-size:24px">Marketing Solution</h1>
-      <p style="color:#bfdbfe;margin:8px 0 0">hellotms.com.bd</p>
+      <h1 style="color:#fff;margin:0;font-size:24px">${companyName}</h1>
+      <p style="color:#bfdbfe;margin:8px 0 0">${hostname}</p>
     </div>
     <div style="padding:30px">
       <h2 style="color:#1e293b;margin:0 0 16px">Your Password has been Reset</h2>
       <p style="color:#475569;line-height:1.6">
         Hi <strong>${params.recipientName}</strong>,<br><br>
         Your administrator has reset your password for the
-        <strong>Marketing Solution</strong> admin panel.
+        <strong>${companyName}</strong> admin panel.
       </p>
       <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px;margin:20px 0;text-align:center">
         <p style="color:#0369a1;margin:0 0 8px;font-size:13px;font-weight:bold">YOUR NEW TEMPORARY PASSWORD</p>
@@ -124,7 +136,7 @@ export function buildPasswordResetEmailHtml(params: {
       </div>
     </div>
     <div style="background:#f8fafc;padding:16px;text-align:center;color:#94a3b8;font-size:12px">
-      © ${new Date().getFullYear()} hellotms.com.bd · All rights reserved
+      © ${new Date().getFullYear()} ${hostname} · All rights reserved
     </div>
   </div>
 </body>
@@ -138,7 +150,15 @@ export function buildInvoiceEmailHtml(params: {
   totalAmount: string;
   dueDate: string;
   downloadUrl: string;
+  companyName?: string;
+  companyUrl?: string;
+  companyEmail?: string;
 }): string {
+  const companyName = params.companyName || 'The Marketing Solution';
+  const companyUrl = params.companyUrl || 'hellotms.com.bd';
+  const companyEmail = params.companyEmail || `hello@${companyUrl.replace(/^https?:\/\//, '').split('/')[0]}`;
+  const hostname = companyUrl.replace(/^https?:\/\//, '').split('/')[0];
+
   return `
 <!DOCTYPE html>
 <html>
@@ -146,7 +166,7 @@ export function buildInvoiceEmailHtml(params: {
 <body style="font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px">
   <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
     <div style="background:#1e40af;padding:30px;text-align:center">
-      <h1 style="color:#fff;margin:0;font-size:24px">Marketing Solution</h1>
+      <h1 style="color:#fff;margin:0;font-size:24px">${companyName}</h1>
       <p style="color:#bfdbfe;margin:8px 0 0">Invoice ${params.invoiceNumber}</p>
     </div>
     <div style="padding:30px">
@@ -175,11 +195,11 @@ export function buildInvoiceEmailHtml(params: {
         </a>
       </div>
       <p style="color:#64748b;font-size:13px">
-        For any queries, please contact us at hello@hellotms.com.bd or call us at our office.
+        For any queries, please contact us at ${companyEmail} or call us at our office.
       </p>
     </div>
     <div style="background:#f8fafc;padding:16px;text-align:center;color:#94a3b8;font-size:12px">
-      © ${new Date().getFullYear()} hellotms.com.bd · All rights reserved
+      © ${new Date().getFullYear()} ${hostname} · All rights reserved
     </div>
   </div>
 </body>

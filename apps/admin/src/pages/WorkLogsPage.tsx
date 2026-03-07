@@ -145,7 +145,7 @@ export default function WorkLogsPage() {
                                                     {getInitials(log.profiles?.name ?? 'S')}
                                                 </div>
                                             )}
-                                            <p className="text-xs text-muted-foreground">{log.profiles?.email ?? 'system@hellotms.com.bd'}</p>
+                                            <p className="text-xs text-muted-foreground">{log.profiles?.email ?? `system@${window.location.hostname}`}</p>
                                         </div>
                                     </div>
                                     <div className="text-right shrink-0">

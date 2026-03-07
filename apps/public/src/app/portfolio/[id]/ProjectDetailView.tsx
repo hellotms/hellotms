@@ -7,7 +7,6 @@ import { GallerySection } from '../../../components/GallerySection';
 
 type Project = {
     id: string;
-    slug: string;
     title: string;
     description: string | null;
     notes: string | null;
@@ -23,19 +22,19 @@ type MediaItem = { id: string; url: string };
 
 const GRADIENT_DEFAULT = 'from-indigo-900 via-purple-900 to-indigo-950';
 
-export function ProjectDetailView({ slug }: { slug: string }) {
+export function ProjectDetailView({ id }: { id: string }) {
     const [project, setProject] = useState<Project | null>(null);
     const [photos, setPhotos] = useState<MediaItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
 
     useEffect(() => {
-        if (!slug) return;
+        if (!id) return;
         async function fetchData() {
             const { data: p } = await supabase
                 .from('projects')
-                .select('id, slug, title, description, notes, location, category, event_start_date, event_end_date, cover_image_url, companies(name, logo_url)')
-                .eq('id', slug)
+                .select('id, title, description, notes, location, category, event_start_date, event_end_date, cover_image_url, companies(name, logo_url)')
+                .eq('id', id)
                 .eq('is_published', true)
                 .single();
 
@@ -51,7 +50,7 @@ export function ProjectDetailView({ slug }: { slug: string }) {
             setLoading(false);
         }
         fetchData();
-    }, [slug]);
+    }, [id]);
 
     if (loading) {
         return (

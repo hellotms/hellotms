@@ -18,7 +18,6 @@ const GRADIENT_CLASSES = [
 
 type Project = {
   id: string;
-  slug: string;
   title: string;
   location: string | null;
   category: string | null;
@@ -37,7 +36,7 @@ export default function PortfolioPage() {
     async function fetchProjects() {
       const { data } = await supabase
         .from('projects')
-        .select('id, slug, title, location, category, event_start_date, cover_image_url, companies(name)')
+        .select('id, title, location, category, event_start_date, cover_image_url, companies(name)')
         .eq('is_published', true)
         .order('event_start_date', { ascending: false });
 

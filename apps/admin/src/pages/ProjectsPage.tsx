@@ -82,7 +82,6 @@ export default function ProjectsPage() {
       // Default event_end_date to event_start_date if not provided
       const payload = {
         ...values,
-        slug: slugify(values.title),
         event_end_date: values.event_end_date || values.event_start_date,
         proposal_date: values.proposal_date || null,
         budget: values.budget ? Number(values.budget) : null,

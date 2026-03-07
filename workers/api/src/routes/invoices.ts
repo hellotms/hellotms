@@ -62,10 +62,10 @@ async function buildAndStorePdf(
     }
 
     // ── Generate New PDF ─────────────────────────────────────────────────────
-    // Fetch pad background from site_settings
+    // Fetch branding and pad background from site_settings
     const { data: settings } = await (supabase as any)
       .from('site_settings')
-      .select('invoice_pad_url, pad_margin_top, pad_margin_bottom')
+      .select('invoice_pad_url, pad_margin_top, pad_margin_bottom, hero_title, public_site_url, contact_info')
       .eq('id', 1)
       .single();
 
@@ -125,6 +125,8 @@ async function buildAndStorePdf(
       padImageUrl: settings?.invoice_pad_url ?? undefined,
       padMarginTop: settings?.pad_margin_top ?? 150,
       padMarginBottom: settings?.pad_margin_bottom ?? 80,
+      ownerName: settings?.hero_title ?? 'The Marketing Solution',
+      ownerUrl: settings?.public_site_url ?? 'hellotms.com.bd',
     };
 
     const pdfBytes = await generateInvoicePdf(pdfData);
@@ -206,7 +208,13 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       return c.json({ error: pdfResult.error }, pdfResult.error === 'Invoice not found' ? 404 : 500);
     }
 
-    // Fetch invoice metadata for email
+    // Fetch branding and invoice metadata for email
+    const { data: settings } = await (supabase as any)
+      .from('site_settings')
+      .select('hero_title, public_site_url, contact_info')
+      .eq('id', 1)
+      .single();
+
     const { data: invoice } = await (supabase as any)
       .from('invoices')
       .select('invoice_number, total_amount, due_date, companies(name), projects(title)')
@@ -229,6 +237,9 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       totalAmount: `৳ ${Number(invoice.total_amount).toLocaleString('en-IN')}`,
       dueDate: invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-BD') : 'Please see invoice',
       downloadUrl: pdfResult.pdfUrl,
+      companyName: settings?.hero_title,
+      companyUrl: settings?.public_site_url,
+      companyEmail: (settings?.contact_info as any)?.email,
     });
 
     const emailResult = await sendEmail(
@@ -237,7 +248,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       c.env.BREVO_SENDER_NAME,
       {
         to: [{ email: recipientEmail, name: recipientName }],
-        subject: `Invoice ${invoice.invoice_number} from Marketing Solution`,
+        subject: `Invoice ${invoice.invoice_number} from ${settings?.hero_title ?? 'Marketing Solution'}`,
         htmlContent: html,
         attachments: [{ name: `${invoice.invoice_number}.pdf`, content: pdfResult.pdfBase64 || '', contentType: 'application/pdf' }],
       }

@@ -34,7 +34,7 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title: siteName,
       description,
-      url: process.env.NEXT_PUBLIC_SITE_URL || 'https://hellotms.com.bd',
+      url: settings?.public_site_url || 'https://hellotms.com.bd',
       siteName,
       images: [
         {

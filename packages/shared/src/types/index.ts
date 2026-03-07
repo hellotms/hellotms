@@ -42,7 +42,6 @@ export interface Project {
   company_id: string;
   company?: Company;
   title: string;
-  slug: string;
   status: ProjectStatus;
   description?: string | null;
   cover_image_url?: string | null;

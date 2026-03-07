@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { Eye, EyeOff, LogIn, Globe } from 'lucide-react';
 
 export default function LoginPage() {
   const { signIn } = useAuth();
@@ -11,6 +12,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [siteSettings, setSiteSettings] = useState<{ company_logo_url: string; public_site_url: string } | null>(null);
+
+  useEffect(() => {
+    async function fetchSettings() {
+      const { data } = await supabase.from('site_settings').select('company_logo_url, public_site_url').eq('id', 1).single();
+      if (data) setSiteSettings(data);
+    }
+    fetchSettings();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,16 +35,27 @@ export default function LoginPage() {
     }
   };
 
+  const hostname = siteSettings?.public_site_url ? new URL(siteSettings.public_site_url).hostname : 'hellotms.com.bd';
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex h-16 w-16 rounded-2xl bg-primary items-center justify-center mb-4 shadow-lg shadow-primary/30">
-            <span className="text-white font-bold text-2xl">MS</span>
+        <div className="text-center mb-8 animate-in fade-in slide-in-from-top-4 duration-1000">
+          <div className="inline-flex h-20 w-20 rounded-2xl bg-white/5 backdrop-blur-sm items-center justify-center mb-5 shadow-2xl border border-white/10 overflow-hidden group hover:scale-105 transition-transform duration-500">
+            {siteSettings?.company_logo_url ? (
+              <img src={siteSettings.company_logo_url} alt="Logo" className="h-full w-full object-cover p-3" />
+            ) : (
+              <div className="h-full w-full bg-primary flex items-center justify-center">
+                <span className="text-white font-bold text-3xl">MS</span>
+              </div>
+            )}
           </div>
-          <h1 className="text-2xl font-bold text-white">The Marketing Solution</h1>
-          <p className="text-blue-300 text-sm mt-1">Admin Panel — hellotms.com.bd</p>
+          <h1 className="text-3xl font-bold tracking-tight text-white mb-1">The Marketing Solution</h1>
+          <div className="flex items-center justify-center gap-1.5 text-blue-400 font-medium">
+            <Globe className="h-3.5 w-3.5" />
+            <p className="text-sm tracking-wide uppercase opacity-80">{hostname}</p>
+          </div>
         </div>
 
         {/* Form card */}
@@ -51,7 +72,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@hellotms.com.bd"
+                placeholder={`admin@${hostname}`}
                 className="w-full px-4 py-2.5 rounded-lg bg-white dark:bg-[#1c1c1c]/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
               />
             </div>
@@ -101,7 +122,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-blue-400/60 text-xs mt-6">
-          © {new Date().getFullYear()} The Marketing Solution · All rights reserved
+          © {new Date().getFullYear()} The Marketing Solution · {hostname}
         </p>
       </div>
     </div>

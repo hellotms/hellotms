@@ -16,7 +16,6 @@ export type CompanyInput = z.infer<typeof companySchema>;
 export const projectSchema = z.object({
   company_id: z.string().uuid(),
   title: z.string().min(1, 'Project title is required').max(200),
-  slug: z.string().min(1).max(200).optional(),
   status: z.enum(['draft', 'active', 'completed']).default('draft'),
   event_start_date: z.string().min(1, 'Event start date is required'),
   proposal_date: z.string().optional().nullable(),

@@ -644,7 +644,7 @@ export default function CmsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Email Address</label>
-                  <div className="relative"><Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><input {...form.register('contact_email')} disabled={!isEditingContact} placeholder="hello@hellotms.com.bd" className="w-full border border-border rounded-lg pl-9 pr-3 py-2 text-sm disabled:bg-muted/30" /></div>
+                  <div className="relative"><Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><input {...form.register('contact_email')} disabled={!isEditingContact} placeholder={`hello@${window.location.hostname}`} className="w-full border border-border rounded-lg pl-9 pr-3 py-2 text-sm disabled:bg-muted/30" /></div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Address</label>

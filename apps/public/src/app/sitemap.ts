@@ -1,11 +1,9 @@
 import type { MetadataRoute } from 'next';
+import { supabase } from '@/lib/supabase';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://acadome.dev';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://hellotms.com.bd';
 
-// Demo project IDs — replace with DB fetch after Supabase setup
-const DEMO_PROJECT_IDS = ['demo-1', 'demo-2', 'demo-3', 'demo-4', 'demo-5', 'demo-6'];
-
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const staticPages: MetadataRoute.Sitemap = [
         { url: SITE_URL, lastModified: new Date(), changeFrequency: 'weekly', priority: 1 },
         { url: `${SITE_URL}/portfolio`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.9 },
@@ -15,8 +13,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
         { url: `${SITE_URL}/privacy`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
     ];
 
-    const projectPages: MetadataRoute.Sitemap = DEMO_PROJECT_IDS.map((id) => ({
-        url: `${SITE_URL}/portfolio/${id}`,
+    // Fetch published project IDs from Supabase
+    const { data: projects } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('is_published', true);
+
+    const projectPages: MetadataRoute.Sitemap = (projects ?? []).map((p) => ({
+        url: `${SITE_URL}/portfolio/${p.id}`,
         lastModified: new Date(),
         changeFrequency: 'monthly' as const,
         priority: 0.7,
