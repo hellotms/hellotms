@@ -27,6 +27,11 @@ export function ProjectDetailView({ id }: { id: string }) {
     const [photos, setPhotos] = useState<MediaItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     useEffect(() => {
         if (!id) return;
@@ -67,7 +72,7 @@ export function ProjectDetailView({ id }: { id: string }) {
     if (notFound || !project) {
         return (
             <div className="pt-16 container py-20 text-center">
-                <Camera className="h-16 w-16 mx-auto mb-4 text-[var(--muted)] opacity-30" />
+                {mounted ? <Camera className="h-16 w-16 mx-auto mb-4 text-[var(--muted)] opacity-30" /> : <div className="h-16 w-16 mx-auto mb-4" />}
                 <h1 className="text-2xl font-bold text-[var(--foreground)] mb-2">Event Not Found</h1>
                 <Link href="/portfolio" className="text-indigo-500 hover:underline">← Back to Portfolio</Link>
             </div>
@@ -114,7 +119,7 @@ export function ProjectDetailView({ id }: { id: string }) {
                             href="/portfolio"
                             className="inline-flex items-center gap-1.5 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
                         >
-                            <ArrowLeft className="h-4 w-4" /> Back to Portfolio
+                            {mounted ? <ArrowLeft className="h-4 w-4" /> : <div className="h-4 w-4" />} Back to Portfolio
                         </Link>
 
                         {project.description && (
@@ -155,7 +160,7 @@ export function ProjectDetailView({ id }: { id: string }) {
                             ].map(({ icon: Icon, label, value }) => (
                                 <div key={label} className="flex items-start gap-3">
                                     <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
-                                        <Icon className="h-4 w-4 text-indigo-400" />
+                                        {mounted ? <Icon className="h-4 w-4 text-indigo-400" /> : <div className="h-4 w-4" />}
                                     </div>
                                     <div>
                                         <p className="text-xs text-[var(--muted)]">{label}</p>

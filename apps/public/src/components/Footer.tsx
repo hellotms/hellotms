@@ -1,6 +1,10 @@
+'use client';
+
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { Zap, Mail, Phone, MapPin, Instagram, Facebook, Youtube, ArrowUpRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import type { SiteSettings } from '@hellotms/shared';
 
 const LINKS = {
   company: [
@@ -18,8 +22,18 @@ const LINKS = {
   ],
 };
 
-export async function Footer() {
-  const { data: settings } = await supabase.from('site_settings').select('*').eq('id', 1).single();
+export function Footer() {
+  const [settings, setSettings] = useState<SiteSettings | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    async function loadSettings() {
+      const { data } = await supabase.from('site_settings').select('*').eq('id', 1).single();
+      if (data) setSettings(data as SiteSettings);
+    }
+    loadSettings();
+  }, []);
 
   const socials = settings?.socials as any;
   const contact = settings?.contact_info as any;
@@ -54,7 +68,7 @@ export async function Footer() {
                 </div>
               ) : (
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center">
-                  <Zap className="h-4 w-4 text-white" />
+                  {mounted ? <Zap className="h-4 w-4 text-white" /> : <div className="h-4 w-4" />}
                 </div>
               )}
               <span className="font-bold text-sm text-[var(--foreground)]">
@@ -74,7 +88,7 @@ export async function Footer() {
                   aria-label={label}
                   className="w-9 h-9 rounded-lg bg-[var(--surface-2)] hover:bg-indigo-600 text-[var(--muted)] hover:text-white flex items-center justify-center transition-all"
                 >
-                  <Icon className="h-4 w-4" />
+                  {mounted ? <Icon className="h-4 w-4" /> : <div className="h-4 w-4" />}
                 </a>
               ))}
             </div>
@@ -91,7 +105,7 @@ export async function Footer() {
                     className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-1 group"
                   >
                     {l.label}
-                    <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {mounted ? <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" /> : <div className="h-3 w-3" />}
                   </Link>
                 </li>
               ))}
@@ -109,7 +123,7 @@ export async function Footer() {
                     className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors flex items-center gap-1 group"
                   >
                     {l.label}
-                    <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {mounted ? <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" /> : <div className="h-3 w-3" />}
                   </Link>
                 </li>
               ))}
@@ -123,7 +137,7 @@ export async function Footer() {
               {contactItems.map(({ icon: Icon, text, href }) => (
                 <li key={text} className="flex items-start gap-3">
                   <div className="w-7 h-7 rounded-md bg-indigo-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <Icon className="h-3.5 w-3.5 text-indigo-400" />
+                    {mounted ? <Icon className="h-3.5 w-3.5 text-indigo-400" /> : <div className="h-3.5 w-3.5" />}
                   </div>
                   {href ? (
                     <a href={href} className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">

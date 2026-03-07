@@ -31,6 +31,11 @@ export default function PortfolioPage() {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [categories, setCategories] = useState<string[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     async function fetchProjects() {
@@ -109,7 +114,7 @@ export default function PortfolioPage() {
             </div>
           ) : filteredProjects.length === 0 ? (
             <div className="text-center py-20 text-[var(--muted)]">
-              <Camera className="h-12 w-12 mx-auto mb-3 opacity-20" />
+              {mounted ? <Camera className="h-12 w-12 mx-auto mb-3 opacity-20" /> : <div className="h-12 w-12 mx-auto mb-3" />}
               <p>No projects found in this category.</p>
             </div>
           ) : (
@@ -131,7 +136,7 @@ export default function PortfolioPage() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       ) : (
-                        <Camera className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-12 w-12 text-white/15 group-hover:text-white/25 transition-colors" />
+                        mounted ? <Camera className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-12 w-12 text-white/15 group-hover:text-white/25 transition-colors" /> : <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-12 w-12" />
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                       {project.category && (
