@@ -151,9 +151,9 @@ export default function LeadsPage() {
         <div className="flex items-center gap-2 justify-end">
           <button
             onClick={(e) => handleToggleStar(e, row.original)}
-            className={`p - 1.5 rounded - md hover: bg - muted transition - colors ${row.original.is_starred ? 'text-yellow-500' : 'text-muted-foreground hover:text-yellow-500'} `}
+            className={`p-1.5 rounded-md hover:bg-muted transition-colors ${row.original.is_starred ? 'text-yellow-500' : 'text-muted-foreground hover:text-yellow-500'}`}
           >
-            <Star className={`h - 4 w - 4 ${row.original.is_starred ? 'fill-current' : ''} `} />
+            <Star className={`h-4 w-4 ${row.original.is_starred ? 'fill-current' : ''}`} />
           </button>
           {can('manage_contact_forms') && (
             <button
@@ -174,7 +174,7 @@ export default function LeadsPage() {
 
       <div className="flex gap-2 mb-4">
         {STATUS_OPTIONS.map(s => (
-          <button key={s} onClick={() => setStatusFilter(s)} className={`px - 3 py - 1.5 rounded - full text - xs font - medium capitalize transition - colors ${statusFilter === s ? 'bg-primary text-white' : 'border border-border text-muted-foreground hover:text-foreground'} `}>
+          <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-colors ${statusFilter === s ? 'bg-primary text-white' : 'border border-border text-muted-foreground hover:text-foreground'}`}>
             {s}
           </button>
         ))}
@@ -192,7 +192,7 @@ export default function LeadsPage() {
                   <p className="text-xs text-muted-foreground uppercase tracking-wide capitalize">{s}</p>
                   <p className="text-2xl font-bold mt-1">{count}</p>
                 </div>
-                <span className={`w - 10 h - 10 rounded - full flex items - center justify - center ${colorMap[s]} `}>
+                <span className={`w-10 h-10 rounded-full flex items-center justify-center ${colorMap[s]}`}>
                   <MessageSquare className="h-5 w-5" />
                 </span>
               </div>
@@ -227,12 +227,12 @@ export default function LeadsPage() {
               </div>
               <div className="bg-muted/40 rounded-lg p-3 space-y-1">
                 {selectedLead.email && (
-                  <a href={`mailto:${selectedLead.email} `} className="flex items-center gap-2 text-sm text-primary hover:underline">
+                  <a href={`mailto:${selectedLead.email}`} className="flex items-center gap-2 text-sm text-primary hover:underline">
                     <Mail className="h-3 w-3" /> {selectedLead.email}
                   </a>
                 )}
                 {selectedLead.phone && (
-                  <a href={`tel:${selectedLead.phone} `} className="flex items-center gap-2 text-sm text-primary hover:underline">
+                  <a href={`tel:${selectedLead.phone}`} className="flex items-center gap-2 text-sm text-primary hover:underline">
                     <Phone className="h-3 w-3" /> {selectedLead.phone}
                   </a>
                 )}

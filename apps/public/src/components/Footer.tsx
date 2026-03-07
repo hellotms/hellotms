@@ -57,23 +57,30 @@ export function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <Link href="/" className="flex items-center gap-3 mb-4 group w-fit">
+            <Link href="/" className="flex items-center gap-3 mb-6 group w-fit">
               {settings?.company_logo_url ? (
-                <div className="relative w-8 h-8">
+                <div className="relative w-10 h-10 transition-transform group-hover:scale-105 duration-300">
                   <img
                     src={settings.company_logo_url}
                     alt="Logo"
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-contain filter drop-shadow-md"
                   />
                 </div>
               ) : (
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg group-hover:shadow-indigo-500/40 transition-shadow">
                   {mounted ? <Zap className="h-4 w-4 text-white" /> : <div className="h-4 w-4" />}
                 </div>
               )}
-              <span className="font-bold text-sm text-[var(--foreground)]">
-                The <span className="text-indigo-500">Marketing</span> Solution
-              </span>
+              <div className="flex flex-col text-left">
+                <span className="font-bold text-sm md:text-base text-[var(--foreground)] tracking-tight leading-none">
+                  The <span className="text-indigo-500">Marketing</span> Solution
+                </span>
+                {settings?.site_motto && (
+                  <span className="text-[10px] text-[var(--muted)] font-medium leading-tight mt-1">
+                    {settings.site_motto}
+                  </span>
+                )}
+              </div>
             </Link>
             <p className="text-sm text-[var(--muted)] leading-relaxed mb-6">
               {settings?.hero_subtitle || "Bangladesh's premier event management and marketing agency. We turn your vision into unforgettable experiences."}

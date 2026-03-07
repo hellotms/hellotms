@@ -26,7 +26,9 @@ export const projectSchema = z.object({
   is_featured: z.boolean().default(false),
   project_created_at: z.string().optional().nullable(),
   project_completed_at: z.string().optional().nullable(),
-  budget: z.number().positive().optional().nullable(),
+  payment_status: z.enum(['paid', 'unpaid']).optional().nullable(),
+  paid_at: z.string().optional().nullable(),
+  invoice_amount: z.number().positive().optional().nullable(),
   advance_received: z.number().min(0).optional().nullable(),
   description: z.string().max(3000).optional().nullable(),
   cover_image_url: z.string().url().optional().nullable(),
@@ -40,13 +42,14 @@ export const ledgerEntrySchema = z.object({
   project_id: z.string().uuid(),
   type: z.enum(['income', 'expense']),
   category: z.string().min(1).max(100),
-  amount: z.number().positive('Amount must be positive'),
+  amount: z.preprocess((val) => (val === "" || val === null || (typeof val === 'number' && isNaN(val)) ? undefined : Number(val)), z.number().positive('Amount must be positive')),
   entry_date: z.string().min(1),
   paid_status: z.enum(['paid', 'unpaid']).optional().nullable(),
   note: z.string().max(500).optional().nullable(),
   attachment_url: z.string().url().optional().nullable(),
-  quantity: z.number().positive().optional().nullable(),
-  face_value: z.number().nonnegative().optional().nullable(),
+  quantity: z.preprocess((val) => (val === "" || val === null || (typeof val === 'number' && isNaN(val)) ? undefined : Number(val)), z.number().positive().optional().nullable()),
+  face_value: z.preprocess((val) => (val === "" || val === null || (typeof val === 'number' && isNaN(val)) ? undefined : Number(val)), z.number().nonnegative().optional().nullable()),
+  is_external: z.boolean().default(false),
 });
 
 export type LedgerEntryInput = z.infer<typeof ledgerEntrySchema>;
@@ -54,7 +57,7 @@ export type LedgerEntryInput = z.infer<typeof ledgerEntrySchema>;
 // ─── Collection ───────────────────────────────────────────────────────────────
 export const collectionSchema = z.object({
   project_id: z.string().uuid(),
-  amount: z.number().positive(),
+  amount: z.preprocess((val) => (val === "" || val === null || (typeof val === 'number' && isNaN(val)) ? undefined : Number(val)), z.number().positive('Amount must be positive')),
   payment_date: z.string().min(1),
   method: z.string().max(50).optional().nullable(),
   note: z.string().max(300).optional().nullable(),
@@ -125,6 +128,44 @@ export const siteSettingsSchema = z.object({
   whatsapp: z.string().max(20).optional().nullable(),
   services: z.array(serviceItemSchema).default([]),
   about_content: z.string().max(5000).optional().nullable(),
+  about_page_config: z.object({
+    hero: z.object({
+      badge: z.string(),
+      title_primary: z.string(),
+      title_highlight: z.string(),
+      description: z.string(),
+    }),
+    mission: z.object({
+      badge: z.string(),
+      title_primary: z.string(),
+      title_highlight: z.string(),
+      statement: z.string(),
+      description_p1: z.string(),
+      description_p2: z.string(),
+      stats_value: z.string(),
+      stats_label: z.string(),
+    }),
+    values: z.object({
+      badge: z.string(),
+      title_primary: z.string(),
+      title_highlight: z.string(),
+      items: z.array(z.object({
+        title: z.string(),
+        text: z.string(),
+        icon: z.string(),
+      })),
+    }),
+    journey: z.object({
+      badge: z.string(),
+      title_primary: z.string(),
+      title_highlight: z.string(),
+      milestones: z.array(z.object({
+        year: z.string(),
+        title: z.string(),
+        text: z.string(),
+      })),
+    }),
+  }).optional().nullable(),
   contact_info: z.object({
     address: z.string().max(300).optional(),
     email: z.string().email().optional(),

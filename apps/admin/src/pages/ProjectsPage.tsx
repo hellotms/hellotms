@@ -84,7 +84,7 @@ export default function ProjectsPage() {
         ...values,
         event_end_date: values.event_end_date || values.event_start_date,
         proposal_date: values.proposal_date || null,
-        budget: values.budget ? Number(values.budget) : null,
+        invoice_amount: values.invoice_amount ? Number(values.invoice_amount) : null,
         advance_received: values.advance_received ? Number(values.advance_received) : 0,
         category: values.category === 'Others' ? customCategory : (values.category || null),
         description: values.description || null,
@@ -326,8 +326,8 @@ export default function ProjectsPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Project Budget (৳)</label>
-              <input type="number" step="0.01" min="0" {...register('budget', { valueAsNumber: true })} placeholder="e.g. 150000" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <label className="block text-sm font-medium text-foreground mb-1">Invoice Amount (৳)</label>
+              <input type="number" step="0.01" min="0" {...register('invoice_amount', { valueAsNumber: true })} placeholder="e.g. 150000" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Advance Received (৳)</label>

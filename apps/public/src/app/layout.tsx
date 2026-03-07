@@ -14,6 +14,8 @@ const outfit = Outfit({
 
 import { supabase } from '@/lib/supabase';
 
+export const revalidate = 60;
+
 export async function generateMetadata(): Promise<Metadata> {
   const { data: settings } = await supabase.from('site_settings').select('*').eq('id', 1).single();
   const siteName = 'The Marketing Solution';

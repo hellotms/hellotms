@@ -10,7 +10,7 @@ import { Modal, ConfirmModal, CascadeConfirmModal } from '@/components/Modal';
 import { ImageUpload } from '@/components/ImageUpload';
 import { formatBDT, formatDate, formatDateTime } from '@/lib/utils';
 import { computeProjectDurations } from '@hellotms/shared';
-import { ArrowLeft, Plus, Pencil, Trash2, Calendar, Clock, DollarSign, Upload, X, ImageIcon, Download } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Calendar, Clock, DollarSign, Upload, X, ImageIcon, Download, CheckCircle2 } from 'lucide-react';
 import type { Project, LedgerEntry, Collection, Invoice } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
 import { toast } from '@/components/Toast';
@@ -19,7 +19,7 @@ import { ledgerEntrySchema, collectionSchema, EVENT_CATEGORIES } from '@hellotms
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { CollectionInput } from '@hellotms/shared';
 
-const TABS = ['Overview', 'Expenses', 'Collections', 'Invoices', 'Timeline', 'Gallery'] as const;
+const TABS = ['Overview', 'Expenses', 'Others Expenses', 'Collections', 'Invoices', 'Timeline', 'Gallery'] as const;
 type Tab = typeof TABS[number];
 
 type EditProjectInput = {
@@ -30,7 +30,7 @@ type EditProjectInput = {
   event_start_date: string;
   event_end_date?: string;
   proposal_date?: string;
-  budget?: string | number;
+  invoice_amount?: string | number;
   advance_received?: string | number;
   notes?: string;
   is_featured: boolean;
@@ -100,19 +100,39 @@ export default function ProjectDetailPage() {
     enabled: !!id,
   });
 
-  // Financials
-  const totalExpense = ledger.filter(e => e.type === 'expense').reduce((s, e) => s + Number(e.amount), 0);
-  const totalIncome = ledger.filter(e => e.type === 'income').reduce((s, e) => s + Number(e.amount), 0);
-  const totalCollected = collections.reduce((s, c) => s + Number(c.amount), 0);
+  // Financials refactored
+  const invoiceAmount = Number(project?.invoice_amount ?? 0);
+  const totalStandardExpense = ledger.filter(e => e.type === 'expense' && !e.is_external).reduce((s, e) => s + Number(e.amount), 0);
+  const othersExpense = ledger.filter(e => e.type === 'expense' && e.is_external).reduce((s, e) => s + Number(e.amount), 0);
+  const totalReceived = collections.reduce((s, c) => s + Number(c.amount), 0) + Number(project?.advance_received ?? 0);
   const totalInvoiced = invoices.reduce((s, i) => s + Number(i.total_amount), 0);
-  // advance_received is an upfront payment recorded on the project itself
-  const advanceReceived = Number(project?.advance_received ?? 0);
-  // totalReceived = all collections + upfront advance
-  const totalReceived = totalCollected + advanceReceived;
-  // Balance = total money received from client - total expenses
-  const balance = totalReceived - totalExpense;
-  // Due: invoice total minus everything received (collections + advance)
-  const due = invoices.length > 0 ? Math.max(0, totalInvoiced - totalReceived) : null;
+
+  // New Metrics
+  const dueClient = Math.max(0, invoiceAmount - totalReceived);
+  const grossProfit = invoiceAmount - totalStandardExpense;
+  const dueVendor = ledger.filter(e => e.type === 'expense' && e.is_external && e.paid_status === 'unpaid').reduce((s, e) => s + Number(e.amount), 0);
+  const netExpenses = totalStandardExpense + othersExpense;
+  const netProfit = invoiceAmount - netExpenses;
+  const profitRatio = invoiceAmount > 0 ? (netProfit / invoiceAmount) * 100 : 0;
+
+  const isPaid = project?.payment_status === 'paid';
+
+  // Turnover: proposal date to paid date (or today if unpaid)
+  let turnoverDays = null;
+  const startDateStr = project?.proposal_date || project?.event_start_date;
+  if (startDateStr) {
+    const start = new Date(startDateStr);
+    let end = new Date(); // counts up to today if unpaid
+
+    if (isPaid && project?.paid_at) {
+      end = new Date(project.paid_at);
+    } else if (invoiceAmount > 0 && totalReceived >= invoiceAmount && collections.length > 0) {
+      // Fallback for projects already fully paid but without explicit payment_status
+      end = new Date(Math.max(...collections.map(c => new Date(c.payment_date).getTime())));
+    }
+
+    turnoverDays = Math.max(0, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+  }
 
   // Timeline durations
   const durations = project ? computeProjectDurations(project, collections, totalInvoiced) : null;
@@ -185,6 +205,16 @@ export default function ProjectDetailPage() {
 
   const deleteLedgerMutation = useMutation({
     mutationFn: async (entryId: string) => {
+      const entry = ledger.find(e => e.id === entryId);
+      if (entry) {
+        await supabase.from('trash_bin').insert({
+          entity_type: 'ledger',
+          entity_id: entry.id,
+          entity_name: `Expense: ${entry.category} (${formatBDT(Number(entry.amount))})`,
+          entity_data: entry,
+          deleted_by: authProfile?.id,
+        });
+      }
       const { error } = await supabase.from('ledger_entries').update({ deleted_at: new Date().toISOString() }).eq('id', entryId);
       if (error) throw error;
       auditApi.log({
@@ -248,7 +278,17 @@ export default function ProjectDetailPage() {
 
   const deleteCollectionMutation = useMutation({
     mutationFn: async (collectionId: string) => {
-      const { error } = await supabase.from('collections').delete().eq('id', collectionId);
+      const collection = collections.find(c => c.id === collectionId);
+      if (collection) {
+        await supabase.from('trash_bin').insert({
+          entity_type: 'collection',
+          entity_id: collection.id,
+          entity_name: `Collection: ${formatBDT(Number(collection.amount))}`,
+          entity_data: collection,
+          deleted_by: authProfile?.id,
+        });
+      }
+      const { error } = await supabase.from('collections').update({ deleted_at: new Date().toISOString() }).eq('id', collectionId);
       if (error) throw error;
       auditApi.log({
         action: 'delete_collection',
@@ -280,6 +320,69 @@ export default function ProjectDetailPage() {
     });
     queryClient.invalidateQueries({ queryKey: ['project', id] });
   };
+  // Mark as Paid / Unpaid mutations
+  const markAsPaidMutation = useMutation({
+    mutationFn: async () => {
+      const now = new Date().toISOString();
+      // 1. Update Project Status
+      const { error: projectError } = await supabase.from('projects').update({
+        payment_status: 'paid',
+        paid_at: now
+      }).eq('id', id!);
+      if (projectError) throw projectError;
+
+      // 2. Update all associated Invoices to 'paid' (if any)
+      if (invoices.length > 0) {
+        await supabase.from('invoices').update({
+          status: 'paid',
+          paid_at: now
+        }).eq('project_id', id!);
+      }
+
+      auditApi.log({
+        action: 'mark_project_paid',
+        entity_type: 'project',
+        entity_id: id!,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
+      queryClient.invalidateQueries({ queryKey: ['project-invoices', id] });
+      toast('Project marked as Paid', 'success');
+    },
+    onError: (e: any) => toast(`Failed to mark as paid: ${e.message}`, 'error')
+  });
+
+  const markAsUnpaidMutation = useMutation({
+    mutationFn: async () => {
+      // 1. Update Project Status
+      const { error: projectError } = await supabase.from('projects').update({
+        payment_status: 'unpaid',
+        paid_at: null
+      }).eq('id', id!);
+      if (projectError) throw projectError;
+
+      // 2. Potentially revert invoices (optional, but keep it consistent)
+      if (invoices.length > 0) {
+        await supabase.from('invoices').update({
+          status: 'sent',
+          paid_at: null
+        }).eq('project_id', id!).eq('status', 'paid');
+      }
+
+      auditApi.log({
+        action: 'mark_project_unpaid',
+        entity_type: 'project',
+        entity_id: id!,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
+      queryClient.invalidateQueries({ queryKey: ['project-invoices', id] });
+      toast('Project marked as Unpaid', 'success');
+    },
+    onError: (e: any) => toast(`Failed to mark as unpaid: ${e.message}`, 'error')
+  });
 
 
   const deleteProjectMutation = useMutation({
@@ -339,7 +442,7 @@ export default function ProjectDetailPage() {
         ...values,
         event_end_date: values.event_end_date || values.event_start_date || null,
         proposal_date: values.proposal_date || null,
-        budget: values.budget ? Number(values.budget) : null,
+        invoice_amount: values.invoice_amount ? Number(values.invoice_amount) : null,
         advance_received: values.advance_received ? Number(values.advance_received) : 0,
         project_completed_at: values.project_completed_at || null,
         location: values.location || null,
@@ -505,7 +608,7 @@ export default function ProjectDetailPage() {
               event_start_date: project.event_start_date ? project.event_start_date.split('T')[0] : '',
               event_end_date: project.event_end_date ? project.event_end_date.split('T')[0] : '',
               proposal_date: project.proposal_date ? project.proposal_date.split('T')[0] : '',
-              budget: project.budget ?? '',
+              invoice_amount: project.invoice_amount ?? '',
               advance_received: project.advance_received ?? '',
               notes: project.notes ?? '',
               is_featured: project.is_featured ?? false,
@@ -521,8 +624,19 @@ export default function ProjectDetailPage() {
           <Pencil className="h-3.5 w-3.5" /> Edit
         </button>
         <button
+          onClick={() => isPaid ? markAsUnpaidMutation.mutate() : markAsPaidMutation.mutate()}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${isPaid
+            ? 'border-emerald-300 text-emerald-800 bg-emerald-100 hover:bg-emerald-200 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300'
+            : 'border-border text-foreground bg-background hover:bg-muted'
+            }`}
+          disabled={markAsPaidMutation.isPending || markAsUnpaidMutation.isPending}
+        >
+          {isPaid ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+          {isPaid ? 'Payment Received' : 'Mark as Paid'}
+        </button>
+        <button
           onClick={togglePublished}
-          className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${project.is_published ? 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'border-border text-muted-foreground hover:text-foreground'
+          className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${project.is_published ? 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400' : 'border-border text-muted-foreground hover:text-foreground'
             }`}
         >
           {project.is_published ? '● Published' : '○ Unpublished'}
@@ -537,23 +651,24 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Finance summary bar */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         {[
-          { label: 'Budget', value: project.budget ? formatBDT(Number(project.budget)) : '—', color: 'indigo', raw: true },
-          { label: 'Total Expenses', value: totalExpense, color: 'red', raw: false },
-          { label: 'Balance', value: balance, color: balance >= 0 ? 'emerald' : 'red', raw: false },
-          {
-            label: advanceReceived > 0 ? `Received (adv. incl.)` : 'Received',
-            value: totalReceived,
-            color: 'teal',
-            raw: false,
-          },
-          { label: due !== null ? 'Due' : 'Invoiced', value: due !== null ? due : totalInvoiced, color: due !== null && due > 0 ? 'orange' : 'emerald', raw: false },
-        ].map(({ label, value, color, raw }) => (
-          <div key={label} className="bg-card border border-border rounded-xl p-4">
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <p className={`text-lg font-bold mt-1 text-${color}-600`}>
-              {raw ? value : formatBDT(value as number)}
+          { label: 'Invoice Amount', value: invoiceAmount, color: 'indigo', isCurrency: true },
+          { label: 'Received', value: totalReceived, color: 'emerald', isCurrency: true },
+          { label: 'Total Expenses', value: totalStandardExpense, color: 'red', isCurrency: true },
+          { label: 'Due (Client)', value: dueClient, color: dueClient > 0 ? 'orange' : 'emerald', isCurrency: true },
+          { label: 'Gross Profit', value: grossProfit, color: 'blue', isCurrency: true },
+          { label: 'Others Expenses', value: othersExpense, color: 'purple', isCurrency: true },
+          { label: 'Due (Vendor)', value: dueVendor, color: 'pink', isCurrency: true },
+          { label: 'Net Expenses', value: netExpenses, color: 'rose', isCurrency: true },
+          { label: 'Net Profit', value: netProfit, color: netProfit >= 0 ? 'blue' : 'red', isCurrency: true },
+          { label: 'Profit Ratio', value: `${profitRatio.toFixed(1)}%`, color: 'cyan', isCurrency: false },
+          { label: 'Turn Over Days', value: turnoverDays !== null ? `${turnoverDays} days` : '—', color: 'slate', isCurrency: false },
+        ].map(({ label, value, color, isCurrency }) => (
+          <div key={label} className="bg-card border border-border rounded-xl p-4 shadow-sm">
+            <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">{label}</p>
+            <p className={`text-base font-bold mt-1 text-${color}-600 dark:text-${color}-400`}>
+              {isCurrency ? formatBDT(value as number) : value}
             </p>
           </div>
         ))}
@@ -587,7 +702,7 @@ export default function ProjectDetailPage() {
               { label: 'Event End', value: project.event_end_date ? formatDate(project.event_end_date) : 'Same day' },
               { label: 'Location', value: project.location },
               { label: 'Status', value: project.status },
-              { label: 'Budget', value: project.budget ? formatBDT(Number(project.budget)) : '—' },
+              { label: 'Invoice Amount', value: project.invoice_amount ? formatBDT(Number(project.invoice_amount)) : '—' },
               { label: 'Advance Paid', value: project.advance_received ? formatBDT(Number(project.advance_received)) : '—' },
               { label: 'Featured', value: project.is_featured ? 'Yes' : 'No' },
               { label: 'Cover Photo', value: project.cover_image_url ? 'Added' : 'Missing' },
@@ -625,16 +740,13 @@ export default function ProjectDetailPage() {
       {activeTab === 'Expenses' && (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold text-foreground">Expenses</h3>
+            <h3 className="font-semibold text-foreground">Standard Expenses</h3>
             <button
               onClick={() => {
                 setEditingEntry(null);
                 const today = new Date();
-                const yyyy = today.getFullYear();
-                const mm = String(today.getMonth() + 1).padStart(2, '0');
-                const dd = String(today.getDate()).padStart(2, '0');
-                const todayStr = `${yyyy}-${mm}-${dd}`;
-                ledgerForm.reset({ project_id: id!, type: 'expense', paid_status: 'unpaid', entry_date: todayStr });
+                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                ledgerForm.reset({ project_id: id!, type: 'expense', paid_status: 'unpaid', is_external: false, entry_date: todayStr });
                 setIsLedgerOpen(true);
               }}
               className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
@@ -646,23 +758,18 @@ export default function ProjectDetailPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
-                  {['Date', 'Type', 'Category', 'Total Cost', 'Qty', 'Face Value', 'Status', 'Note', ''].map(h => (
+                  {['Date', 'Category', 'Total Cost', 'Qty', 'Face Value', 'Status', 'Note', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {ledger.map((entry, i) => (
+                {ledger.filter(e => !e.is_external).map((entry, i) => (
                   <tr key={entry.id} className={`border-b border-border last:border-0 ${i % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
                     <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{formatDate(entry.entry_date)}</td>
-                    <td className="px-4 py-2.5 capitalize text-foreground">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${entry.type === 'income' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300'}`}>
-                        {entry.type}
-                      </span>
-                    </td>
                     <td className="px-4 py-2.5 whitespace-nowrap max-w-[150px] truncate" title={entry.category}>{entry.category}</td>
-                    <td className={`px-4 py-2.5 font-bold font-mono whitespace-nowrap ${entry.type === 'income' ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {entry.type === 'income' ? '+' : '−'}{formatBDT(Number(entry.amount))}
+                    <td className="px-4 py-2.5 font-bold font-mono whitespace-nowrap text-red-500">
+                      −{formatBDT(Number(entry.amount))}
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground font-mono">{entry.quantity ?? '—'}</td>
                     <td className="px-4 py-2.5 text-muted-foreground font-mono">{entry.face_value ? formatBDT(Number(entry.face_value)) : '—'}</td>
@@ -680,15 +787,87 @@ export default function ProjectDetailPage() {
                     </td>
                   </tr>
                 ))}
-                {ledger.length === 0 && (
-                  <tr><td colSpan={9} className="text-center py-10 text-muted-foreground">No ledger entries yet</td></tr>
+                {ledger.filter(e => !e.is_external).length === 0 && (
+                  <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">No standard expenses yet</td></tr>
                 )}
               </tbody>
-              {ledger.filter(e => e.type === 'expense').length > 0 && (
+              {ledger.filter(e => !e.is_external).length > 0 && (
                 <tfoot className="bg-muted/30 border-t border-border">
                   <tr>
-                    <td colSpan={3} className="px-4 py-3 text-sm font-semibold text-foreground text-right">Total Expenses</td>
-                    <td className="px-4 py-3 text-sm font-bold text-red-500 font-mono">−{formatBDT(totalExpense)}</td>
+                    <td colSpan={2} className="px-4 py-3 text-sm font-semibold text-foreground text-right">Total Standard Expenses</td>
+                    <td className="px-4 py-3 text-sm font-bold text-red-500 font-mono">−{formatBDT(totalStandardExpense)}</td>
+                    <td colSpan={5}></td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Others Expenses Tab */}
+      {activeTab === 'Others Expenses' && (
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h3 className="font-semibold text-foreground">Others Expenses</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Internal or non-standard costs. Not included in Gross Profit.</p>
+            </div>
+            <button
+              onClick={() => {
+                setEditingEntry(null);
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                ledgerForm.reset({ project_id: id!, type: 'expense', paid_status: 'unpaid', is_external: true, entry_date: todayStr });
+                setIsLedgerOpen(true);
+              }}
+              className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add Other Expense
+            </button>
+          </div>
+          <div className="border border-border rounded-xl overflow-x-auto pb-2">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 border-b border-border">
+                <tr>
+                  {['Date', 'Category', 'Total Cost', 'Qty', 'Face Value', 'Status', 'Note', ''].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {ledger.filter(e => e.is_external).map((entry, i) => (
+                  <tr key={entry.id} className={`border-b border-border last:border-0 ${i % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
+                    <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{formatDate(entry.entry_date)}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap max-w-[150px] truncate" title={entry.category}>{entry.category}</td>
+                    <td className="px-4 py-2.5 font-bold font-mono whitespace-nowrap text-red-500">
+                      −{formatBDT(Number(entry.amount))}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-foreground font-mono">{entry.quantity ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground font-mono">{entry.face_value ? formatBDT(Number(entry.face_value)) : '—'}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap"><StatusBadge status={entry.paid_status ?? 'unpaid'} /></td>
+                    <td className="px-4 py-2.5 text-muted-foreground max-w-[150px] truncate" title={entry.note ?? '—'}>{entry.note ?? '—'}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      <div className="flex items-center gap-1 justify-end">
+                        <button onClick={() => { setEditingEntry(entry); ledgerForm.reset({ ...entry, project_id: id! }); setIsLedgerOpen(true); }} className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={() => setDeleteTarget(entry.id)} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 transition-colors text-muted-foreground hover:text-red-500">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {ledger.filter(e => e.is_external).length === 0 && (
+                  <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">No other expenses yet</td></tr>
+                )}
+              </tbody>
+              {ledger.filter(e => e.is_external).length > 0 && (
+                <tfoot className="bg-muted/30 border-t border-border">
+                  <tr>
+                    <td colSpan={2} className="px-4 py-3 text-sm font-semibold text-foreground text-right">Total Others Expenses</td>
+                    <td className="px-4 py-3 text-sm font-bold text-red-500 font-mono">−{formatBDT(othersExpense)}</td>
                     <td colSpan={5}></td>
                   </tr>
                 </tfoot>
@@ -704,7 +883,7 @@ export default function ProjectDetailPage() {
           <div className="flex justify-between items-center mb-4">
             <div>
               <h3 className="font-semibold text-foreground">Payment Collections</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Total collected: <strong className="text-emerald-600 text-emerald-600 dark:text-emerald-400">{formatBDT(totalCollected)}</strong></p>
+              <p className="text-xs text-muted-foreground mt-0.5">Total Received: <strong className="text-emerald-600 text-emerald-600 dark:text-emerald-400">{formatBDT(totalReceived)}</strong></p>
             </div>
             <button onClick={openCollectionModal} className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
               <Plus className="h-3.5 w-3.5" /> Add Collection
@@ -712,15 +891,15 @@ export default function ProjectDetailPage() {
           </div>
           <div className="space-y-2">
             {/* Show Advance Received as a special entry if it exists */}
-            {advanceReceived > 0 && (
+            {project?.advance_received ? Number(project.advance_received) > 0 && (
               <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 rounded-lg p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-emerald-700">{formatBDT(advanceReceived)}</p>
+                  <p className="text-sm font-semibold text-emerald-700">{formatBDT(Number(project.advance_received))}</p>
                   <p className="text-xs text-emerald-600 text-emerald-600 dark:text-emerald-400 font-medium">Advance Payment · Initial</p>
                 </div>
                 <p className="text-xs text-emerald-600 text-emerald-600 dark:text-emerald-400 italic">Project Setup</p>
               </div>
-            )}
+            ) : null}
 
             {collections.map(c => (
               <div key={c.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between group">
@@ -736,7 +915,7 @@ export default function ProjectDetailPage() {
                 </div>
               </div>
             ))}
-            {(collections.length === 0 && advanceReceived === 0) && <p className="text-center py-10 text-sm text-muted-foreground">No payments recorded yet</p>}
+            {(!collections.length && (!project?.advance_received || Number(project.advance_received) === 0)) && <p className="text-center py-10 text-sm text-muted-foreground">No payments recorded yet</p>}
           </div>
         </div>
       )}
@@ -798,8 +977,8 @@ export default function ProjectDetailPage() {
               { label: 'Collection Duration', value: durations.collection_duration_days !== null ? `${durations.collection_duration_days} day(s)` : 'Not fully collected' },
               { label: 'Days from Event End to Full Collection', value: durations.days_to_full_collection_from_end !== null ? `${durations.days_to_full_collection_from_end} days` : 'Not fully collected' },
               { label: 'Total Invoiced', value: formatBDT(totalInvoiced) },
-              { label: 'Total Collected', value: formatBDT(totalCollected) },
-              { label: 'Outstanding Due', value: due !== null ? formatBDT(due) : invoices.length === 0 ? 'No invoices' : formatBDT(0) },
+              { label: 'Total Received', value: formatBDT(totalReceived) },
+              { label: 'Outstanding Due (Client)', value: formatBDT(dueClient) },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
                 <span className="text-sm text-muted-foreground">{label}</span>
@@ -930,19 +1109,32 @@ export default function ProjectDetailPage() {
       }
 
       {/* Ledger Entry Modal */}
-      <Modal isOpen={isLedgerOpen} onClose={() => { setIsLedgerOpen(false); setEditingEntry(null); }} title={editingEntry ? 'Edit Entry' : 'Add Ledger Entry'}>
+      <Modal isOpen={isLedgerOpen} onClose={() => { setIsLedgerOpen(false); setEditingEntry(null); }} title={editingEntry ? 'Edit Entry' : (ledgerForm.getValues('is_external') ? 'Add Other Expense' : 'Add Expense')}>
         <form onSubmit={ledgerForm.handleSubmit((v) => saveLedgerMutation.mutate(v))} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Type *</label>
-              <select {...ledgerForm.register('type')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                <option value="income">Income</option>
-                <option value="expense">Expense</option>
-              </select>
+              <label className="block text-sm font-medium mb-1">Category *</label>
+              <input
+                {...ledgerForm.register('category')}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${ledgerForm.formState.errors.category ? 'border-red-500' : 'border-border'
+                  }`}
+                placeholder="e.g. Venue fee"
+              />
+              {ledgerForm.formState.errors.category && (
+                <p className="text-xs text-red-500 mt-1">{ledgerForm.formState.errors.category.message}</p>
+              )}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Category *</label>
-              <input {...ledgerForm.register('category')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="e.g. Venue fee" />
+              <label className="block text-sm font-medium mb-1">Date *</label>
+              <input
+                type="date"
+                {...ledgerForm.register('entry_date')}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card ${ledgerForm.formState.errors.entry_date ? 'border-red-500' : 'border-border'
+                  }`}
+              />
+              {ledgerForm.formState.errors.entry_date && (
+                <p className="text-xs text-red-500 mt-1">{ledgerForm.formState.errors.entry_date.message}</p>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -952,43 +1144,93 @@ export default function ProjectDetailPage() {
                 type="number"
                 step="0.01"
                 {...ledgerForm.register('amount', { valueAsNumber: true })}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${ledgerForm.formState.errors.amount ? 'border-red-500 transition-colors' : 'border-border'
+                  }`}
               />
+              {ledgerForm.formState.errors.amount && (
+                <p className="text-xs text-red-500 mt-1">{ledgerForm.formState.errors.amount.message}</p>
+              )}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Date *</label>
-              <input type="date" {...ledgerForm.register('entry_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <label className="block text-sm font-medium mb-1">Status</label>
+              <select {...ledgerForm.register('paid_status')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
+                <option value="unpaid">Unpaid</option>
+                <option value="paid">Paid</option>
+              </select>
             </div>
           </div>
           {/* Optional invoice-planning fields */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Qty <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
+              <label className={`block text-sm font-medium mb-1 ${ledgerForm.watch('is_external') ? 'opacity-50' : ''}`}>Qty <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
               <input
                 type="number"
                 step="1"
                 min="1"
                 placeholder="1"
+                disabled={ledgerForm.watch('is_external')}
                 {...ledgerForm.register('quantity', { valueAsNumber: true })}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:bg-muted disabled:cursor-not-allowed ${ledgerForm.formState.errors.quantity ? 'border-red-500' : 'border-border'
+                  }`}
               />
+              {ledgerForm.formState.errors.quantity && (
+                <p className="text-xs text-red-500 mt-1">{ledgerForm.formState.errors.quantity.message}</p>
+              )}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Face Value / Sell Price <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
+              <label className={`block text-sm font-medium mb-1 ${ledgerForm.watch('is_external') ? 'opacity-50' : ''}`}>Face Value / Sell Price <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 placeholder="৳ 0"
+                disabled={ledgerForm.watch('is_external')}
                 {...ledgerForm.register('face_value', { valueAsNumber: true })}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:bg-muted disabled:cursor-not-allowed ${ledgerForm.formState.errors.face_value ? 'border-red-500' : 'border-border'
+                  }`}
               />
+              {ledgerForm.formState.errors.face_value && (
+                <p className="text-xs text-red-500 mt-1">{ledgerForm.formState.errors.face_value.message}</p>
+              )}
             </div>
           </div>
-          <p className="text-[11px] text-muted-foreground -mt-2">💡 Qty &amp; Face Value will auto-fill invoice line items for revenue calculation.</p>
+          <div className="flex items-center gap-2 bg-card p-3 rounded-lg border border-border">
+            <input
+              type="checkbox"
+              id="is_external"
+              {...ledgerForm.register('is_external')}
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+            />
+            <label htmlFor="is_external" className="text-sm font-medium text-foreground cursor-pointer focus:outline-none select-none">
+              Internal / Other Expense <span className="text-xs text-muted-foreground font-normal">(Gross profit hisab a add hobe na)</span>
+            </label>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Note <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
+            <textarea
+              {...ledgerForm.register('note')}
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+              rows={2}
+            />
+          </div>
+          {Object.keys(ledgerForm.formState.errors).length > 0 && (
+            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-3">
+              <p className="text-xs font-semibold text-red-800 dark:text-red-400 mb-1">Please fix the following errors:</p>
+              <ul className="list-disc list-inside text-[11px] text-red-700 dark:text-red-300">
+                {Object.entries(ledgerForm.formState.errors).map(([field, error]) => (
+                  <li key={field} className="capitalize">{field}: {error?.message?.toString() || 'Invalid value'}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => { setIsLedgerOpen(false); setEditingEntry(null); }} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
-            <button type="submit" disabled={saveLedgerMutation.isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
+            <button type="button" onClick={() => { setIsLedgerOpen(false); setEditingEntry(null); }} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted font-medium">Cancel</button>
+            <button
+              type="submit"
+              disabled={saveLedgerMutation.isPending}
+              className="bg-primary text-white font-medium px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60"
+            >
               {saveLedgerMutation.isPending ? 'Saving...' : 'Save Entry'}
             </button>
           </div>
@@ -1149,8 +1391,8 @@ export default function ProjectDetailPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Grand Budget (৳)</label>
-              <input type="number" step="0.01" {...registerEdit('budget')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="0.00" />
+              <label className="block text-sm font-medium mb-1">Invoice Amount (৳)</label>
+              <input type="number" step="0.01" {...registerEdit('invoice_amount')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="0.00" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Advance Received (৳)</label>

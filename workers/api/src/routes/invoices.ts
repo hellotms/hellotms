@@ -91,8 +91,9 @@ async function buildAndStorePdf(
 
     const pdfData: InvoicePdfData = {
       invoiceNumber: invoice.invoice_number,
-      invoiceDate: formatDate(invoice.created_at),
+      invoiceDate: formatDate(invoice.invoice_date ?? invoice.created_at),
       dueDate: invoice.due_date ? formatDate(invoice.due_date) : undefined,
+      subject: invoice.subject ?? undefined,
       type: invoice.type as 'invoice' | 'estimate',
       company: {
         name: invoice.companies?.name ?? 'Client',
@@ -217,7 +218,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
 
     const { data: invoice } = await (supabase as any)
       .from('invoices')
-      .select('invoice_number, total_amount, due_date, companies(name), projects(title)')
+      .select('invoice_number, invoice_date, subject, total_amount, due_date, discount_value, discount_type, companies(name, address), projects(title, location), invoice_items(description, quantity, unit_price, amount), collections(amount, payment_date, method)')
       .eq('id', id)
       .single();
 
@@ -229,13 +230,45 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       .update({ sent_at: new Date().toISOString(), status: 'sent' })
       .eq('id', id);
 
+    // Prepare calculations for the new email template
+    const rawSubtotal = invoice.total_amount || 0;
+    const discountAmt = invoice.discount_type === 'percent'
+      ? rawSubtotal * ((invoice.discount_value || 0) / 100)
+      : (invoice.discount_value || 0);
+    const totalPayable = Math.max(0, rawSubtotal - discountAmt);
+    const collections = invoice.collections || [];
+    const totalPaid = collections.reduce((s: number, p: any) => s + (p.amount || 0), 0);
+    const dueAmountNum = Math.max(0, totalPayable - totalPaid);
+
+    const fmt = (num: number) => `৳ ${Number(num).toLocaleString('en-IN')}`;
+    const cleanStr = (str: string | undefined | null) => str ? str.replace(/[^\x20-\x7E]/g, '') : '';
+    const subjectPrefix = invoice.subject ? invoice.subject : `Invoice for ${invoice.projects?.title}${invoice.projects?.location ? ` at ${invoice.projects?.location}` : ''}`;
+
     // Build and send email with PDF attachment
     const html = buildInvoiceEmailHtml({
       recipientName: recipientName ?? (invoice.companies as any)?.name ?? 'Client',
       invoiceNumber: invoice.invoice_number,
+      invoiceDate: invoice.invoice_date || new Date().toISOString().slice(0, 10),
+      subject: cleanStr(subjectPrefix),
+      companyAddress: cleanStr((invoice.companies as any)?.address),
       projectTitle: (invoice.projects as any)?.title ?? 'Project',
-      totalAmount: `৳ ${Number(invoice.total_amount).toLocaleString('en-IN')}`,
-      dueDate: invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-BD') : 'Please see invoice',
+      subtotal: fmt(rawSubtotal),
+      discount: discountAmt > 0 ? fmt(discountAmt) : '',
+      totalPayable: fmt(totalPayable),
+      totalPaid: fmt(totalPaid),
+      dueAmount: fmt(dueAmountNum),
+      dueAmountNumber: dueAmountNum,
+      items: (invoice.invoice_items || []).map((i: any) => ({
+        description: cleanStr(i.description),
+        qty: i.quantity || 0,
+        unitPrice: fmt(i.unit_price || 0),
+        total: fmt(i.amount || 0),
+      })),
+      collections: collections.map((c: any) => ({
+        date: c.payment_date || '',
+        method: cleanStr(c.method),
+        amount: fmt(c.amount || 0),
+      })),
       downloadUrl: pdfResult.pdfUrl,
       companyName: settings?.hero_title,
       companyUrl: settings?.public_site_url,

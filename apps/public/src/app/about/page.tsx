@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight, Heart, Target, Sparkles, Users } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export const metadata: Metadata = {
   title: 'About Us',
@@ -21,7 +22,11 @@ const MILESTONES = [
   { year: '2024', title: 'Industry Leader', text: '500+ events, 300+ clients, and still growing.' },
 ];
 
-export default function AboutPage() {
+export const revalidate = 60; // Revalidate every minute
+
+export default async function AboutPage() {
+  const { data: settings } = await supabase.from('site_settings').select('*').eq('id', 1).single();
+
   return (
     <div className="pt-16">
       {/* Hero */}
@@ -33,7 +38,7 @@ export default function AboutPage() {
             About <span className="gradient-text">The Marketing Solution</span>
           </h1>
           <p className="text-[var(--muted)] text-lg max-w-2xl mx-auto leading-relaxed">
-            We are Bangladesh's premier event management and marketing agency — a team of passionate creatives, strategic planners, and relentless executors.
+            {settings?.hero_subtitle || 'We are Bangladesh\'s premier event management and marketing agency — a team of passionate creatives, strategic planners, and relentless executors.'}
           </p>
         </div>
       </section>
@@ -65,12 +70,15 @@ export default function AboutPage() {
               <h2 className="text-3xl sm:text-4xl font-black text-[var(--foreground)] mb-5 leading-tight">
                 Transforming Visions Into <span className="gradient-text">Unforgettable Experiences</span>
               </h2>
-              <p className="text-[var(--muted)] leading-relaxed mb-4">
-                Founded in 2016, The Marketing Solution began as a small photography studio with a big dream: to redefine event experiences in Bangladesh. Today, we've grown into a full-service agency trusted by leading corporations, celebrities, and families alike.
-              </p>
-              <p className="text-[var(--muted)] leading-relaxed mb-8">
-                From intimate gatherings to large-scale productions, we bring the same level of passion, professionalism, and creative excellence to every project. Our team of 20+ specialists ensures no detail is overlooked.
-              </p>
+              {settings?.about_content ? (
+                <div className="text-[var(--muted)] leading-relaxed mb-8 whitespace-pre-wrap">
+                  {settings.about_content}
+                </div>
+              ) : (
+                <p className="text-[var(--muted)] leading-relaxed mb-8">
+                  Please update the about story in the administrative dashboard to display your content here.
+                </p>
+              )}
               <Link
                 href="/contact"
                 className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-semibold transition-all hover:shadow-lg hover:shadow-indigo-500/25"

@@ -78,3 +78,16 @@
 ::-webkit-scrollbar-track { @apply bg-muted; }
 ::-webkit-scrollbar-thumb { @apply bg-muted-foreground/30 rounded-full; }
 ::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/50; }
+
+@layer base {
+  /* Hide number input arrows globally */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield; /* Firefox */
+  }
+}
+

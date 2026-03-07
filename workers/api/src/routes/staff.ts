@@ -25,81 +25,170 @@ function generateTempPassword(): string {
 
 // POST /staff/invite — invite with temp password
 staffRoute.post('/invite', requirePermission('manage_staff'), async (c) => {
-  const body = await c.req.json();
-  const parsed = staffInviteSchema.safeParse(body);
+  try {
+    const body = await c.req.json();
+    const parsed = staffInviteSchema.safeParse(body);
 
-  if (!parsed.success) {
-    return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 400);
+    if (!parsed.success) {
+      return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 400);
+    }
+
+    const { email, name, role_id } = parsed.data;
+    const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+
+    // Verify role exists
+    const { data: role, error: roleError } = await supabase.from('roles').select('name').eq('id', role_id).single();
+    if (roleError || !role) {
+      return c.json({ error: 'Selected role is invalid' }, 400);
+    }
+
+    const tempPassword = generateTempPassword();
+
+    // Create Auth User
+    const { data: authData, error: createError } = await supabase.auth.admin.createUser({
+      email,
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: { name, role_id },
+    });
+
+    if (createError) {
+      console.error('[staff/invite] Auth error:', createError);
+      const isConflict = createError.message.includes('already registered') || createError.message.includes('already exists');
+      return c.json({ error: createError.message }, isConflict ? 400 : 500);
+    }
+
+    const userId = authData.user.id;
+
+    // Create Profile
+    const { error: profileError } = await supabase.from('profiles').upsert({
+      id: userId,
+      name,
+      email,
+      role_id,
+      is_active: true,
+      force_password_change: true,
+    });
+
+    if (profileError) {
+      console.error('[staff/invite] Profile error:', profileError);
+      return c.json({ error: 'Failed to create staff profile' }, 500);
+    }
+
+    // Fetch branding
+    const { data: settings } = await supabase
+      .from('site_settings')
+      .select('hero_title, public_site_url')
+      .eq('id', 1)
+      .single();
+
+    const companyName = settings?.hero_title ?? 'Marketing Solution';
+    const companyUrl = settings?.public_site_url ?? 'hellotms.com.bd';
+    const loginUrl = (companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`).replace(/\/$/, '') + '/admin';
+
+    // Send Invite Email
+    const html = buildInviteEmailHtml({
+      recipientName: name,
+      inviteUrl: loginUrl,
+      role: role?.name ?? 'Staff',
+      senderName: companyName,
+      tempPassword,
+      companyName,
+      companyUrl: companyUrl,
+    });
+
+    const emailRes = await sendEmail(c.env.BREVO_API_KEY, c.env.BREVO_SENDER_EMAIL, c.env.BREVO_SENDER_NAME, {
+      to: [{ email, name }],
+      subject: `You're invited to ${companyName} Admin`,
+      htmlContent: html,
+    });
+
+    if (!emailRes.success) {
+      console.warn('[staff/invite] Email failed:', emailRes.error);
+      // We still return 201 because the user was created, but warn about email
+    }
+
+    // Log Action
+    await supabase.from('audit_logs').insert({
+      user_id: c.get('userId'),
+      action: 'staff_invited',
+      entity_type: 'profile',
+      entity_id: userId,
+      after: { email, name, role_id },
+    });
+
+    return c.json({
+      message: emailRes.success ? 'Staff invited successfully' : 'Staff created, but invitation email failed to send',
+      userId,
+      tempPassword
+    }, 201);
+
+  } catch (err: any) {
+    console.error('[staff/invite] Uncaught error:', err);
+    return c.json({ error: err.message || 'Internal Server Error' }, 500);
   }
+});
 
-  const { email, name, role_id } = parsed.data;
+// PUT /staff/:id/role
+staffRoute.put('/:id/role', requirePermission('manage_staff'), async (c) => {
+  const { id } = c.req.param();
+  const { role_id } = await c.req.json();
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
 
-  const { data: role } = await supabase.from('roles').select('name').eq('id', role_id).single();
+  const { error } = await supabase.from('profiles').update({ role_id }).eq('id', id);
+  if (error) return c.json({ error: error.message }, 500);
 
-  const tempPassword = generateTempPassword();
-
-  const { data: createdUser, error: createError } = await supabase.auth.admin.createUser({
-    email,
-    password: tempPassword,
-    email_confirm: true,
-    user_metadata: { name, role_id },
-  });
-
-  if (createError) {
-    console.error('[staff/invite] Error creating user:', createError);
-    return c.json({ error: createError.message }, 500);
-  }
-
-  await (supabase as any).from('profiles').upsert({
-    id: createdUser.user.id,
-    name,
-    email,
-    role_id,
-    is_active: true,
-    force_password_change: true,
-  });
-
-  // Fetch branding from site_settings
-  const { data: settings } = await supabase
-    .from('site_settings')
-    .select('hero_title, public_site_url')
-    .eq('id', 1)
-    .single();
-
-  const companyName = settings?.hero_title ?? 'Marketing Solution';
-  const companyUrl = settings?.public_site_url ?? 'hellotms.com.bd';
-  const loginUrl = (companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`).replace(/\/$/, '') + '/admin';
-
-  const html = buildInviteEmailHtml({
-    recipientName: name,
-    inviteUrl: loginUrl,
-    role: role?.name ?? 'Staff',
-    senderName: companyName,
-    tempPassword,
-    companyName,
-    companyUrl: companyUrl,
-  });
-
-  await sendEmail(c.env.BREVO_API_KEY, c.env.BREVO_SENDER_EMAIL, c.env.BREVO_SENDER_NAME, {
-    to: [{ email, name }],
-    subject: `You're invited to ${companyName} Admin`,
-    htmlContent: html,
+  // Sync to auth.users metadata as well
+  await supabase.auth.admin.updateUserById(id, {
+    user_metadata: { role_id }
   });
 
   await supabase.from('audit_logs').insert({
     user_id: c.get('userId'),
-    action: 'staff_invited',
+    action: 'staff_role_updated',
     entity_type: 'profile',
-    entity_id: createdUser.user.id,
-    after: { email, name, role_id },
+    entity_id: id,
+    after: { role_id },
   });
 
-  return c.json({ message: 'Staff invited successfully', userId: createdUser.user.id, tempPassword }, 201);
+  return c.json({ message: 'Role updated successfully' });
 });
 
-// ... (skipping unchanged code between routes)
-// PUT /staff/:id/role logic, etc.
+// PUT /staff/:id/activate
+staffRoute.put('/:id/activate', requirePermission('manage_staff'), async (c) => {
+  const { id } = c.req.param();
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+
+  const { error } = await supabase.from('profiles').update({ is_active: true }).eq('id', id);
+  if (error) return c.json({ error: error.message }, 500);
+
+  await supabase.from('audit_logs').insert({
+    user_id: c.get('userId'),
+    action: 'staff_activated',
+    entity_type: 'profile',
+    entity_id: id,
+  });
+
+  return c.json({ message: 'Staff member activated' });
+});
+
+// PUT /staff/:id/deactivate
+staffRoute.put('/:id/deactivate', requirePermission('manage_staff'), async (c) => {
+  const { id } = c.req.param();
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+
+  const { error } = await supabase.from('profiles').update({ is_active: false }).eq('id', id);
+  if (error) return c.json({ error: error.message }, 500);
+
+  await supabase.from('audit_logs').insert({
+    user_id: c.get('userId'),
+    action: 'staff_deactivated',
+    entity_type: 'profile',
+    entity_id: id,
+  });
+
+  return c.json({ message: 'Staff member deactivated' });
+});
 
 // ... 
 
@@ -116,12 +205,25 @@ staffRoute.put('/:id/reset-password', async (c) => {
 
   const { data: profile, error: profileErr } = await supabase
     .from('profiles')
-    .select('name, email')
+    .select('name, email, last_password_reset_at')
     .eq('id', id)
     .single();
 
   if (profileErr || !profile) {
     return c.json({ error: 'Staff profile not found' }, 404);
+  }
+
+  // 30-minute cooldown (1800000 ms)
+  if (profile.last_password_reset_at) {
+    const lastReset = new Date(profile.last_password_reset_at).getTime();
+    const now = Date.now();
+    const diff = now - lastReset;
+    const cooldown = 30 * 60 * 1000;
+
+    if (diff < cooldown) {
+      const remaining = Math.ceil((cooldown - diff) / 60000);
+      return c.json({ error: `Please wait ${remaining} minutes before resetting again.` }, 429);
+    }
   }
 
   // Fetch branding
@@ -143,7 +245,11 @@ staffRoute.put('/:id/reset-password', async (c) => {
 
   if (updateAuthErr) return c.json({ error: updateAuthErr.message }, 500);
 
-  await (supabase as any).from('profiles').update({ force_password_change: true }).eq('id', id);
+  // Update profile audit and timestamp
+  await supabase.from('profiles').update({
+    force_password_change: true,
+    last_password_reset_at: new Date().toISOString()
+  }).eq('id', id);
 
   const html = buildPasswordResetEmailHtml({
     recipientName: profile.name,

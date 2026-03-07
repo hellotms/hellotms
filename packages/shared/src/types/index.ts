@@ -46,18 +46,19 @@ export interface Project {
   description?: string | null;
   cover_image_url?: string | null;
   gallery_urls?: string[] | null;
-  category?: string | null;
-  venue?: string | null;
   event_start_date: string; // ISO date
   proposal_date?: string | null;
   event_end_date?: string | null;
   location?: string | null;
   notes?: string | null;
+  category?: string | null;
+  payment_status?: 'paid' | 'unpaid' | null;
+  paid_at?: string | null;
   is_published: boolean;
   is_featured: boolean;
   project_created_at?: string | null;
   project_completed_at?: string | null;
-  budget?: number | null;
+  invoice_amount?: number | null;
   advance_received?: number | null;
   created_by?: string | null;
   created_at: string;
@@ -78,6 +79,7 @@ export interface LedgerEntry {
   paid_status?: PaidStatus | null;
   note?: string | null;
   attachment_url?: string | null;
+  is_external: boolean;
   deleted_at?: string | null;
   created_at: string;
 }
@@ -102,6 +104,8 @@ export interface Invoice {
   project?: Project;
   company?: Company;
   invoice_number: string;
+  subject?: string | null;
+  invoice_date?: string | null;
   type: InvoiceType;
   status: InvoiceStatus;
   total_amount: number;
@@ -120,10 +124,12 @@ export interface Invoice {
 export interface InvoiceItem {
   id: string;
   invoice_id: string;
+  ledger_id?: string | null;
   description: string;
   quantity: number;
   unit_price: number;
   amount: number;
+  cost_price?: number;
 }
 
 export type LeadStatus = 'new' | 'contacted' | 'closed';
@@ -161,9 +167,41 @@ export interface SiteSettings {
   whatsapp?: string | null;
   services: ServiceItem[];
   about_content?: string | null;
+  about_page_config?: AboutPageConfig | null;
   contact_info: ContactInfo;
   socials: Socials;
   updated_at: string;
+}
+
+export interface AboutPageConfig {
+  hero: {
+    badge: string;
+    title_primary: string;
+    title_highlight: string;
+    description: string;
+  };
+  mission: {
+    badge: string;
+    title_primary: string;
+    title_highlight: string;
+    statement: string;
+    description_p1: string;
+    description_p2: string;
+    stats_value: string;
+    stats_label: string;
+  };
+  values: {
+    badge: string;
+    title_primary: string;
+    title_highlight: string;
+    items: { title: string; text: string; icon: string }[];
+  };
+  journey: {
+    badge: string;
+    title_primary: string;
+    title_highlight: string;
+    milestones: { year: string; title: string; text: string }[];
+  };
 }
 
 export interface Notice {
@@ -235,13 +273,16 @@ export interface HealthLog {
 
 export interface ProjectFinancials {
   project_id: string;
-  total_income: number;
-  total_expense: number;
-  profit: number;
-  total_collected: number;
-  due: number;
-  first_payment_date?: string | null;
-  last_payment_date?: string | null;
+  invoice_amount: number;
+  received: number;
+  total_standard_expense: number;
+  others_expense: number;
+  due_client: number;
+  due_vendor: number;
+  gross_profit: number;
+  net_profit: number;
+  profit_ratio: number;
+  turnover_days: number | null;
 }
 
 export interface ProjectDurations {
@@ -254,10 +295,12 @@ export interface ProjectDurations {
 }
 
 export interface DashboardKPIs {
-  total_revenue: number;
-  total_expense: number;
+  total_revenue: number; // Sum of collections + advance
+  total_expense: number; // Sum of standard expenses
+  total_others_expense: number;
+  gross_profit: number;
   net_profit: number;
-  total_due: number;
+  total_due: number; // Client due
   active_projects: number;
   completed_projects: number;
   leads_count: number;

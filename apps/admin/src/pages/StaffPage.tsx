@@ -6,7 +6,6 @@ import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { cn, getInitials, formatDate } from '@/lib/utils';
 import { ShieldCheck, Users } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type StaffMember = {
@@ -25,34 +24,6 @@ type Role = {
   label: string;
   permissions: Record<string, boolean>;
 };
-
-// ─── All available permission keys ────────────────────────────────────────────
-const ALL_PERMISSIONS: { key: string; label: string; group: string }[] = [
-  { key: 'view_dashboard', label: 'View Dashboard', group: 'Dashboard' },
-  { key: 'view_reports', label: 'View Reports', group: 'Dashboard' },
-  { key: 'manage_companies', label: 'Manage Companies', group: 'Companies' },
-  { key: 'manage_projects', label: 'Manage Projects', group: 'Projects' },
-  { key: 'view_projects', label: 'View Projects', group: 'Projects' },
-  { key: 'manage_ledger', label: 'Manage Ledger', group: 'Finance' },
-  { key: 'view_ledger', label: 'View Ledger', group: 'Finance' },
-  { key: 'manage_invoices', label: 'Manage Invoices', group: 'Finance' },
-  { key: 'send_invoice', label: 'Send Invoices', group: 'Finance' },
-  { key: 'manage_staff', label: 'Manage Staff', group: 'Staff' },
-  { key: 'view_staff', label: 'View Staff', group: 'Staff' },
-  { key: 'manage_roles', label: 'Manage Roles', group: 'Staff' },
-  { key: 'manage_leads', label: 'Manage Contact Forms', group: 'Leads' },
-  { key: 'view_leads', label: 'View Leads', group: 'Leads' },
-  { key: 'manage_cms', label: 'Manage CMS', group: 'Settings' },
-  { key: 'manage_settings', label: 'Manage Settings', group: 'Settings' },
-  { key: 'manage_notices', label: 'Manage Notices', group: 'Notices' },
-  { key: 'view_notices', label: 'View Notices', group: 'Notices' },
-  { key: 'view_audit_logs', label: 'View Audit Logs', group: 'Settings' },
-];
-
-const PERMISSION_GROUPS = Array.from(new Set(ALL_PERMISSIONS.map((p) => p.group)));
-
-const TABS = ['Staff', 'Roles'] as const;
-type Tab = (typeof TABS)[number];
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function StaffPage() {
@@ -89,8 +60,6 @@ export default function StaffPage() {
     }
 
     // 2. Hierarchical Sorting
-    // Priority: super_admin (1), admin (2), active others (3), inactive (4)
-    // Within groups, by created_at (joining date)
     return list.sort((a, b) => {
       const getPriority = (s: StaffMember) => {
         if (s.roles?.name === 'super_admin') return 1;
@@ -108,8 +77,6 @@ export default function StaffPage() {
     });
   }, [staff, roleFilter]);
 
-
-
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -121,15 +88,15 @@ export default function StaffPage() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="flex items-center gap-4 bg-card border border-border p-4 rounded-xl">
+      <div className="flex items-center gap-4 bg-card border border-border p-4 rounded-xl shadow-sm">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+          <ShieldCheck className="h-4 w-4 text-primary" />
           <span className="text-sm font-medium text-muted-foreground">Filter by Role:</span>
         </div>
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          className="bg-muted border-none rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary min-w-[150px]"
+          className="bg-muted border-none rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary min-w-[150px] outline-none"
         >
           <option value="all">All Roles</option>
           {roles.map(r => (

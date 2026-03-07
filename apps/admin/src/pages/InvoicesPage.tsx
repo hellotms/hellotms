@@ -84,33 +84,52 @@ export default function InvoicesPage() {
     : allProjects;
 
   // Auto-fetch ledger entries when project is selected
+  // Only fetch STANDARD expenses (is_external=false). "Others Expenses" should never appear on an invoice.
   const { data: ledgerEntries = [], isFetching: ledgerLoading } = useQuery<LedgerRow[]>({
     queryKey: ['ledger-for-invoice', selectedProjectId],
     queryFn: async () => {
       if (!selectedProjectId) return [];
       const { data } = await supabase
         .from('ledger_entries')
-        .select('id, category, amount, note, entry_date, quantity, face_value')
+        .select('id, category, amount, note, entry_date, quantity, face_value, is_external')
         .eq('project_id', selectedProjectId)
         .eq('type', 'expense')
+        .eq('is_external', false)   // ← exclude "Others Expenses"
         .is('deleted_at', null)
         .order('entry_date', { ascending: true });
-      return (data ?? []) as LedgerRow[];
+      // Safety JS filter in case is_external column is not yet in DB
+      return ((data ?? []) as any[]).filter(e => e.is_external === false || e.is_external === null) as LedgerRow[];
     },
     enabled: !!selectedProjectId,
   });
 
-  // Fetch project details for advance payment
+  // Fetch project details for advance payment and invoice amount
   const { data: projectDetails } = useQuery({
     queryKey: ['invoice-project-details', selectedProjectId],
     queryFn: async () => {
       if (!selectedProjectId) return null;
       const { data } = await supabase
         .from('projects')
-        .select('advance_received')
+        .select('advance_received, invoice_amount, payment_status, paid_at, proposal_date, event_start_date')
         .eq('id', selectedProjectId)
         .single();
       return data;
+    },
+    enabled: !!selectedProjectId,
+  });
+
+  // Fetch Others Expenses (is_external=true) for KPI summary only
+  const { data: othersLedger = [] } = useQuery<{ amount: number; paid_status: string | null }[]>({
+    queryKey: ['others-expenses-for-invoice', selectedProjectId],
+    queryFn: async () => {
+      if (!selectedProjectId) return [];
+      const { data } = await supabase
+        .from('ledger_entries')
+        .select('amount, paid_status, is_external')
+        .eq('project_id', selectedProjectId)
+        .eq('type', 'expense')
+        .is('deleted_at', null);
+      return ((data ?? []) as any[]).filter(e => e.is_external === true) as { amount: number; paid_status: string | null }[];
     },
     enabled: !!selectedProjectId,
   });
@@ -204,26 +223,84 @@ export default function InvoicesPage() {
   const addBlankItem = () => setLineItems(prev => [...prev, { description: '', costPrice: 0, quantity: 1, unit_price: 0, amount: 0 }]);
 
   const subtotal = lineItems.reduce((s, item) => s + item.amount, 0);
-  const totalCost = lineItems.reduce((s, item) => s + (item.costPrice * item.quantity), 0);
+  const totalStdCost = lineItems.reduce((s, item) => s + (item.costPrice * item.quantity), 0);
   const discountAmt = discountType === 'percent'
     ? subtotal * (discountValue / 100)
     : discountValue;
-  const totalPayable = Math.max(0, subtotal - discountAmt - totalReceived);
-  const adminProfit = subtotal - discountAmt - totalCost;
+
+  // Project-level financials (matching ProjectDetailPage logic)
+  const invoiceAmountFromProject = Number(projectDetails?.invoice_amount || 0);
+  const othersExpense = othersLedger.reduce((s, e) => s + Number(e.amount), 0);
+  const dueVendor = othersLedger.filter(e => e.paid_status === 'unpaid').reduce((s, e) => s + Number(e.amount), 0);
+  const dueClient = Math.max(0, invoiceAmountFromProject - totalReceived);
+  const grossProfit = invoiceAmountFromProject - totalStdCost;
+  const netExpenses = totalStdCost + othersExpense;
+  const netProfit = invoiceAmountFromProject - netExpenses;
+  const profitRatio = invoiceAmountFromProject > 0 ? (netProfit / invoiceAmountFromProject) * 100 : 0;
+
+  // Turnover Days
+  const isPaid = projectDetails?.payment_status === 'paid';
+  let turnoverDays: number | null = null;
+  const startDateStr = projectDetails?.proposal_date || projectDetails?.event_start_date;
+  if (startDateStr) {
+    const start = new Date(startDateStr);
+    let end = new Date();
+    if (isPaid && projectDetails?.paid_at) {
+      end = new Date(projectDetails.paid_at);
+    } else if (invoiceAmountFromProject > 0 && totalReceived >= invoiceAmountFromProject && collections.length > 0) {
+      // Fallback if fully paid without explicit paid_at
+      end = new Date(Math.max(...(collections as any[]).map((c: any) => new Date(c.payment_date ?? c.created_at).getTime())));
+    }
+    turnoverDays = Math.max(0, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+  }
+
+  // Invoice-level preview (what the invoice itself will show)
+  const invoiceSubtotal = subtotal;
+  const invoiceTotalPayable = Math.max(0, subtotal - discountAmt);
+  const adminProfit = subtotal - discountAmt - totalStdCost;
 
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!selectedCompanyId || !selectedProjectId) throw new Error('Please select a Company and Project.');
       if (lineItems.every(i => i.amount === 0)) throw new Error('At least one line item must have a price.');
 
-      const items = lineItems.map(i => ({
-        description: i.description,
-        quantity: i.quantity,
-        unit_price: i.unit_price,
-        amount: i.amount,
-      }));
-
       const { data: { user } } = await supabase.auth.getUser();
+
+      // 1. Pre-process items to create ledger entries for manual costs
+      const processedItems = await Promise.all(lineItems.map(async (i) => {
+        let finalLedgerId = i.ledger_id;
+
+        // If it's a manual item newly added here and has a cost, create an expense for it
+        if (!finalLedgerId && i.costPrice > 0) {
+          const { data: newLedger, error: ledgerErr } = await supabase
+            .from('ledger_entries')
+            .insert({
+              project_id: selectedProjectId,
+              type: 'expense',
+              category: i.description || 'Invoice Item Cost',
+              amount: i.costPrice,
+              quantity: i.quantity,
+              face_value: i.unit_price,
+              entry_date: new Date().toISOString().slice(0, 10),
+              paid_status: 'unpaid',
+              is_external: false,
+            })
+            .select('id')
+            .single();
+
+          if (ledgerErr) throw ledgerErr;
+          finalLedgerId = newLedger.id;
+        }
+
+        return {
+          description: i.description,
+          quantity: i.quantity,
+          unit_price: i.unit_price,
+          amount: i.amount,
+          cost_price: i.costPrice,
+          ledger_id: finalLedgerId,
+        };
+      }));
 
       // 1. Create Invoice
       const { data: inv, error } = await supabase
@@ -246,13 +323,13 @@ export default function InvoicesPage() {
       if (error) throw error;
 
       // 2. Create Invoice Items
-      if (items.length > 0) {
-        await supabase.from('invoice_items').insert(items.map(i => ({ ...i, invoice_id: inv.id })));
+      if (processedItems.length > 0) {
+        await supabase.from('invoice_items').insert(processedItems.map(i => ({ ...i, invoice_id: inv.id })));
       }
 
-      // 3. Sync back to Ledger (Update face_value and quantity)
+      // 3. Sync back to Ledger (Update face_value and quantity for PRE-EXISTING items)
       const syncTasks = lineItems
-        .filter(item => item.ledger_id)
+        .filter(item => item.ledger_id) // only update items that were already linked
         .map(item =>
           supabase
             .from('ledger_entries')
@@ -302,9 +379,31 @@ export default function InvoicesPage() {
       });
       if (trashError) throw trashError;
 
-      // 2. Soft delete
+      // 2. Soft delete the invoice itself
       const { error } = await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', invoice.id);
       if (error) throw error;
+
+      // 3. Find and soft delete linked ledger entries
+      const { data: items } = await supabase.from('invoice_items').select('ledger_id').eq('invoice_id', invoice.id).not('ledger_id', 'is', null);
+      if (items && items.length > 0) {
+        const ledgerIds = items.map(i => i.ledger_id).filter(Boolean) as string[];
+        if (ledgerIds.length > 0) {
+          // Push to trash bin for ledger entries too
+          const { data: ledgersToTrash } = await supabase.from('ledger_entries').select('*').in('id', ledgerIds);
+          if (ledgersToTrash && ledgersToTrash.length > 0) {
+            await supabase.from('trash_bin').insert(
+              ledgersToTrash.map(l => ({
+                entity_type: 'ledger_entry',
+                entity_id: l.id,
+                entity_name: `Expense: ${l.category}`,
+                entity_data: l,
+                deleted_by: profile?.id,
+              }))
+            );
+          }
+          await supabase.from('ledger_entries').update({ deleted_at: new Date().toISOString() }).in('id', ledgerIds);
+        }
+      }
     },
     onSuccess: (_, invoice) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
@@ -474,7 +573,7 @@ export default function InvoicesPage() {
                       Cost Price
                       <span className="ml-1 text-[10px] bg-amber-100 dark:bg-amber-500/20 text-amber-700 px-1 py-0.5 rounded font-normal">admin only</span>
                     </th>
-                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-16">Qty</th>
+                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">Qty</th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-28">Sell Price (৳)</th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">Total</th>
                     <th className="w-8"></th>
@@ -482,20 +581,26 @@ export default function InvoicesPage() {
                 </thead>
                 <tbody>
                   {lineItems.map((item, i) => (
-                    <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/20">
+                    <tr key={i} className={`border-b border-border last:border-0 hover:bg-muted/20 ${item.ledger_id ? 'bg-primary/5' : ''}`}>
                       <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
                       <td className="px-3 py-2">
                         <input
                           value={item.description}
                           onChange={e => updateItem(i, 'description', e.target.value)}
                           placeholder="Description"
-                          className="w-full border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                          className="w-full border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring bg-transparent"
                         />
                       </td>
                       <td className="px-3 py-2">
-                        <span className="inline-flex items-center px-2 py-1 rounded bg-muted text-muted-foreground font-mono text-[11px]">
-                          {item.costPrice > 0 ? formatBDT(item.costPrice) : '—'}
-                        </span>
+                        <input
+                          type="number"
+                          value={item.costPrice || ''}
+                          onChange={e => updateItem(i, 'costPrice', Number(e.target.value))}
+                          placeholder="0"
+                          disabled={!!item.ledger_id}
+                          className="w-full border border-border rounded px-2 py-1 text-xs bg-transparent disabled:opacity-60"
+                          title={item.ledger_id ? "Sourced from ledger, cannot edit cost here" : "Enter cost price"}
+                        />
                       </td>
                       <td className="px-3 py-2">
                         <input
@@ -580,23 +685,21 @@ export default function InvoicesPage() {
 
           {/* Totals Summary */}
           <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col items-end gap-1.5 text-sm relative overflow-hidden">
-            {/* Admin Profit Badge */}
-            <div className="absolute top-4 left-4 border border-emerald-200 border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 px-3 py-2 rounded-lg text-xs">
-              <span className="block font-semibold mb-0.5">Admin Profit Prediction</span>
-              <span className="font-mono text-sm">{formatBDT(adminProfit)}</span>
-              <span className="block text-[10px] opacity-70 mt-0.5">Not printed on invoice</span>
-            </div>
+            {/* Admin Profit Badge - visible only if project selected */}
+            {selectedProjectId && (
+              <div className="absolute top-4 left-4 border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 px-3 py-2 rounded-lg text-xs">
+                <span className="block font-semibold mb-0.5">Admin Profit Estimate</span>
+                <span className="font-mono text-sm">{formatBDT(adminProfit)}</span>
+                <span className="block text-[10px] opacity-70 mt-0.5">Not printed on invoice</span>
+              </div>
+            )}
 
             <div className="flex justify-between w-64">
               <span className="text-muted-foreground">Sub Total:</span>
               <span className="font-medium">{formatBDT(subtotal)}</span>
             </div>
-            <div className="flex justify-between w-64 text-muted-foreground text-xs border-b border-border/50 pb-1.5 mb-0.5">
-              <span>Total Cost Price:</span>
-              <span className="font-mono">{formatBDT(totalCost)}</span>
-            </div>
             {discountAmt > 0 && (
-              <div className="flex justify-between w-64 text-red-600 text-red-600 dark:text-red-400">
+              <div className="flex justify-between w-64 text-red-600 dark:text-red-400">
                 <span>Discount:</span>
                 <span>− {formatBDT(discountAmt)}</span>
               </div>
@@ -609,7 +712,9 @@ export default function InvoicesPage() {
             )}
             <div className="flex justify-between w-64 border-t border-primary/20 pt-1.5">
               <span className="font-semibold text-foreground">Total Payable:</span>
-              <span className="font-bold text-lg text-primary">{formatBDT(totalPayable)}</span>
+              <span className="font-bold text-lg text-primary">
+                {formatBDT(Math.max(0, subtotal - discountAmt - totalReceived))}
+              </span>
             </div>
           </div>
 

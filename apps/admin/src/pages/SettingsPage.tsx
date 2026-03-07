@@ -1,25 +1,21 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
+import { User } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useForm } from 'react-hook-form';
-import { User, Lock, Database, Bell, Sliders } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import { mediaApi } from '@/lib/api';
 import { toast } from '@/components/Toast';
 import { ImageUpload } from '@/components/ImageUpload';
 import { getInitials } from '@/lib/utils';
-import { mediaApi, auditApi } from '@/lib/api';
 
 export default function SettingsPage() {
   const { user, profile, refreshProfile } = useAuth();
-  const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile'>('profile');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [isEditingInvoice, setIsEditingInvoice] = useState(false);
   const [pwSaved, setPwSaved] = useState(false);
   const [pwError, setPwError] = useState('');
-  const [padMarginTop, setPadMarginTop] = useState(150);
-  const [padMarginBottom, setPadMarginBottom] = useState(100);
 
   const profileForm = useForm({
     defaultValues: {
@@ -36,7 +32,6 @@ export default function SettingsPage() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (values: { name: string; avatar_url: string | File | null; phone?: string; address?: string }) => {
-      // Handle potential image upload
       const finalAvatarUrl = await mediaApi.uploadAndCleanMedia(
         values.avatar_url,
         profile?.avatar_url,
@@ -59,66 +54,6 @@ export default function SettingsPage() {
     onError: (e: Error) => toast(e.message, 'error'),
   });
 
-  const updatePublicUrlMutation = useMutation({
-    mutationFn: async (url: string) => {
-      const { error } = await supabase.from('site_settings').update({ public_site_url: url }).eq('id', 1);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['site-settings-layout'] });
-      toast('Public site URL updated!', 'success');
-    },
-    onError: (e: Error) => toast(e.message, 'error'),
-  });
-
-  const { data: siteSettings, refetch: refetchSettings } = useQuery({
-    queryKey: ['site-settings'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('site_settings').select('*').eq('id', 1).single();
-      if (error) throw error;
-      if (data) {
-        setPadMarginTop(data.pad_margin_top ?? 150);
-        setPadMarginBottom(data.pad_margin_bottom ?? 100);
-      }
-      return data;
-    },
-  });
-
-  const updatePadMutation = useMutation({
-    mutationFn: async (payload: { url?: string | File | null; top?: number; bottom?: number }) => {
-      const updateData: any = {};
-
-      if (payload.url !== undefined) {
-        updateData.invoice_pad_url = await mediaApi.uploadAndCleanMedia(
-          payload.url,
-          siteSettings?.invoice_pad_url,
-          'site',
-          'pad',
-          'invoice-pad'
-        );
-      }
-
-      if (payload.top !== undefined) updateData.pad_margin_top = payload.top;
-      if (payload.bottom !== undefined) updateData.pad_margin_bottom = payload.bottom;
-
-      const { error } = await supabase.from('site_settings').update(updateData).eq('id', 1);
-      if (error) throw error;
-
-      auditApi.log({
-        action: 'update_invoice_pad_settings',
-        entity_type: 'site_settings',
-        entity_id: '1',
-        after: updateData
-      });
-    },
-    onSuccess: () => {
-      refetchSettings();
-      setIsEditingInvoice(false);
-      toast('Invoice Pad settings updated!', 'success');
-    },
-    onError: (e: Error) => toast(e.message, 'error'),
-  });
-
   const updatePasswordMutation = useMutation({
     mutationFn: async (values: { new_password: string; confirm_password: string }) => {
       if (values.new_password !== values.confirm_password) throw new Error('Passwords do not match');
@@ -136,134 +71,117 @@ export default function SettingsPage() {
   });
 
   const TABS = [
-    { id: 'profile', label: 'Profile Settings', icon: User },
-    { id: 'password', label: 'Security', icon: Lock },
+    { id: 'profile', label: 'My Account Settings', icon: User },
   ] as const;
 
   return (
-    <div>
-      <PageHeader title="Settings" description="Manage your account and application preferences" />
+    <div className="space-y-6">
+      <PageHeader
+        title="Account Settings"
+        description="Manage your personal profile and security"
+      />
 
-      <div className="flex gap-1 border-b border-border mb-6">
+      <div className="flex flex-wrap gap-1 border-b border-border">
         {TABS.map(tab => {
           const Icon = tab.icon;
           return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-6 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === tab.id ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
+            >
               <Icon className="h-4 w-4" /> {tab.label}
             </button>
           );
         })}
       </div>
 
-      {/* Profile Tab */}
-      {activeTab === 'profile' && (
-        <div className="max-w-xl">
-          <div className="bg-card border border-border rounded-xl p-6 space-y-5">
-            <div className="flex items-center gap-4">
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="Avatar" className="w-16 h-16 rounded-full object-cover" />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl font-bold">
-                  {getInitials(profile?.name ?? 'U')}
-                </div>
-              )}
-              <div>
-                <p className="font-semibold">{profile?.name}</p>
-                <p className="text-sm text-muted-foreground">{user?.email}</p>
-              </div>
+      <div className="py-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        {activeTab === 'profile' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-6xl">
+            <div className="lg:col-span-2 space-y-6">
+              <section className="bg-card border border-border rounded-xl p-6">
+                <h3 className="text-lg font-bold mb-6">Personal Information</h3>
+                <form onSubmit={profileForm.handleSubmit((v) => updateProfileMutation.mutate(v))} className="space-y-6">
+                  <div className="flex items-center gap-6 pb-6 border-b border-border">
+                    {profileForm.watch('avatar_url') || profile?.avatar_url ? (
+                      <img src={profileForm.watch('avatar_url') || profile?.avatar_url || ''} alt="Avatar" className="w-20 h-20 rounded-2xl object-cover ring-4 ring-muted shadow-lg" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-2xl font-black">
+                        {getInitials(profile?.name ?? 'U')}
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-muted-foreground uppercase mb-2">Profile Photo</label>
+                      <ImageUpload
+                        value={profileForm.watch('avatar_url')}
+                        onChange={(val) => profileForm.setValue('avatar_url', val as string, { shouldDirty: true })}
+                        disabled={!isEditingProfile}
+                        aspect={1}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Full Name</label>
+                      <input {...profileForm.register('name')} disabled={!isEditingProfile} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-muted/30" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Email Address</label>
+                      <input value={user?.email} disabled className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm outline-none cursor-not-allowed" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Mobile No.</label>
+                      <input {...profileForm.register('phone')} disabled={!isEditingProfile} placeholder="+8801..." className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-muted/30" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Address</label>
+                      <input {...profileForm.register('address')} disabled={!isEditingProfile} placeholder="Dhaka, Bangladesh" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-muted/30" />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
+                    {!isEditingProfile ? (
+                      <button type="button" onClick={() => setIsEditingProfile(true)} className="px-6 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-sm font-bold transition-all">Edit Profile</button>
+                    ) : (
+                      <>
+                        <button type="button" onClick={() => { setIsEditingProfile(false); profileForm.reset(); }} className="px-6 py-2 border border-border rounded-lg text-sm font-bold hover:bg-muted transition-all">Cancel</button>
+                        <button type="submit" disabled={updateProfileMutation.isPending} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 disabled:opacity-60 transition-all">{updateProfileMutation.isPending ? 'Saving...' : 'Save Changes'}</button>
+                      </>
+                    )}
+                  </div>
+                </form>
+              </section>
             </div>
 
-            <form onSubmit={profileForm.handleSubmit((v) => updateProfileMutation.mutate(v))} className="space-y-4 pt-4 border-t border-border">
-              <div>
-                <label className="block text-sm font-medium mb-1">Full Name</label>
-                <input {...profileForm.register('name')} disabled={!isEditingProfile} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:bg-muted/30" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Mobile No.</label>
-                  <input {...profileForm.register('phone')} disabled={!isEditingProfile} placeholder="+8801..." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:bg-muted/30" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Address</label>
-                  <input {...profileForm.register('address')} disabled={!isEditingProfile} placeholder="123 Dhaka, BD..." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:bg-muted/30" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Profile Photo</label>
-                <div className="w-full max-w-sm">
-                  <ImageUpload
-                    value={profileForm.watch('avatar_url')}
-                    onChange={(val) => profileForm.setValue('avatar_url', val as string, { shouldDirty: true })}
-                    label=""
-                    disabled={!isEditingProfile}
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                {!isEditingProfile ? (
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingProfile(true)}
-                    className="px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
-                  >
-                    Edit Profile
+            <div className="space-y-6">
+              <section className="bg-card border border-border rounded-xl p-6">
+                <h3 className="text-lg font-bold mb-6">Security</h3>
+                <form onSubmit={passwordForm.handleSubmit((v) => updatePasswordMutation.mutate(v))} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Current Password</label>
+                    <input type="password" {...passwordForm.register('current_password', { required: true })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">New Password</label>
+                    <input type="password" {...passwordForm.register('new_password', { required: true })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Confirm New Password</label>
+                    <input type="password" {...passwordForm.register('confirm_password', { required: true })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                  </div>
+                  {pwError && <p className="text-xs text-destructive font-bold">{pwError}</p>}
+                  {pwSaved && <p className="text-xs text-green-600 font-bold">✓ Password changed successfully</p>}
+                  <button type="submit" disabled={updatePasswordMutation.isPending} className="w-full py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 disabled:opacity-60 transition-all">
+                    {updatePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
                   </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditingProfile(false);
-                        profileForm.reset();
-                      }}
-                      className="px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={updateProfileMutation.isPending}
-                      className="px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90 disabled:opacity-60"
-                    >
-                      {updateProfileMutation.isPending ? 'Saving...' : 'Save Changes'}
-                    </button>
-                  </>
-                )}
-              </div>
-            </form>
+                </form>
+              </section>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Password Tab */}
-      {activeTab === 'password' && (
-        <div className="max-w-md">
-          <div className="bg-card border border-border rounded-xl p-6">
-            <h3 className="font-semibold mb-4">Change Password</h3>
-            <form onSubmit={passwordForm.handleSubmit((v) => updatePasswordMutation.mutate(v))} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Current Password</label>
-                <input type="password" {...passwordForm.register('current_password', { required: true })} placeholder="Verify identity" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">New Password</label>
-                <input type="password" {...passwordForm.register('new_password', { required: true })} placeholder="Min. 8 characters" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Confirm New Password</label>
-                <input type="password" {...passwordForm.register('confirm_password', { required: true })} placeholder="Repeat password" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-              </div>
-              {pwError && <p className="text-sm text-destructive">{pwError}</p>}
-              {pwSaved && <p className="text-sm text-green-600 text-green-600 dark:text-green-400">✓ Password changed successfully</p>}
-              <button type="submit" disabled={updatePasswordMutation.isPending} className="w-full py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-60">
-                {updatePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
+        )}
+      </div>
     </div>
   );
 }

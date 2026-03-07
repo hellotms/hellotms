@@ -11,6 +11,7 @@ export interface InvoicePdfData {
   invoiceNumber: string;
   invoiceDate: string;
   dueDate?: string;
+  subject?: string;
   type: 'invoice' | 'estimate';
   company: {
     name: string;
@@ -49,12 +50,31 @@ export interface InvoicePdfData {
 function cleanText(val: any): string {
   if (val === null || val === undefined) return '';
   const str = String(val);
-  // Keep standard ASCII 32-126 and high-order WinAnsi for basic latin
   return str.replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ');
 }
 
 function fmtBDT(n: number): string {
   return `BDT ${Math.round(n || 0).toLocaleString('en-IN')}`;
+}
+
+function numberToWords(num: number): string {
+  if (num === 0) return 'Zero';
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+    'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const conv = (n: number): string => {
+    if (n < 20) return a[n];
+    if (n < 100) return b[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + a[n % 10] : '');
+    if (n < 1000) return a[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' and ' + conv(n % 100) : '');
+    return '';
+  };
+  const proc = (n: number): string => {
+    if (n < 1000) return conv(n);
+    if (n < 100000) return conv(Math.floor(n / 1000)) + ' Thousand ' + conv(n % 1000);
+    if (n < 10000000) return conv(Math.floor(n / 100000)) + ' Lakh ' + proc(n % 100000);
+    return conv(Math.floor(n / 10000000)) + ' Crore ' + proc(n % 10000000);
+  };
+  return proc(Math.floor(num)).trim();
 }
 
 export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Array> {
@@ -143,65 +163,75 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
     }
   }
 
-  // ── Billing and Project info ──────────────────────────────────────────────
+  // ── Billing and Project info — matches the webview layout ─────────────────
   const billX = margin;
-  const infoX = width - 180; // Adjusted for better alignment
+  const rightEdge = width - margin;
 
-  const labelSize = 8;
-  const subContentSize = 9;
+  // ── Record the top Y so right side can be drawn at same baseline ──────────
+  const headerTopY = y;
 
-  // 1. Labels
-  page.drawText('BILLED TO', { x: billX, y, size: labelSize, font: boldFont, color: blue });
-  page.drawText('INVOICE INFO', { x: infoX, y, size: labelSize, font: boldFont, color: blue });
+  // LEFT SIDE: INVOICE TO label
+  page.drawText('INVOICE TO', { x: billX, y, size: 7, font: boldFont, color: gray });
+  y -= 14;
 
-  y -= 16;
-
-  // 2. Company Name & Invoice Number
+  // Company Name (bold, larger)
   const companyName = cleanText(data.company.name);
   const truncCompany = companyName.length > 50 ? companyName.slice(0, 47) + '...' : companyName;
-  page.drawText(truncCompany, { x: billX, y, size: 12, font: boldFont, color: dark });
-  page.drawText(`INV: ${cleanText(data.invoiceNumber)}`, { x: infoX, y, size: 10, font: regularFont, color: dark });
+  page.drawText(truncCompany, { x: billX, y, size: 13, font: boldFont, color: dark });
+  y -= 14;
 
-  y -= 16;
-
-  // 3. Address & Date
+  // Address
   if (data.company.address) {
     const addr = cleanText(data.company.address);
-    const addrLines = addr.match(new RegExp(`.{1,${60}}`, 'g')) ?? [addr];
-    addrLines.slice(0, 1).forEach(line => {
-      page.drawText(line, { x: billX, y, size: subContentSize, font: regularFont, color: gray });
-    });
-  }
-  page.drawText(`DATE: ${cleanText(data.invoiceDate)}`, { x: infoX, y, size: 10, font: regularFont, color: dark });
-
-  y -= 15;
-
-  // 4. Project Info & Due Date
-  const projectTitle = cleanText(data.project.title);
-  const locationText = data.project.location ? ` at ${cleanText(data.project.location)}` : '';
-  const projectLine = `${projectTitle}${locationText}`;
-  const truncProj = projectLine.length > 65 ? projectLine.slice(0, 62) + '...' : projectLine;
-
-  page.drawText('PROJECT:', { x: billX, y, size: 8, font: boldFont, color: blue });
-  page.drawText(truncProj, { x: billX + 45, y, size: 9, font: regularFont, color: dark });
-
-  if (data.dueDate) {
-    page.drawText(`DUE: ${cleanText(data.dueDate)}`, { x: infoX, y, size: 10, font: boldFont, color: red });
+    const truncAddr = addr.length > 70 ? addr.slice(0, 67) + '...' : addr;
+    page.drawText(truncAddr, { x: billX, y, size: 9, font: regularFont, color: gray });
+    y -= 13;
   }
 
-  y -= 15;
+  // Phone and Email removed per user request
 
-  // 5. Contact Info
-  let contactLine = '';
-  if (data.company.phone) contactLine += `Tel: ${cleanText(data.company.phone)}`;
-  if (data.company.email) contactLine += `${contactLine ? ' | ' : ''}Email: ${cleanText(data.company.email)}`;
+  // Add extra space before Subject line as requested
+  y -= 25;
 
-  if (contactLine) {
-    const truncContact = contactLine.length > 70 ? contactLine.slice(0, 67) + '...' : contactLine;
-    page.drawText(truncContact, { x: billX, y, size: 8, font: regularFont, color: gray });
-  }
+  // Subject line
+  const subjectText = data.subject
+    ? cleanText(data.subject)
+    : `Invoice for ${cleanText(data.project.title)}${data.project.location ? ` at ${cleanText(data.project.location)}` : ''}`;
+  const truncSubject = subjectText.length > 70 ? subjectText.slice(0, 67) + '...' : subjectText;
+  page.drawText('Sub: ', { x: billX, y, size: 8, font: boldFont, color: dark });
+  page.drawText(truncSubject, { x: billX + 26, y, size: 8, font: regularFont, color: dark });
 
-  y -= 24;
+  // RIGHT SIDE: drawn relative to headerTopY (same top baseline as left)
+  // Big "INVOICE" text, right-aligned
+  const invoiceLabel = data.type === 'estimate' ? 'ESTIMATE' : 'INVOICE';
+  const invLabelSize = 28;
+  page.drawText(invoiceLabel, {
+    x: rightEdge - boldFont.widthOfTextAtSize(invoiceLabel, invLabelSize),
+    y: headerTopY - 2, size: invLabelSize, font: boldFont, color: dark,
+  });
+
+  // Date row
+  const dateRowY = headerTopY - 38;
+  page.drawText('Date', { x: rightEdge - 130, y: dateRowY, size: 9, font: boldFont, color: gray });
+  const dateVal = cleanText(data.invoiceDate);
+  page.drawText(dateVal, {
+    x: rightEdge - regularFont.widthOfTextAtSize(dateVal, 9),
+    y: dateRowY, size: 9, font: regularFont, color: dark,
+  });
+
+  // INV NO# row
+  const invRowY = headerTopY - 54;
+  page.drawText('INV NO#', { x: rightEdge - 130, y: invRowY, size: 9, font: boldFont, color: gray });
+  const invVal = cleanText(data.invoiceNumber);
+  page.drawText(invVal, {
+    x: rightEdge - boldFont.widthOfTextAtSize(invVal, 9),
+    y: invRowY, size: 9, font: boldFont, color: blue,
+  });
+
+  // PROJECT row removed per user request.
+
+  // Push Y below both columns (left side subject is now the lowest point)
+  y = Math.min(y, invRowY) - 16;
 
   // ── Divider ────────────────────────────────────────────────────────────────
   page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
@@ -235,7 +265,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
 
   y -= 10;
 
-  // ── Totals Section ─────────────────────────────────────────────────────────
+  // ── Totals Section & Other Comments (Side-by-Side) ────────────────────────
   const subtotal = data.totalAmount ?? 0;
   const discountAmt = data.discountType === 'percent'
     ? subtotal * ((data.discountValue ?? 0) / 100)
@@ -245,114 +275,164 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   const due = Math.max(0, totalPayable - totalPaid);
 
   const totalsX = width - 270;
+  const commentsX = margin;
 
   ensureSpace(120);
-  page.drawLine({ start: { x: totalsX, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
+  // Divider above totals
+  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
   y -= 18;
 
+  // Save the Y position so we can draw the left column (Comments) after the right column (Totals)
+  const columnsStartY = y;
+
+  // ── RIGHT COLUMN: Totals Box ───────────────────────────────────────────────
+  let rightY = columnsStartY;
+
   // Subtotal row
-  page.drawText('Sub Total:', { x: totalsX, y, size: 9, font: boldFont, color: dark });
+  page.drawText('Sub Total:', { x: totalsX, y: rightY, size: 9, font: boldFont, color: dark });
   const subtotalStr = fmtBDT(subtotal);
   page.drawText(subtotalStr, {
     x: width - margin - regularFont.widthOfTextAtSize(subtotalStr, 9),
-    y, size: 9, font: regularFont, color: dark,
+    y: rightY, size: 9, font: regularFont, color: dark,
   });
-  y -= 16;
+  rightY -= 16;
 
   // Discount row
   if (discountAmt > 0) {
     const discLabel = data.discountType === 'percent'
       ? `Discount (${data.discountValue}%):`
       : 'Discount:';
-    page.drawText(discLabel, { x: totalsX, y, size: 9, font: boldFont, color: red });
+    page.drawText(discLabel, { x: totalsX, y: rightY, size: 9, font: boldFont, color: red });
     const discStr = `- ${fmtBDT(discountAmt)}`;
     page.drawText(discStr, {
       x: width - margin - regularFont.widthOfTextAtSize(discStr, 9),
-      y, size: 9, font: regularFont, color: red,
+      y: rightY, size: 9, font: regularFont, color: red,
     });
-    y -= 16;
+    rightY -= 16;
   }
 
   // Total payable row
-  page.drawText('Total Payable:', { x: totalsX, y, size: 10, font: boldFont, color: dark });
+  page.drawText('Total Payable:', { x: totalsX, y: rightY, size: 10, font: boldFont, color: dark });
   const payableStr = fmtBDT(totalPayable);
   page.drawText(payableStr, {
     x: width - margin - boldFont.widthOfTextAtSize(payableStr, 12),
-    y, size: 12, font: boldFont, color: blue,
+    y: rightY, size: 12, font: boldFont, color: blue,
   });
-  y -= 20;
+  rightY -= 20;
 
-  page.drawLine({ start: { x: totalsX, y }, end: { x: width - margin, y }, thickness: 1, color: blue });
-  y -= 15;
+  page.drawLine({ start: { x: totalsX, y: rightY }, end: { x: width - margin, y: rightY }, thickness: 1, color: blue });
+  rightY -= 15;
 
   // ── Payment History ────────────────────────────────────────────────────────
   const hasPayments = (data.payments ?? []).length > 0;
   const hasAdvance = (data.advanceReceived ?? 0) > 0;
 
   if (hasPayments || hasAdvance) {
-    ensureSpace(30);
-    page.drawText('PAYMENTS RECEIVED', { x: totalsX, y, size: 9, font: boldFont, color: blue });
-    y -= 14;
+    page.drawText('PAYMENTS RECEIVED', { x: totalsX, y: rightY, size: 9, font: boldFont, color: blue });
+    rightY -= 14;
 
     // Show Advance Payment first if it exists
     if ((data.advanceReceived ?? 0) > 0) {
-      ensureSpace(18);
-      page.drawText('Project Advance Payment', { x: totalsX, y, size: 8, font: regularFont, color: gray });
+      page.drawText('Project Advance Payment', { x: totalsX, y: rightY, size: 8, font: regularFont, color: gray });
       const advStr = `- ${fmtBDT(data.advanceReceived!)}`;
       page.drawText(advStr, {
         x: width - margin - regularFont.widthOfTextAtSize(advStr, 8),
-        y, size: 8, font: boldFont, color: gray,
+        y: rightY, size: 8, font: boldFont, color: gray,
       });
-      y -= 16;
+      rightY -= 16;
     }
 
     data.payments!.forEach(p => {
-      ensureSpace(18);
       const methodStr = p.method ? ` (${cleanText(p.method)})` : '';
       const label = `${cleanText(p.date)}${methodStr}`;
-      page.drawText(label, { x: totalsX, y, size: 8, font: regularFont, color: gray });
+      page.drawText(label, { x: totalsX, y: rightY, size: 8, font: regularFont, color: gray });
       const amtStr = `- ${fmtBDT(p.amount ?? 0)}`;
       page.drawText(amtStr, {
         x: width - margin - regularFont.widthOfTextAtSize(amtStr, 8),
-        y, size: 8, font: boldFont, color: gray,
+        y: rightY, size: 8, font: boldFont, color: gray,
       });
-      y -= 16;
+      rightY -= 16;
     });
 
-    ensureSpace(10);
-    y -= 4;
+    rightY -= 4;
   }
 
   // Total Paid summary line
   if (totalPaid > 0) {
-    page.drawText('Total Paid:', { x: totalsX, y, size: 9, font: boldFont, color: dark });
+    page.drawText('Total Paid:', { x: totalsX, y: rightY, size: 9, font: boldFont, color: dark });
     const paidStr = `- ${fmtBDT(totalPaid)}`;
     page.drawText(paidStr, {
       x: width - margin - regularFont.widthOfTextAtSize(paidStr, 9),
-      y, size: 9, font: regularFont, color: gray,
+      y: rightY, size: 9, font: regularFont, color: gray,
     });
-    y -= 14;
+    rightY -= 14;
   }
-  y -= 10;
+  rightY -= 10;
 
   // ── DUE BOX ───────────────────────────────────────────────────────────────
-  ensureSpace(45);
   const dueColor = due > 0 ? red : green;
   const dueLabel = due > 0 ? `AMOUNT DUE: ${fmtBDT(due)}` : 'FULLY PAID';
-  page.drawRectangle({ x: totalsX - 8, y: y - 10, width: width - margin - totalsX + 8, height: 28, color: dueColor });
+  page.drawRectangle({ x: totalsX - 8, y: rightY - 10, width: width - margin - totalsX + 8, height: 28, color: dueColor });
   const dueTxtW = boldFont.widthOfTextAtSize(dueLabel, 11);
   page.drawText(dueLabel, {
     x: totalsX + (width - margin - totalsX - dueTxtW) / 2,
-    y: y + 5, size: 11, font: boldFont, color: white,
+    y: rightY + 5, size: 11, font: boldFont, color: white,
   });
-  y -= 44;
+  rightY -= 20;
 
+  // ── LEFT COLUMN: Other Comments + Amount in Words ──────────────────────────
+  let leftY = columnsStartY;
+
+  page.drawText('Other Comments:', { x: commentsX, y: leftY, size: 8, font: boldFont, color: dark });
+  leftY -= 13;
+  const comments = [
+    '1. Make all payments in Cash / A/C Cheque / PO favoring of "THE MARKETING SOLUTION"',
+    '2. All rates are Excluding VAT and other Taxes.',
+    '3. Payment should be paid within 15 days after product delivery / submission of the bill.',
+  ];
+
+  const commentMaxWidth = totalsX - commentsX - 20;
+  for (const line of comments) {
+    const cleanLine = cleanText(line);
+    const wrapped = cleanLine.match(new RegExp(`.{1,${Math.floor(commentMaxWidth / 4.5)}}(\\s|$)`, 'g')) ?? [cleanLine];
+    for (const wl of wrapped.slice(0, 2)) {
+      page.drawText(wl.trim(), { x: commentsX + 4, y: leftY, size: 7.5, font: regularFont, color: gray });
+      leftY -= 11;
+    }
+  }
+
+  // Sync main Y cursor to the lowest point of both columns, adding some padding before the next section
+  y = Math.min(leftY, rightY) - 10;
+
+  // ── FULL WIDTH BOTTOM BLOCK: Amount in Words ──────────────────────────────
+  ensureSpace(40);
+  const amtBlockHeight = 22;
+  y -= amtBlockHeight; // Shift down for the rectangle's bottom-left corner
+
+  // Light box background
+  page.drawRectangle({
+    x: margin,
+    y: y,
+    width: width - 2 * margin,
+    height: amtBlockHeight,
+    color: rgb(0.96, 0.96, 0.96),
+  });
+
+  const amtInWordsLabel = 'Amount in Words: ';
+  const amtInWordsValue = `Taka ${numberToWords(due > 0 ? due : totalPayable)} Only`;
+  const textY = y + 7;
+
+  page.drawText(amtInWordsLabel, { x: margin + 8, y: textY, size: 8, font: boldFont, color: dark });
+  const labelWidth = boldFont.widthOfTextAtSize(amtInWordsLabel, 8);
+  page.drawText(cleanText(amtInWordsValue), { x: margin + 8 + labelWidth, y: textY, size: 8, font: regularFont, color: dark });
+
+  y -= 20;
 
   // ── Notes ────────────────────────────────────────────────────────────────
   if (data.notes) {
     const notes = cleanText(data.notes);
     ensureSpace(40);
-    y -= 10;
+    y -= 6;
     page.drawText('Notes:', { x: margin, y, size: 9, font: boldFont, color: dark });
     y -= 14;
     const noteLines = notes.match(/.{1,90}/g) ?? [notes];
@@ -363,7 +443,6 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
     });
   }
 
-  // ── Thank You note ────────────────────────────────────────────────────────
   ensureSpace(60);
   y -= 20;
   page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });

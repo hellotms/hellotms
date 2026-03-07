@@ -30,7 +30,7 @@ export default function DashboardPage() {
       // For created_at (timestamp), we need to ensure the end date covers the whole day
       const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999Z` : toISO;
 
-      const [incomeRes, expenseRes, projectsRes, advanceProjectsRes, collectionsRes, leadsRes, dueInvoicesRes] = await Promise.all([
+      const [incomeRes, expenseRes, projectsRes, advanceProjectsRes, collectionsRes, leadsRes] = await Promise.all([
         supabase
           .from('ledger_entries')
           .select('amount')
@@ -40,20 +40,20 @@ export default function DashboardPage() {
           .is('deleted_at', null),
         supabase
           .from('ledger_entries')
-          .select('amount')
+          .select('amount, is_external')
           .eq('type', 'expense')
           .gte('entry_date', fromISO)
           .lte('entry_date', toISO)
           .is('deleted_at', null),
         supabase
           .from('projects')
-          .select('id, status')
+          .select('id, status, invoice_amount')
           .gte('event_start_date', fromISO)
           .lte('event_start_date', toISO)
           .is('deleted_at', null),
         supabase
           .from('projects')
-          .select('advance_received, created_at')
+          .select('advance_received, created_at, invoice_amount')
           .gte('created_at', fromISO)
           .lte('created_at', endTimestamp)
           .is('deleted_at', null),
@@ -68,31 +68,31 @@ export default function DashboardPage() {
           .select('id, status')
           .gte('created_at', fromISO)
           .lte('created_at', endTimestamp),
-        // Due = sum of sent/overdue invoices total - total collected
-        supabase
-          .from('invoices')
-          .select('total_amount, project_id')
-          .in('status', ['sent', 'overdue'])
-          .is('deleted_at', null),
       ]);
 
       const totalAdvance = (advanceProjectsRes.data ?? []).reduce((s, p) => s + Number(p.advance_received || 0), 0);
-      const totalRevenue = ((collectionsRes.data ?? []).reduce((s, r) => s + Number(r.amount), 0)) + totalAdvance;
-      const totalExpense = (expenseRes.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
-      const totalCollected = totalRevenue; // Revenue is now pure collections + advance
-      const totalInvoicedDue = (dueInvoicesRes.data ?? []).reduce((s, r) => s + Number(r.total_amount), 0);
+      const totalIncome = ((collectionsRes.data ?? []).reduce((s, r) => s + Number(r.amount), 0)) + totalAdvance;
+      const totalStandardExpense = (expenseRes.data ?? []).filter(e => !e.is_external).reduce((s, r) => s + Number(r.amount), 0);
+      const totalOthersExpense = (expenseRes.data ?? []).filter(e => e.is_external).reduce((s, r) => s + Number(r.amount), 0);
+      const totalNetExpense = totalStandardExpense + totalOthersExpense;
+
+      const totalInvoiceAmount = (advanceProjectsRes.data ?? []).reduce((s, p) => s + Number(p.invoice_amount || 0), 0);
+      const totalDue = Math.max(0, totalInvoiceAmount - totalIncome);
+
       const activeProjects = (projectsRes.data ?? []).filter(p => p.status === 'active').length;
       const completedProjects = (projectsRes.data ?? []).filter(p => p.status === 'completed').length;
+      const leadsCount = leadsRes.data?.length ?? 0;
 
       return {
-        totalRevenue,
-        totalExpense,
-        netProfit: totalRevenue - totalExpense,
-        // Due = total outstanding invoices (sent/overdue) - what's already been paid
-        totalDue: Math.max(0, totalInvoicedDue - totalCollected),
+        totalRevenue: totalInvoiceAmount,
+        totalExpense: totalStandardExpense,
+        totalOthersExpense,
+        netProfit: totalInvoiceAmount - totalNetExpense,
+        grossProfit: totalInvoiceAmount - totalStandardExpense,
+        totalDue,
         activeProjects,
         completedProjects,
-        leadsCount: leadsRes.data?.length ?? 0,
+        leadsCount,
       };
     },
   });
@@ -224,7 +224,7 @@ export default function DashboardPage() {
       // 1. Get projects in range
       const { data: projects } = await supabase
         .from('projects')
-        .select('id, title, status, advance_received, companies(name)')
+        .select('id, title, status, advance_received, invoice_amount, companies(name)')
         .gte('event_start_date', fromISO)
         .lte('event_start_date', toISO)
         .is('deleted_at', null);
@@ -237,7 +237,7 @@ export default function DashboardPage() {
       const [ledgerRes, collectionsRes] = await Promise.all([
         supabase
           .from('ledger_entries')
-          .select('project_id, amount')
+          .select('project_id, amount, is_external')
           .eq('type', 'expense')
           .in('project_id', pIds)
           .is('deleted_at', null),
@@ -248,12 +248,16 @@ export default function DashboardPage() {
           .is('deleted_at', null)
       ]);
 
-      const pnlMap: Record<string, { income: number; expense: number }> = {};
-      pIds.forEach(id => pnlMap[id] = { income: 0, expense: 0 });
+      const pnlMap: Record<string, { income: number; standardExpense: number; othersExpense: number }> = {};
+      pIds.forEach(id => pnlMap[id] = { income: 0, standardExpense: 0, othersExpense: 0 });
 
       ledgerRes.data?.forEach(row => {
         if (row.project_id && pnlMap[row.project_id]) {
-          pnlMap[row.project_id].expense += Number(row.amount);
+          if (row.is_external) {
+            pnlMap[row.project_id].othersExpense += Number(row.amount);
+          } else {
+            pnlMap[row.project_id].standardExpense += Number(row.amount);
+          }
         }
       });
 
@@ -265,20 +269,24 @@ export default function DashboardPage() {
 
       return projects.map(p => {
         const stats = pnlMap[p.id];
-        const totalIncome = stats.income + Number(p.advance_received || 0);
-        const profit = totalIncome - stats.expense;
-        const margin = totalIncome > 0 ? (profit / totalIncome) * 100 : 0;
+        const totalReceived = stats.income + Number(p.advance_received || 0);
+        const invoiceAmount = Number(p.invoice_amount || 0);
+        const totalNetExpense = stats.standardExpense + stats.othersExpense;
+        const netProfit = invoiceAmount - totalNetExpense;
+        const margin = invoiceAmount > 0 ? (netProfit / invoiceAmount) * 100 : 0;
         return {
           id: p.id,
           title: p.title,
           company: (p.companies as unknown as { name: string } | null)?.name ?? '—',
           status: p.status,
-          income: totalIncome,
-          expense: stats.expense,
-          profit,
+          invoiceAmount,
+          totalReceived,
+          standardExpense: stats.standardExpense,
+          othersExpense: stats.othersExpense,
+          netProfit,
           margin
         };
-      }).sort((a, b) => b.profit - a.profit); // Sort highest profit first
+      }).sort((a, b) => b.netProfit - a.netProfit); // Sort highest profit first
     }
   });
 
@@ -291,11 +299,12 @@ export default function DashboardPage() {
       />
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-        <StatCard title="Total Revenue" value={kpis?.totalRevenue ?? 0} isCurrency icon={DollarSign} iconColor="text-emerald-600 text-emerald-600 dark:text-emerald-400" iconBg="bg-emerald-50 dark:bg-emerald-500/10" />
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4">
+        <StatCard title="Total Invoiced" value={kpis?.totalRevenue ?? 0} isCurrency icon={DollarSign} iconColor="text-emerald-600 text-emerald-600 dark:text-emerald-400" iconBg="bg-emerald-50 dark:bg-emerald-500/10" />
         <StatCard title="Total Expense" value={kpis?.totalExpense ?? 0} isCurrency icon={TrendingDown} iconColor="text-red-600 text-red-600 dark:text-red-400" iconBg="bg-red-50 dark:bg-red-500/10" />
+        <StatCard title="Gross Profit" value={kpis?.grossProfit ?? 0} isCurrency icon={TrendingUp} iconColor="text-indigo-600 text-indigo-600 dark:text-indigo-400" iconBg="bg-indigo-50 dark:bg-indigo-500/10" />
         <StatCard title="Net Profit" value={kpis?.netProfit ?? 0} isCurrency icon={TrendingUp} iconColor="text-blue-600 text-blue-600 dark:text-blue-400" iconBg="bg-blue-50 dark:bg-blue-500/10" />
-        <StatCard title="Total Due" value={kpis?.totalDue ?? 0} isCurrency icon={AlertCircle} iconColor="text-orange-600 text-orange-600 dark:text-orange-400" iconBg="bg-orange-50 dark:bg-orange-500/10" />
+        <StatCard title="Due (Client)" value={kpis?.totalDue ?? 0} isCurrency icon={AlertCircle} iconColor="text-orange-600 text-orange-600 dark:text-orange-400" iconBg="bg-orange-50 dark:bg-orange-500/10" />
         <StatCard title="Active Projects" value={kpis?.activeProjects ?? 0} icon={FolderOpen} iconColor="text-blue-600 text-blue-600 dark:text-blue-400" iconBg="bg-blue-50 dark:bg-blue-500/10" onClick={() => navigate('/projects?status=active')} />
         <StatCard title="Completed" value={kpis?.completedProjects ?? 0} icon={CheckCircle2} iconColor="text-emerald-600 text-emerald-600 dark:text-emerald-400" iconBg="bg-emerald-50 dark:bg-emerald-500/10" onClick={() => navigate('/projects?status=completed')} />
         <StatCard title="Contact Forms" value={kpis?.leadsCount ?? 0} icon={MessageSquare} iconColor="text-purple-600 text-purple-600 dark:text-purple-400" iconBg="bg-purple-50 dark:bg-purple-500/10" onClick={() => navigate('/leads')} />
@@ -367,8 +376,9 @@ export default function DashboardPage() {
                 <th className="px-4 py-3 font-semibold text-foreground">Project Name</th>
                 <th className="px-4 py-3 font-semibold text-foreground">Company</th>
                 <th className="px-4 py-3 font-semibold text-foreground">Status</th>
-                <th className="px-4 py-3 font-semibold text-foreground text-right">Income (Collections)</th>
-                <th className="px-4 py-3 font-semibold text-foreground text-right">Expense (Ledger)</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">Invoice Amount</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">Received</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">Standard Exp.</th>
                 <th className="px-4 py-3 font-semibold text-foreground text-right">Net Profit</th>
                 <th className="px-4 py-3 font-semibold text-foreground text-right">Margin</th>
               </tr>
@@ -379,10 +389,11 @@ export default function DashboardPage() {
                   <td className="px-4 py-3 font-medium text-foreground">{p.title}</td>
                   <td className="px-4 py-3 text-muted-foreground">{p.company}</td>
                   <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
-                  <td className="px-4 py-3 text-right text-emerald-600 text-emerald-600 dark:text-emerald-400 font-mono">{formatBDT(p.income)}</td>
-                  <td className="px-4 py-3 text-right text-red-600 text-red-600 dark:text-red-400 font-mono">{formatBDT(p.expense)}</td>
-                  <td className={`px-4 py-3 text-right font-bold font-mono ${p.profit >= 0 ? 'text-blue-600 text-blue-600 dark:text-blue-400' : 'text-red-600 text-red-600 dark:text-red-400'}`}>
-                    {p.profit > 0 ? '+' : ''}{formatBDT(p.profit)}
+                  <td className="px-4 py-3 text-right text-indigo-600 dark:text-indigo-400 font-mono font-bold">{formatBDT(p.invoiceAmount)}</td>
+                  <td className="px-4 py-3 text-right text-emerald-600 text-emerald-600 dark:text-emerald-400 font-mono">{formatBDT(p.totalReceived)}</td>
+                  <td className="px-4 py-3 text-right text-red-600 text-red-600 dark:text-red-400 font-mono">{formatBDT(p.standardExpense)}</td>
+                  <td className={`px-4 py-3 text-right font-bold font-mono ${p.netProfit >= 0 ? 'text-blue-600 text-blue-600 dark:text-blue-400' : 'text-red-600 text-red-600 dark:text-red-400'}`}>
+                    {p.netProfit > 0 ? '+' : ''}{formatBDT(p.netProfit)}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-muted-foreground">
                     {p.margin.toFixed(1)}%

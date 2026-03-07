@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { DateFilterProvider } from '@/context/DateFilterContext';
 import { ThemeProvider } from 'next-themes';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import { useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
@@ -13,6 +16,7 @@ import InvoicesPage from '@/pages/InvoicesPage';
 import InvoiceDetailPage from '@/pages/InvoiceDetailPage';
 import LeadsPage from '@/pages/LeadsPage';
 import CmsPage from '@/pages/CmsPage';
+import AboutCmsPage from '@/pages/settings/cms/AboutCmsPage';
 import StaffPage from '@/pages/StaffPage';
 import StaffProfilePage from '@/pages/StaffProfilePage';
 import SettingsPage from '@/pages/SettingsPage';
@@ -22,8 +26,33 @@ import NoticesPage from '@/pages/NoticesPage';
 import NoticeDetailPage from '@/pages/NoticeDetailPage';
 import ProfilePage from '@/pages/ProfilePage';
 import RecycleBinPage from '@/pages/RecycleBinPage';
+import StaffManagementPage from '@/pages/StaffManagementPage';
+import RoleManagementPage from '@/pages/RoleManagementPage';
 import { ToastContainer } from '@/components/Toast';
 import SetupPage from '@/pages/SetupPage';
+
+function DynamicFavicon() {
+  const { data: settings } = useQuery({
+    queryKey: ['site-settings-favicon'],
+    queryFn: async () => {
+      const { data } = await supabase.from('site_settings').select('company_logo_url').eq('id', 1).single();
+      return data;
+    },
+    staleTime: 60000, // 1 minute
+  });
+
+  useEffect(() => {
+    if (settings?.company_logo_url) {
+      const link: HTMLLinkElement = document.querySelector("link[rel~='icon']") || document.createElement('link');
+      link.type = 'image/svg+xml';
+      link.rel = 'icon';
+      link.href = settings.company_logo_url;
+      document.getElementsByTagName('head')[0].appendChild(link);
+    }
+  }, [settings?.company_logo_url]);
+
+  return null;
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
@@ -87,6 +116,7 @@ function AppRoutes() {
         <Route path="invoices/:id" element={<PermissionRoute permission="manage_invoices"><InvoiceDetailPage /></PermissionRoute>} />
         <Route path="leads" element={<PermissionRoute permission="view_leads"><LeadsPage /></PermissionRoute>} />
         <Route path="cms" element={<PermissionRoute permission="manage_cms"><CmsPage /></PermissionRoute>} />
+        <Route path="cms/about" element={<PermissionRoute permission="manage_cms"><AboutCmsPage /></PermissionRoute>} />
         <Route path="staff" element={<PermissionRoute permission="view_staff"><StaffPage /></PermissionRoute>} />
         <Route path="staff/:id" element={<PermissionRoute permission="view_staff"><StaffProfilePage /></PermissionRoute>} />
         <Route path="profile" element={<ProfilePage />} />
@@ -94,6 +124,8 @@ function AppRoutes() {
         <Route path="work-logs" element={<PermissionRoute permission="view_audit_logs"><WorkLogsPage /></PermissionRoute>} />
         <Route path="notices" element={<PermissionRoute permission="view_notices"><NoticesPage /></PermissionRoute>} />
         <Route path="notices/:id" element={<PermissionRoute permission="view_notices"><NoticeDetailPage /></PermissionRoute>} />
+        <Route path="staff-management" element={<PermissionRoute permission="manage_staff"><StaffManagementPage /></PermissionRoute>} />
+        <Route path="role-management" element={<PermissionRoute permission="manage_roles"><RoleManagementPage /></PermissionRoute>} />
         <Route path="recycle-bin" element={<RecycleBinPage />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />
@@ -106,6 +138,7 @@ export default function App() {
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <AuthProvider>
+          <DynamicFavicon />
           <AppRoutes />
           <ToastContainer />
         </AuthProvider>

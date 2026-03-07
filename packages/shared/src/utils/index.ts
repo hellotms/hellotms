@@ -123,10 +123,10 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-/** Generate invoice number like INV-2026-001 */
+/** Generate invoice number like TMS/2026/001 */
 export function generateInvoiceNumber(sequence: number): string {
   const year = new Date().getFullYear();
-  return `INV-${year}-${String(sequence).padStart(3, '0')}`;
+  return `TMS/${year}/${String(sequence).padStart(3, '0')}`;
 }
 
 /** Check if a date is within a range */
@@ -190,3 +190,29 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   },
 };
 
+/** Convert a number to English words for BDT currency */
+export function numberToWords(num: number): string {
+  if (num === 0) return 'Zero';
+
+  const a = [
+    '', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ',
+    'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '
+  ];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const convert = (n: number): string => {
+    if (n < 20) return a[n];
+    if (n < 100) return b[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + a[n % 10] : '');
+    if (n < 1000) return a[Math.floor(n / 100)] + 'Hundred ' + (n % 100 !== 0 ? 'and ' + convert(n % 100) : '');
+    return '';
+  };
+
+  const processThousands = (n: number): string => {
+    if (n < 1000) return convert(n);
+    if (n < 100000) return convert(Math.floor(n / 1000)) + 'Thousand ' + convert(n % 1000);
+    if (n < 10000000) return convert(Math.floor(n / 100000)) + 'Lakh ' + processThousands(n % 100000);
+    return convert(Math.floor(n / 10000000)) + 'Crore ' + processThousands(n % 10000000);
+  };
+
+  return processThousands(Math.floor(num)).trim();
+}
