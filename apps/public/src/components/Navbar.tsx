@@ -67,8 +67,8 @@ export function Navbar() {
               </div>
             )}
             <div className="flex flex-col">
-              <span className="font-bold text-sm md:text-lg text-[var(--foreground)] tracking-tight leading-none">
-                The <span className="text-indigo-500">Marketing</span> Solution
+              <span className="font-bold text-sm md:text-lg text-[#d6802b] tracking-tight leading-none">
+                The Marketing Solution
               </span>
               {settings?.site_motto && (
                 <span className="text-[10px] md:text-xs text-[var(--muted)] font-medium leading-tight">

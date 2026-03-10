@@ -44,8 +44,25 @@ type Project = {
   companies: { name: string } | null;
 };
 
+const BrandText = ({ text }: { text: string }) => {
+  if (!text) return null;
+  const parts = text.split(/(The Marketing Solution)/i);
+  return (
+    <>
+      {parts.map((part, i) => 
+        part.toLowerCase() === 'the marketing solution' 
+          ? <span key={i} className="text-[#d6802b] font-bold">{part}</span> 
+          : <span key={i}>{part}</span>
+      )}
+    </>
+  );
+};
+
 export default function HomePage() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [services, setServices] = useState(DEMO_SERVICES);
+  const [whyUsContent, setWhyUsContent] = useState('With 8+ years of experience and hundreds of successful events, The Marketing Solution is the trusted partner for brands and individuals who refuse to settle for ordinary.');
+  const [whyUsFeatures, setWhyUsFeatures] = useState<any[]>(WHY_US.map(w => ({ title: w.title, description: w.text, iconStr: null, IconComp: w.icon })));
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
@@ -54,18 +71,43 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    async function fetchProjects() {
-      const { data } = await supabase
-        .from('projects')
-        .select('id, title, cover_image_url, location, companies(name)')
-        .eq('is_published', true)
-        .is('deleted_at', null)
-        .order('event_start_date', { ascending: false })
-        .limit(6);
-      setProjects((data ?? []) as unknown as Project[]);
+    async function fetchData() {
+      const [projectsResp, settingsResp] = await Promise.all([
+        supabase
+          .from('projects')
+          .select('id, title, cover_image_url, location, companies(name)')
+          .eq('is_published', true)
+          .is('deleted_at', null)
+          .order('event_start_date', { ascending: false })
+          .limit(6),
+        supabase
+          .from('site_settings')
+          .select('services_page_config, about_content, services')
+          .eq('id', 1)
+          .single()
+      ]);
+
+      setProjects((projectsResp.data ?? []) as unknown as Project[]);
+      if (settingsResp.data) {
+        if (settingsResp.data.services_page_config?.services) {
+          setServices(settingsResp.data.services_page_config.services.slice(0, 6));
+        }
+        if (settingsResp.data.about_content) {
+          setWhyUsContent(settingsResp.data.about_content);
+        }
+        if (settingsResp.data.services && settingsResp.data.services.length > 0) {
+          setWhyUsFeatures(settingsResp.data.services.map((s: any) => ({
+            title: s.title || s.name,
+            description: s.description,
+            iconStr: s.icon || '✨',
+            IconComp: null
+          })).slice(0, 4));
+        }
+      }
+
       setLoading(false);
     }
-    fetchProjects();
+    fetchData();
   }, []);
 
   return (
@@ -85,12 +127,12 @@ export default function HomePage() {
 
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight text-[var(--foreground)] mb-6">
               We Create{' '}
-              <span className="gradient-text">Unforgettable</span>
+              <span className="text-[#d6802b]">Unforgettable</span>
               <br />Experiences
             </h1>
 
             <p className="text-lg sm:text-xl text-[var(--muted)] max-w-2xl mx-auto leading-relaxed mb-10">
-              From intimate gatherings to grand spectacles — The Marketing Solution delivers events that leave lasting impressions. Let us bring your vision to life.
+              <BrandText text="From intimate gatherings to grand spectacles — The Marketing Solution delivers events that leave lasting impressions. Let us bring your vision to life." />
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -137,7 +179,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {DEMO_SERVICES.map((service) => (
+            {services.map((service) => (
               <div
                 key={service.title}
                 className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 card-hover group"
@@ -239,8 +281,7 @@ export default function HomePage() {
                 Excellence in Every <span className="gradient-text">Detail</span>
               </h2>
               <p className="text-[var(--muted)] leading-relaxed mb-8 max-w-lg">
-                With 8+ years of experience and hundreds of successful events, The Marketing Solution
-                is the trusted partner for brands and individuals who refuse to settle for ordinary.
+                <BrandText text={whyUsContent} />
               </p>
               <Link
                 href="/about"
@@ -251,13 +292,13 @@ export default function HomePage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {WHY_US.map(({ icon: Icon, title, text }) => (
-                <div key={title} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 card-hover">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-3">
-                    {mounted ? <Icon className="h-5 w-5 text-indigo-400" /> : <div className="h-5 w-5" />}
+              {whyUsFeatures.map(({ iconStr, IconComp, title, description }, idx) => (
+                <div key={idx} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 card-hover">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-3 text-xl">
+                    {iconStr ? iconStr : (mounted && IconComp ? <IconComp className="h-5 w-5 text-indigo-400" /> : <div className="h-5 w-5" />)}
                   </div>
                   <h4 className="font-bold text-[var(--foreground)] text-sm mb-1.5">{title}</h4>
-                  <p className="text-xs text-[var(--muted)] leading-relaxed">{text}</p>
+                  <p className="text-xs text-[var(--muted)] leading-relaxed">{description}</p>
                 </div>
               ))}
             </div>

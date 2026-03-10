@@ -168,6 +168,7 @@ export interface SiteSettings {
   services: ServiceItem[];
   about_content?: string | null;
   about_page_config?: AboutPageConfig | null;
+  services_page_config?: ServicesPageConfig | null;
   contact_info: ContactInfo;
   socials: Socials;
   updated_at: string;
@@ -201,6 +202,34 @@ export interface AboutPageConfig {
     title_primary: string;
     title_highlight: string;
     milestones: { year: string; title: string; text: string }[];
+  };
+}
+
+export interface ServicesPageConfig {
+  hero: {
+    badge: string;
+    title_primary: string;
+    title_highlight: string;
+    description: string;
+  };
+  services: {
+    icon: string;
+    title: string;
+    description: string;
+    features: string[];
+  }[];
+  process: {
+    badge: string;
+    title_primary: string;
+    title_highlight: string;
+    steps: { step: string; title: string; text: string }[];
+  };
+  cta: {
+    title_primary: string;
+    title_highlight: string;
+    description: string;
+    button_label: string;
+    button_url: string;
   };
 }
 
