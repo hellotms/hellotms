@@ -38,8 +38,8 @@ jobs:
         with:
           script: |
             // This step is a bit tricky with sync-action as it syncs a folder.
-            // For a proper 7-day retention, we should probably use a direct R2/S3 client script
-            // to delete items older than 7 days in the destination bucket path.
+            // For a proper 30-day retention, we should probably use a direct R2/S3 client script
+            // to delete items older than 30 days in the destination bucket path.
             // But since we are syncing a single file each time from a fresh runner, 
             // the sync-action --delete would delete everything else in R2 if we are not careful.
             
@@ -69,10 +69,10 @@ jobs:
             if (!list.Contents) return;
 
             const now = new Date();
-            const sevenDaysAgo = new Date(now.setDate(now.getDate() - 7));
+            const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
 
             for (const item of list.Contents) {
-              if (item.LastModified < sevenDaysAgo) {
+              if (item.LastModified < thirtyDaysAgo) {
                 console.log(`Deleting old backup: ${item.Key}`);
                 await client.send(new DeleteObjectCommand({
                   Bucket: process.env.R2_BUCKET_NAME,
