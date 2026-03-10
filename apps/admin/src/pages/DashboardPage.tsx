@@ -40,7 +40,7 @@ export default function DashboardPage() {
           .is('deleted_at', null),
         supabase
           .from('ledger_entries')
-          .select('amount, is_external')
+          .select('amount, is_external, paid_status')
           .eq('type', 'expense')
           .gte('entry_date', fromISO)
           .lte('entry_date', toISO)
@@ -75,6 +75,7 @@ export default function DashboardPage() {
       const totalStandardExpense = (expenseRes.data ?? []).filter(e => !e.is_external).reduce((s, r) => s + Number(r.amount), 0);
       const totalOthersExpense = (expenseRes.data ?? []).filter(e => e.is_external).reduce((s, r) => s + Number(r.amount), 0);
       const totalNetExpense = totalStandardExpense + totalOthersExpense;
+      const totalDueVendor = (expenseRes.data ?? []).filter(e => e.paid_status === 'unpaid').reduce((s, r) => s + Number(r.amount), 0);
 
       const totalInvoiceAmount = (advanceProjectsRes.data ?? []).reduce((s, p) => s + Number(p.invoice_amount || 0), 0);
       const totalDue = Math.max(0, totalInvoiceAmount - totalIncome);
@@ -90,6 +91,7 @@ export default function DashboardPage() {
         netProfit: totalInvoiceAmount - totalNetExpense,
         grossProfit: totalInvoiceAmount - totalStandardExpense,
         totalDue,
+        totalDueVendor,
         activeProjects,
         completedProjects,
         leadsCount,
@@ -304,7 +306,7 @@ export default function DashboardPage() {
         <StatCard title="Total Expense" value={kpis?.totalExpense ?? 0} isCurrency icon={TrendingDown} iconColor="text-red-600 text-red-600 dark:text-red-400" iconBg="bg-red-50 dark:bg-red-500/10" />
         <StatCard title="Gross Profit" value={kpis?.grossProfit ?? 0} isCurrency icon={TrendingUp} iconColor="text-indigo-600 text-indigo-600 dark:text-indigo-400" iconBg="bg-indigo-50 dark:bg-indigo-500/10" />
         <StatCard title="Net Profit" value={kpis?.netProfit ?? 0} isCurrency icon={TrendingUp} iconColor="text-blue-600 text-blue-600 dark:text-blue-400" iconBg="bg-blue-50 dark:bg-blue-500/10" />
-        <StatCard title="Due (Client)" value={kpis?.totalDue ?? 0} isCurrency icon={AlertCircle} iconColor="text-orange-600 text-orange-600 dark:text-orange-400" iconBg="bg-orange-50 dark:bg-orange-500/10" />
+        <StatCard title="Due (Vendor)" value={kpis?.totalDueVendor ?? 0} isCurrency icon={TrendingDown} iconColor="text-orange-600 text-orange-600 dark:text-orange-400" iconBg="bg-orange-50 dark:bg-orange-500/10" />
         <StatCard title="Active Projects" value={kpis?.activeProjects ?? 0} icon={FolderOpen} iconColor="text-blue-600 text-blue-600 dark:text-blue-400" iconBg="bg-blue-50 dark:bg-blue-500/10" onClick={() => navigate('/projects?status=active')} />
         <StatCard title="Completed" value={kpis?.completedProjects ?? 0} icon={CheckCircle2} iconColor="text-emerald-600 text-emerald-600 dark:text-emerald-400" iconBg="bg-emerald-50 dark:bg-emerald-500/10" onClick={() => navigate('/projects?status=completed')} />
         <StatCard title="Contact Forms" value={kpis?.leadsCount ?? 0} icon={MessageSquare} iconColor="text-purple-600 text-purple-600 dark:text-purple-400" iconBg="bg-purple-50 dark:bg-purple-500/10" onClick={() => navigate('/leads')} />

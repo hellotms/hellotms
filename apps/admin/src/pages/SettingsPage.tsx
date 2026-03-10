@@ -124,7 +124,7 @@ export default function SettingsPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Full Name</label>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Full Name <span className="text-red-500">*</span></label>
                       <input {...profileForm.register('name')} disabled={!isEditingProfile} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-muted/30" />
                     </div>
                     <div>
@@ -160,15 +160,15 @@ export default function SettingsPage() {
                 <h3 className="text-lg font-bold mb-6">Security</h3>
                 <form onSubmit={passwordForm.handleSubmit((v) => updatePasswordMutation.mutate(v))} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Current Password</label>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Current Password <span className="text-red-500">*</span></label>
                     <input type="password" {...passwordForm.register('current_password', { required: true })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">New Password</label>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">New Password <span className="text-red-500">*</span></label>
                     <input type="password" {...passwordForm.register('new_password', { required: true })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Confirm New Password</label>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Confirm New Password <span className="text-red-500">*</span></label>
                     <input type="password" {...passwordForm.register('confirm_password', { required: true })} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                   </div>
                   {pwError && <p className="text-xs text-destructive font-bold">{pwError}</p>}

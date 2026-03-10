@@ -43,6 +43,7 @@ export default function PortfolioPage() {
         .from('projects')
         .select('id, title, location, category, event_start_date, cover_image_url, companies(name)')
         .eq('is_published', true)
+        .is('deleted_at', null)
         .order('event_start_date', { ascending: false });
 
       const projectsData = (data ?? []) as unknown as Project[];

@@ -8,7 +8,9 @@ import { supabase } from '@/lib/supabase';
 export async function generateStaticParams() {
   const { data: projects } = await supabase
     .from('projects')
-    .select('id');
+    .select('id')
+    .eq('is_published', true)
+    .is('deleted_at', null);
 
   if (!projects || projects.length === 0) {
     return [{ id: '_' }];

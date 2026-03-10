@@ -41,6 +41,7 @@ export function ProjectDetailView({ id }: { id: string }) {
                 .select('id, title, description, notes, location, category, event_start_date, event_end_date, cover_image_url, companies(name, logo_url)')
                 .eq('id', id)
                 .eq('is_published', true)
+                .is('deleted_at', null)
                 .single();
 
             if (!p) { setNotFound(true); setLoading(false); return; }

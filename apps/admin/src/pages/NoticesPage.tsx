@@ -369,7 +369,7 @@ export default function NoticesPage() {
             <Modal isOpen={isOpen} onClose={() => { setIsOpen(false); resetForm(); }} title={editingNotice ? 'Edit Notice' : 'New Notice'} size="lg">
                 <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))} className="space-y-5">
                     <div>
-                        <label className="block text-sm font-medium mb-1">Notice Title *</label>
+                        <label className="block text-sm font-medium mb-1">Notice Title <span className="text-red-500">*</span></label>
                         <input {...register('title', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="Important announcement..." />
                     </div>
 

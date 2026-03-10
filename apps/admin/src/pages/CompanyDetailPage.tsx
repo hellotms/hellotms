@@ -7,12 +7,16 @@ import { Modal, CascadeConfirmModal } from '@/components/Modal';
 import { toast } from '@/components/Toast';
 import { auditApi } from '@/lib/api';
 import { formatBDT, formatDate } from '@/lib/utils';
-import { ArrowLeft, Building2, FolderOpen, Receipt, Trash2 } from 'lucide-react';
-import { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
 import { useDateFilter } from '@/context/DateFilterContext';
 import { DateRangePicker } from '@/components/DateRangePicker';
-import type { Company, Project, Invoice } from '@hellotms/shared';
+import { ProjectForm } from '@/components/ProjectForm';
+import { CompanyForm } from '@/components/CompanyForm';
+import { ArrowLeft, Plus, Pencil, Building2, FolderOpen, Receipt, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { slugify } from '@/lib/utils';
+import { mediaApi } from '@/lib/api';
+import type { Company, Project, Invoice, ProjectInput, CompanyInput } from '@hellotms/shared';
 
 const TABS = ['Projects', 'Financials', 'Invoices'] as const;
 type Tab = typeof TABS[number];
@@ -24,12 +28,19 @@ export default function CompanyDetailPage() {
   const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('Projects');
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { fromISO, toISO } = useDateFilter();
 
   const { data: company, isLoading } = useQuery({
     queryKey: ['company', id],
     queryFn: async () => {
-      const { data, error } = await supabase.from('companies').select('*').eq('id', id!).single();
+      const { data, error } = await supabase
+        .from('companies')
+        .select('*')
+        .eq('id', id!)
+        .is('deleted_at', null)
+        .single();
       if (error) throw error;
       return data as Company;
     },
@@ -46,30 +57,76 @@ export default function CompanyDetailPage() {
   });
 
   const { data: financials } = useQuery({
-    queryKey: ['company-financials', id, fromISO, toISO],
+    queryKey: ['company-financials', id],
     queryFn: async () => {
-      const { data: ledger } = await supabase
-        .from('ledger_entries')
-        .select('type, amount, project_id')
-        .gte('entry_date', fromISO)
-        .lte('entry_date', toISO)
-        .is('deleted_at', null)
-        .in('project_id', projects.map(p => p.id));
+      // 1. Get all projects for this company to calculate totals
+      const pIds = projects.map(p => p.id);
+      if (pIds.length === 0) return null;
 
-      const income = (ledger ?? []).filter(r => r.type === 'income').reduce((s, r) => s + Number(r.amount), 0);
-      const expense = (ledger ?? []).filter(r => r.type === 'expense').reduce((s, r) => s + Number(r.amount), 0);
+      // 2. Fetch all necessary data for these projects
+      const [ledgerRes, collectionsRes] = await Promise.all([
+        supabase
+          .from('ledger_entries')
+          .select('type, amount, is_external, paid_status')
+          .in('project_id', pIds)
+          .is('deleted_at', null),
+        supabase
+          .from('collections')
+          .select('amount')
+          .in('project_id', pIds)
+          .is('deleted_at', null)
+      ]);
 
-      const { data: collections } = await supabase
-        .from('collections')
-        .select('amount')
-        .gte('payment_date', fromISO)
-        .lte('payment_date', toISO)
-        .is('deleted_at', null)
-        .in('project_id', projects.map(p => p.id));
+      const ledger = ledgerRes.data ?? [];
+      const collections = collectionsRes.data ?? [];
 
-      const collected = (collections ?? []).reduce((s, r) => s + Number(r.amount), 0);
+      // Metrics calculation
+      const totalInvoiceAmount = projects.reduce((s, p) => s + Number(p.invoice_amount || 0), 0);
+      const totalAdvance = projects.reduce((s, p) => s + Number(p.advance_received || 0), 0);
+      const totalCollected = collections.reduce((s, r) => s + Number(r.amount), 0);
+      const totalReceived = totalCollected + totalAdvance;
 
-      return { income, expense, profit: income - expense, due: income - collected };
+      const totalStandardExpenses = ledger
+        .filter(r => r.type === 'expense' && !r.is_external)
+        .reduce((s, r) => s + Number(r.amount), 0);
+
+      const othersExpenses = ledger
+        .filter(r => r.type === 'expense' && r.is_external)
+        .reduce((s, r) => s + Number(r.amount), 0);
+
+      const dueVendor = ledger
+        .filter(r => r.type === 'expense' && r.paid_status === 'unpaid')
+        .reduce((s, r) => s + Number(r.amount), 0);
+
+      const netExpenses = totalStandardExpenses + othersExpenses;
+      const netProfit = totalInvoiceAmount - netExpenses;
+      const profitRatio = totalInvoiceAmount > 0 ? (netProfit / totalInvoiceAmount) * 100 : 0;
+
+      // Turn Over Days (average)
+      const projectsWithDates = projects.filter(p => p.event_start_date && p.project_completed_at);
+      let avgTurnOverDays = 0;
+      if (projectsWithDates.length > 0) {
+        const totalDays = projectsWithDates.reduce((s, p) => {
+          const start = new Date(p.event_start_date).getTime();
+          const end = new Date(p.project_completed_at!).getTime();
+          return s + Math.max(0, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+        }, 0);
+        avgTurnOverDays = totalDays / projectsWithDates.length;
+      }
+
+      return {
+        totalInvoiceAmount,
+        totalReceived,
+        totalStandardExpenses,
+        dueClient: totalInvoiceAmount - totalReceived,
+        grossProfit: totalInvoiceAmount - totalStandardExpenses,
+        othersExpenses,
+        dueVendor,
+        netExpenses,
+        netProfit,
+        profitRatio,
+        avgTurnOverDays
+      };
     },
     enabled: !!id && projects.length > 0,
   });
@@ -86,6 +143,65 @@ export default function CompanyDetailPage() {
       return (data ?? []) as Invoice[];
     },
     enabled: !!id,
+  });
+
+  const createProjectMutation = useMutation({
+    mutationFn: async (values: ProjectInput) => {
+      const finalCoverUrl = await mediaApi.uploadAndCleanMedia(
+        values.cover_image_url as string | File | null,
+        null,
+        'projects',
+        'cover',
+        values.title
+      );
+
+      const payload = {
+        ...values,
+        event_end_date: values.event_end_date || values.event_start_date,
+        proposal_date: values.proposal_date || null,
+        invoice_amount: values.invoice_amount ? Number(values.invoice_amount) : null,
+        advance_received: values.advance_received ? Number(values.advance_received) : 0,
+        description: values.description || null,
+        cover_image_url: finalCoverUrl || null,
+        notes: values.notes || null,
+        location: values.location || null,
+        company_id: id!
+      };
+      const { data, error } = await supabase.from('projects').insert(payload).select().single();
+      if (error) throw error;
+      auditApi.log({ action: 'create_project', entity_type: 'project', entity_id: data.id, after: payload });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-projects', id] });
+      queryClient.invalidateQueries({ queryKey: ['company-financials', id] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
+      setIsProjectModalOpen(false);
+      toast('Project created successfully!', 'success');
+    },
+    onError: (error: any) => toast(`Failed to create project: ${error.message}`, 'error')
+  });
+
+  const updateCompanyMutation = useMutation({
+    mutationFn: async ({ values, logoUrl }: { values: CompanyInput, logoUrl: string }) => {
+      const finalLogoUrl = await mediaApi.uploadAndCleanMedia(
+        logoUrl,
+        company?.logo_url,
+        'companies',
+        'logo',
+        values.name
+      );
+      const payload = { ...values, slug: values.slug || slugify(values.name), logo_url: finalLogoUrl || undefined };
+      const { error } = await supabase.from('companies').update(payload).eq('id', id!);
+      if (error) throw error;
+      auditApi.log({ action: 'update_company', entity_type: 'company', entity_id: id!, after: payload });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company', id] });
+      setIsEditModalOpen(false);
+      toast('Company updated successfully!', 'success');
+    },
+    onError: (error: any) => toast(`Failed to update company: ${error.message}`, 'error')
   });
 
   const deleteMutation = useMutation({
@@ -145,37 +261,51 @@ export default function CompanyDetailPage() {
         <button onClick={() => navigate('/companies')} className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground">
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <div className="flex-1">
+        <div className="flex-1 flex items-center gap-4">
+          {company.logo_url ? (
+            <img src={company.logo_url} alt={company.name} className="h-12 w-12 rounded-xl object-cover bg-white dark:bg-[#1c1c1c] shadow-sm border border-border" />
+          ) : (
+            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Building2 className="h-6 w-6 text-primary" />
+            </div>
+          )}
           <PageHeader title={company.name} description={company.address ?? company.email ?? ''} />
         </div>
-        <button
-          onClick={() => setDeleteTarget(company)}
-          className="p-2 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors text-muted-foreground hover:text-red-500"
-          title="Delete Company"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsProjectModalOpen(true)}
+            className="flex items-center gap-2 bg-primary text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">New Project</span>
+          </button>
+          <button
+            onClick={() => setIsEditModalOpen(true)}
+            className="p-2 border border-border rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+            title="Edit Company"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setDeleteTarget(company)}
+            className="p-2 border border-border rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors text-muted-foreground hover:text-red-500"
+            title="Delete Company"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Company Info Card */}
-      <div className="bg-card border border-border rounded-xl p-6 flex items-start gap-4">
-        {company.logo_url ? (
-          <img src={company.logo_url} alt={company.name} className="h-14 w-14 rounded-xl object-cover bg-white dark:bg-[#1c1c1c] shrink-0 shadow-sm border border-border" />
-        ) : (
-          <div className="h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <Building2 className="h-7 w-7 text-primary" />
-          </div>
-        )}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
+      {/* Company Info Bar */}
+      <div className="bg-card border border-border rounded-xl p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             { label: 'Phone', value: company.phone },
             { label: 'Email', value: company.email },
-            { label: 'Address', value: company.address },
             { label: 'Member since', value: formatDate(company.created_at) },
           ].map(({ label, value }) => (
-            <div key={label}>
+            <div key={label} className="min-w-0">
               <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="text-sm font-medium text-foreground mt-0.5">{value ?? '—'}</p>
+              <p className="text-sm font-medium text-foreground mt-0.5 truncate" title={value ?? ''}>{value ?? '—'}</p>
             </div>
           ))}
         </div>
@@ -223,21 +353,27 @@ export default function CompanyDetailPage() {
       )}
 
       {activeTab === 'Financials' && (
-        <div>
-          <div className="mb-4"><DateRangePicker /></div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'Revenue', value: financials?.income ?? 0, color: 'text-emerald-600 text-emerald-600 dark:text-emerald-400' },
-              { label: 'Expense', value: financials?.expense ?? 0, color: 'text-red-500' },
-              { label: 'Profit', value: financials?.profit ?? 0, color: 'text-blue-600 text-blue-600 dark:text-blue-400' },
-              { label: 'Due', value: financials?.due ?? 0, color: 'text-orange-500' },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="bg-card border border-border rounded-xl p-5">
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className={`text-xl font-bold mt-1 ${color}`}>{formatBDT(value)}</p>
-              </div>
-            ))}
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {[
+            { label: 'Invoice Amount', value: financials?.totalInvoiceAmount ?? 0, isCurrency: true },
+            { label: 'Received', value: financials?.totalReceived ?? 0, isCurrency: true, color: 'text-emerald-500' },
+            { label: 'Total Expenses', value: financials?.totalStandardExpenses ?? 0, isCurrency: true, color: 'text-red-500' },
+            { label: 'Due (Client)', value: financials?.dueClient ?? 0, isCurrency: true, color: 'text-orange-500' },
+            { label: 'Gross Profit', value: financials?.grossProfit ?? 0, isCurrency: true, color: 'text-blue-500' },
+            { label: 'Others Expenses', value: financials?.othersExpenses ?? 0, isCurrency: true, color: 'text-red-500/70' },
+            { label: 'Due (Vendor)', value: financials?.dueVendor ?? 0, isCurrency: true, color: 'text-orange-600' },
+            { label: 'Net Expenses', value: financials?.netExpenses ?? 0, isCurrency: true, color: 'text-red-600' },
+            { label: 'Net Profit', value: financials?.netProfit ?? 0, isCurrency: true, color: financials && financials.netProfit >= 0 ? 'text-blue-600' : 'text-red-600' },
+            { label: 'Profit Ratio', value: `${financials?.profitRatio.toFixed(1)}%`, isCurrency: false, color: 'text-purple-500' },
+            { label: 'Turn Over Days', value: `${Math.round(financials?.avgTurnOverDays ?? 0)} days`, isCurrency: false, color: 'text-muted-foreground' },
+          ].map(({ label, value, isCurrency, color }) => (
+            <div key={label} className="bg-card border border-border rounded-xl p-5 shadow-sm hover:border-primary/20 transition-all">
+              <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">{label}</p>
+              <p className={`text-xl font-black mt-2 ${color ?? 'text-foreground'}`}>
+                {isCurrency ? formatBDT(value as number) : value}
+              </p>
+            </div>
+          ))}
         </div>
       )}
 
@@ -284,6 +420,26 @@ export default function CompanyDetailPage() {
         confirmLabel="Delete Company"
         loading={deleteMutation.isPending}
       />
+
+      {/* Modals */}
+      <Modal isOpen={isProjectModalOpen} onClose={() => setIsProjectModalOpen(false)} title="New Project" size="lg">
+        <ProjectForm
+          companies={[company]}
+          isPending={createProjectMutation.isPending}
+          onSubmit={(v) => createProjectMutation.mutate(v)}
+          onCancel={() => setIsProjectModalOpen(false)}
+          defaultValues={{ company_id: company.id }}
+        />
+      </Modal>
+
+      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Company">
+        <CompanyForm
+          isPending={updateCompanyMutation.isPending}
+          onSubmit={(values, logoUrl) => updateCompanyMutation.mutate({ values, logoUrl })}
+          onCancel={() => setIsEditModalOpen(false)}
+          defaultValues={company}
+        />
+      </Modal>
     </div>
   );
 }

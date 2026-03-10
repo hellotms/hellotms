@@ -59,6 +59,7 @@ export default function HomePage() {
         .from('projects')
         .select('id, title, cover_image_url, location, companies(name)')
         .eq('is_published', true)
+        .is('deleted_at', null)
         .order('event_start_date', { ascending: false })
         .limit(6);
       setProjects((data ?? []) as unknown as Project[]);

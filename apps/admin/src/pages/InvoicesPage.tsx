@@ -66,7 +66,11 @@ export default function InvoicesPage() {
   const { data: companies = [] } = useQuery<Company[]>({
     queryKey: ['companies-list'],
     queryFn: async () => {
-      const { data } = await supabase.from('companies').select('id, name').order('name');
+      const { data } = await supabase
+        .from('companies')
+        .select('id, name')
+        .is('deleted_at', null)
+        .order('name');
       return (data ?? []) as Company[];
     },
   });
@@ -74,7 +78,11 @@ export default function InvoicesPage() {
   const { data: allProjects = [] } = useQuery<Project[]>({
     queryKey: ['projects-list'],
     queryFn: async () => {
-      const { data } = await supabase.from('projects').select('id, title, company_id').order('title');
+      const { data } = await supabase
+        .from('projects')
+        .select('id, title, company_id')
+        .is('deleted_at', null)
+        .order('title');
       return (data ?? []) as Project[];
     },
   });
@@ -349,9 +357,14 @@ export default function InvoicesPage() {
     onSuccess: (inv) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-count'] });
-      queryClient.invalidateQueries({ queryKey: ['ledger', selectedProjectId] });
-      closeModal();
-      toast('Invoice created and ledger synced', 'success');
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
+      queryClient.invalidateQueries({ queryKey: ['company-financials'] });
+      if (selectedProjectId) {
+        queryClient.invalidateQueries({ queryKey: ['ledger', selectedProjectId] });
+      }
+      closeModal(); // This was `setIsCreateModalOpen(false); reset();` in the instruction, but `closeModal` is defined above and does the reset. Keeping `closeModal` for consistency.
+      toast('Invoice created successfully!', 'success');
       auditApi.log({
         action: 'create_invoice',
         entity_type: 'invoice',
@@ -407,8 +420,12 @@ export default function InvoicesPage() {
     },
     onSuccess: (_, invoice) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
+      queryClient.invalidateQueries({ queryKey: ['company-financials'] });
+      queryClient.invalidateQueries({ queryKey: ['ledger'] });
       setDeleteTarget(null);
-      toast('Invoice deleted successfully!', 'success');
+      toast('Invoice moved to recycle bin', 'success');
       auditApi.log({
         action: 'delete_invoice',
         entity_type: 'invoice',
@@ -501,11 +518,11 @@ export default function InvoicesPage() {
           {/* Step 1: Meta fields */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-medium mb-1 text-muted-foreground">Invoice #</label>
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">Invoice # <span className="text-red-500">*</span></label>
               <input value={invoiceNum} onChange={e => setInvoiceNum(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1 text-muted-foreground">Company *</label>
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">Company <span className="text-red-500">*</span></label>
               <select
                 value={selectedCompanyId}
                 onChange={e => { setSelectedCompanyId(e.target.value); setSelectedProjectId(''); setLineItems([]); }}
@@ -516,7 +533,7 @@ export default function InvoicesPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1 text-muted-foreground">Project *</label>
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">Project <span className="text-red-500">*</span></label>
               <select
                 value={selectedProjectId}
                 onChange={e => { setSelectedProjectId(e.target.value); setLineItems([]); }}
@@ -568,13 +585,13 @@ export default function InvoicesPage() {
                 <thead className="bg-muted/50 border-b border-border">
                   <tr>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-8">SL</th>
-                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold">Description</th>
+                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold">Description <span className="text-red-500">*</span></th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">
                       Cost Price
                       <span className="ml-1 text-[10px] bg-amber-100 dark:bg-amber-500/20 text-amber-700 px-1 py-0.5 rounded font-normal">admin only</span>
                     </th>
-                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">Qty</th>
-                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-28">Sell Price (৳)</th>
+                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">Qty <span className="text-red-500">*</span></th>
+                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-28">Sell Price (৳) <span className="text-red-500">*</span></th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">Total</th>
                     <th className="w-8"></th>
                   </tr>

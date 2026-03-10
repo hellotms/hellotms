@@ -5,11 +5,11 @@ import { format } from 'date-fns';
 import { useState } from 'react';
 
 const PRESETS: { label: string; value: DatePreset }[] = [
-  { label: 'Today',      value: 'today' },
-  { label: 'This Week',  value: 'week' },
+  { label: 'Today', value: 'today' },
+  { label: 'This Week', value: 'week' },
   { label: 'This Month', value: 'month' },
-  { label: 'This Year',  value: 'year' },
-  { label: 'Custom',     value: 'custom' },
+  { label: 'This Year', value: 'year' },
+  { label: 'Custom', value: 'custom' },
 ];
 
 export function DateRangePicker() {

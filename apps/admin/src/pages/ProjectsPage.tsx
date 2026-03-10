@@ -11,6 +11,7 @@ import { FolderOpen, Plus, Building2, MoreHorizontal, Trash, Pencil, ImageIcon }
 import { ImageUpload } from '@/components/ImageUpload';
 import { projectSchema, EVENT_CATEGORIES } from '@hellotms/shared';
 import { useForm } from 'react-hook-form';
+import { ProjectForm } from '@/components/ProjectForm';
 import { toast } from '@/components/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -32,7 +33,11 @@ export default function ProjectsPage() {
   const { data: companies = [] } = useQuery<Company[]>({
     queryKey: ['companies-list'],
     queryFn: async () => {
-      const { data } = await supabase.from('companies').select('id, name').order('name');
+      const { data } = await supabase
+        .from('companies')
+        .select('id, name')
+        .is('deleted_at', null)
+        .order('name');
       return (data ?? []) as Company[];
     },
   });
@@ -51,28 +56,11 @@ export default function ProjectsPage() {
     },
   });
 
-  const today = new Date().toISOString().split('T')[0];
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ProjectInput>({
-    resolver: zodResolver(projectSchema),
-    defaultValues: {
-      status: 'draft',
-      is_published: false,
-      is_featured: false,
-      proposal_date: today,
-      event_start_date: today
-    },
-  });
-
-  const coverImageUrl = watch('cover_image_url');
-  const selectedCategory = watch('category');
-  const isOtherCategory = selectedCategory === 'Others';
-  const [customCategory, setCustomCategory] = useState('');
-
   const createMutation = useMutation({
     mutationFn: async (values: ProjectInput) => {
       // 1. Upload Cover Image Document if a crop happened
       const finalCoverUrl = await mediaApi.uploadAndCleanMedia(
-        coverImageUrl as string | File | null,
+        values.cover_image_url as string | File | null,
         null,
         'projects',
         'cover',
@@ -86,7 +74,6 @@ export default function ProjectsPage() {
         proposal_date: values.proposal_date || null,
         invoice_amount: values.invoice_amount ? Number(values.invoice_amount) : null,
         advance_received: values.advance_received ? Number(values.advance_received) : 0,
-        category: values.category === 'Others' ? customCategory : (values.category || null),
         description: values.description || null,
         cover_image_url: finalCoverUrl || null,
         notes: values.notes || null,
@@ -104,7 +91,6 @@ export default function ProjectsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       setIsOpen(false);
-      reset();
       toast('Project created successfully!', 'success');
     },
     onError: (error: any) => {
@@ -220,13 +206,6 @@ export default function ProjectsPage() {
           <button
             onClick={() => {
               setIsOpen(true);
-              reset({
-                status: 'draft',
-                is_published: false,
-                is_featured: false,
-                proposal_date: today,
-                event_start_date: today
-              });
             }}
             className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
           >
@@ -264,121 +243,13 @@ export default function ProjectsPage() {
       </div>
 
       {/* Create Project Modal */}
-      <Modal isOpen={isOpen} onClose={() => { setIsOpen(false); reset(); }} title="New Project" size="lg">
-        <form onSubmit={handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Company *</label>
-            <select {...register('company_id')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-              <option value="">Select company...</option>
-              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            {errors.company_id && <p className="text-xs text-destructive mt-1">{errors.company_id.message}</p>}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Project / Event Title *</label>
-            <input {...register('title')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            {errors.title && <p className="text-xs text-destructive mt-1">{errors.title.message}</p>}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Event Category</label>
-            <select
-              {...register('category')}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">Select Category</option>
-              {EVENT_CATEGORIES.filter(c => c !== 'Others').map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-              <option value="Others">Others</option>
-            </select>
-          </div>
-
-          {isOtherCategory && (
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Custom Category Name *</label>
-              <input
-                value={customCategory}
-                onChange={(e) => setCustomCategory(e.target.value)}
-                placeholder="Enter custom category..."
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                required
-              />
-            </div>
-          )}
-
-
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Proposal Date</label>
-              <input type="date" {...register('proposal_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Event Start Date *</label>
-              <input type="date" {...register('event_start_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Event End Date <span className="text-muted-foreground font-normal text-xs">(defaults to start date)</span></label>
-              <input type="date" {...register('event_end_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Invoice Amount (৳)</label>
-              <input type="number" step="0.01" min="0" {...register('invoice_amount', { valueAsNumber: true })} placeholder="e.g. 150000" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Advance Received (৳)</label>
-              <input type="number" step="0.01" min="0" {...register('advance_received', { valueAsNumber: true })} placeholder="e.g. 50000" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Location</label>
-              <input {...register('location')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Status</label>
-              <select {...register('status')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <ImageUpload
-              label="Cover Photo"
-              value={coverImageUrl}
-              onChange={(val) => setValue('cover_image_url', val as string)}
-              aspect={16 / 9}
-              guide="Recommended ratio 16:9 (e.g. 1920x1080)"
-            />
-            {errors.cover_image_url && <p className="text-xs text-destructive mt-1">{errors.cover_image_url.message}</p>}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">About the Event</label>
-            <textarea {...register('description')} rows={4} placeholder="Detailed project/event description for the public site..." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
-            {errors.description && <p className="text-xs text-destructive mt-1">{errors.description.message}</p>}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Admin Notes <span className="text-muted-foreground font-normal text-xs">(internal only)</span></label>
-            <textarea {...register('notes')} rows={2} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => { setIsOpen(false); reset(); }} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
-            <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60">
-              {createMutation.isPending ? 'Creating...' : 'Create Project'}
-            </button>
-          </div>
-        </form>
+      <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="New Project" size="lg">
+        <ProjectForm
+          companies={companies}
+          isPending={createMutation.isPending}
+          onSubmit={(v) => createMutation.mutate(v)}
+          onCancel={() => setIsOpen(false)}
+        />
       </Modal>
 
       <CascadeConfirmModal

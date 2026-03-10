@@ -18,26 +18,12 @@ import type { LedgerEntryInput } from '@hellotms/shared';
 import { ledgerEntrySchema, collectionSchema, EVENT_CATEGORIES } from '@hellotms/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { CollectionInput } from '@hellotms/shared';
+import { ProjectForm } from '@/components/ProjectForm';
 
 const TABS = ['Overview', 'Expenses', 'Others Expenses', 'Collections', 'Invoices', 'Timeline', 'Gallery'] as const;
 type Tab = typeof TABS[number];
 
-type EditProjectInput = {
-  title: string;
-  status: string;
-  location?: string;
-  category?: string;
-  event_start_date: string;
-  event_end_date?: string;
-  proposal_date?: string;
-  invoice_amount?: string | number;
-  advance_received?: string | number;
-  notes?: string;
-  is_featured: boolean;
-  project_completed_at?: string;
-  description?: string;
-  cover_image_url?: string;
-};
+
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -138,11 +124,7 @@ export default function ProjectDetailPage() {
   const durations = project ? computeProjectDurations(project, collections, totalInvoiced) : null;
 
   // Edit project form
-  const { register: registerEdit, handleSubmit: handleSubmitEdit, reset: resetEdit, setValue: setValueEdit, watch: watchEdit } = useForm<EditProjectInput>();
 
-  const editCoverImageUrl = watchEdit('cover_image_url');
-  const selectedCategory = watchEdit('category');
-  const isOtherCategory = selectedCategory === 'Others';
 
   // Gallery: fetch images from project_media table
   const { data: gallery = [], refetch: refetchGallery } = useQuery<{ id: string; url: string; path: string }[]>({
@@ -348,6 +330,9 @@ export default function ProjectDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', id] });
       queryClient.invalidateQueries({ queryKey: ['project-invoices', id] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
+      queryClient.invalidateQueries({ queryKey: ['company-financials', project?.company_id] });
       toast('Project marked as Paid', 'success');
     },
     onError: (e: any) => toast(`Failed to mark as paid: ${e.message}`, 'error')
@@ -379,6 +364,9 @@ export default function ProjectDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', id] });
       queryClient.invalidateQueries({ queryKey: ['project-invoices', id] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
+      queryClient.invalidateQueries({ queryKey: ['company-financials', project?.company_id] });
       toast('Project marked as Unpaid', 'success');
     },
     onError: (e: any) => toast(`Failed to mark as unpaid: ${e.message}`, 'error')
@@ -418,6 +406,9 @@ export default function ProjectDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
+      queryClient.invalidateQueries({ queryKey: ['company-financials', project?.company_id] });
       setDeleteProjectTarget(null);
       toast('Project deleted successfully', 'success');
       navigate('/projects');
@@ -428,7 +419,7 @@ export default function ProjectDetailPage() {
   });
 
   const saveProjectMutation = useMutation({
-    mutationFn: async (values: EditProjectInput) => {
+    mutationFn: async (values: any) => {
       // 1. Handle potential cover image change
       const finalCoverUrl = await mediaApi.uploadAndCleanMedia(
         (values.cover_image_url ?? null) as File | string | null,
@@ -462,6 +453,9 @@ export default function ProjectDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', id] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
+      queryClient.invalidateQueries({ queryKey: ['company-financials', project?.company_id] });
       setIsEditOpen(false);
       toast('Project updated', 'success');
     },
@@ -600,23 +594,6 @@ export default function ProjectDetailPage() {
         <StatusBadge status={project.status} />
         <button
           onClick={() => {
-            resetEdit({
-              title: project.title,
-              status: project.status,
-              location: project.location ?? '',
-              category: EVENT_CATEGORIES.includes(project.category as any) ? (project.category ?? '') : (project.category ? 'Others' : ''),
-              event_start_date: project.event_start_date ? project.event_start_date.split('T')[0] : '',
-              event_end_date: project.event_end_date ? project.event_end_date.split('T')[0] : '',
-              proposal_date: project.proposal_date ? project.proposal_date.split('T')[0] : '',
-              invoice_amount: project.invoice_amount ?? '',
-              advance_received: project.advance_received ?? '',
-              notes: project.notes ?? '',
-              is_featured: project.is_featured ?? false,
-              project_completed_at: project.project_completed_at ? project.project_completed_at.split('T')[0] : '',
-              description: project.description ?? '',
-              cover_image_url: project.cover_image_url ?? '',
-            });
-            setCustomCategory(EVENT_CATEGORIES.includes(project.category as any) ? '' : (project.category ?? ''));
             setIsEditOpen(true);
           }}
           className="flex items-center gap-1.5 text-xs border border-border px-3 py-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
@@ -1110,10 +1087,10 @@ export default function ProjectDetailPage() {
 
       {/* Ledger Entry Modal */}
       <Modal isOpen={isLedgerOpen} onClose={() => { setIsLedgerOpen(false); setEditingEntry(null); }} title={editingEntry ? 'Edit Entry' : (ledgerForm.getValues('is_external') ? 'Add Other Expense' : 'Add Expense')}>
-        <form onSubmit={ledgerForm.handleSubmit((v) => saveLedgerMutation.mutate(v))} className="space-y-4">
+        <form onSubmit={ledgerForm.handleSubmit((v: any) => saveLedgerMutation.mutate(v))} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Category *</label>
+              <label className="block text-sm font-medium mb-1">Category <span className="text-red-500">*</span></label>
               <input
                 {...ledgerForm.register('category')}
                 className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${ledgerForm.formState.errors.category ? 'border-red-500' : 'border-border'
@@ -1121,11 +1098,11 @@ export default function ProjectDetailPage() {
                 placeholder="e.g. Venue fee"
               />
               {ledgerForm.formState.errors.category && (
-                <p className="text-xs text-red-500 mt-1">{ledgerForm.formState.errors.category.message}</p>
+                <p className="text-xs text-red-500 mt-1">{(ledgerForm.formState.errors.category as any)?.message}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Date *</label>
+              <label className="block text-sm font-medium mb-1">Date <span className="text-red-500">*</span></label>
               <input
                 type="date"
                 {...ledgerForm.register('entry_date')}
@@ -1133,13 +1110,13 @@ export default function ProjectDetailPage() {
                   }`}
               />
               {ledgerForm.formState.errors.entry_date && (
-                <p className="text-xs text-red-500 mt-1">{ledgerForm.formState.errors.entry_date.message}</p>
+                <p className="text-xs text-red-500 mt-1">{(ledgerForm.formState.errors.entry_date as any)?.message}</p>
               )}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Amount (৳) *</label>
+              <label className="block text-sm font-medium mb-1">Amount (৳) <span className="text-red-500">*</span></label>
               <input
                 type="number"
                 step="0.01"
@@ -1148,7 +1125,7 @@ export default function ProjectDetailPage() {
                   }`}
               />
               {ledgerForm.formState.errors.amount && (
-                <p className="text-xs text-red-500 mt-1">{ledgerForm.formState.errors.amount.message}</p>
+                <p className="text-xs text-red-500 mt-1">{(ledgerForm.formState.errors.amount as any)?.message}</p>
               )}
             </div>
             <div>
@@ -1174,7 +1151,7 @@ export default function ProjectDetailPage() {
                   }`}
               />
               {ledgerForm.formState.errors.quantity && (
-                <p className="text-xs text-red-500 mt-1">{ledgerForm.formState.errors.quantity.message}</p>
+                <p className="text-xs text-red-500 mt-1">{(ledgerForm.formState.errors.quantity as any)?.message}</p>
               )}
             </div>
             <div>
@@ -1190,7 +1167,7 @@ export default function ProjectDetailPage() {
                   }`}
               />
               {ledgerForm.formState.errors.face_value && (
-                <p className="text-xs text-red-500 mt-1">{ledgerForm.formState.errors.face_value.message}</p>
+                <p className="text-xs text-red-500 mt-1">{(ledgerForm.formState.errors.face_value as any)?.message}</p>
               )}
             </div>
           </div>
@@ -1239,15 +1216,21 @@ export default function ProjectDetailPage() {
 
       {/* Collection Modal */}
       <Modal isOpen={isCollectionOpen} onClose={() => setIsCollectionOpen(false)} title="Add Payment Collection">
-        <form onSubmit={collectionForm.handleSubmit((v) => saveCollectionMutation.mutate(v))} className="space-y-4">
+        <form onSubmit={collectionForm.handleSubmit((v: any) => saveCollectionMutation.mutate(v))} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Amount (৳) *</label>
+              <label className="block text-sm font-medium mb-1">Amount (৳) <span className="text-red-500">*</span></label>
               <input type="number" step="0.01" {...collectionForm.register('amount', { valueAsNumber: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              {collectionForm.formState.errors.amount && (
+                <p className="text-xs text-red-500 mt-1">{(collectionForm.formState.errors.amount as any)?.message}</p>
+              )}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Payment Date *</label>
+              <label className="block text-sm font-medium mb-1">Payment Date <span className="text-red-500">*</span></label>
               <input type="date" {...collectionForm.register('payment_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              {collectionForm.formState.errors.payment_date && (
+                <p className="text-xs text-red-500 mt-1">{(collectionForm.formState.errors.payment_date as any)?.message}</p>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -1321,110 +1304,14 @@ export default function ProjectDetailPage() {
         loading={deleteProjectMutation.isPending}
       />
 
-      <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Project">
-        <form onSubmit={handleSubmitEdit((v) => saveProjectMutation.mutate(v))} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Project Title *</label>
-            <input {...registerEdit('title', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Status</label>
-              <select {...registerEdit('status')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Location</label>
-              <input {...registerEdit('location')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="Dhaka, Bangladesh" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Event Category</label>
-            <select
-              {...registerEdit('category')}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">Select Category</option>
-              {EVENT_CATEGORIES.filter(c => c !== 'Others').map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-              <option value="Others">Others</option>
-            </select>
-          </div>
-          {isOtherCategory && (
-            <div>
-              <label className="block text-sm font-medium mb-1">Custom Category Name *</label>
-              <input
-                value={customCategory}
-                onChange={(e) => setCustomCategory(e.target.value)}
-                placeholder="Enter custom category..."
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                required
-              />
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Event Start Date *</label>
-              <input type="date" {...registerEdit('event_start_date', { required: true })} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Event End Date</label>
-              <input type="date" {...registerEdit('event_end_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Proposal Date</label>
-              <input type="date" {...registerEdit('proposal_date')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Project Completed At</label>
-              <input type="date" {...registerEdit('project_completed_at')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Invoice Amount (৳)</label>
-              <input type="number" step="0.01" {...registerEdit('invoice_amount')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="0.00" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Advance Received (৳)</label>
-              <input type="number" step="0.01" {...registerEdit('advance_received')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="0.00" />
-            </div>
-          </div>
-          <ImageUpload
-            label="Cover Photo"
-            value={editCoverImageUrl}
-            onChange={(val) => setValueEdit('cover_image_url', val as string)}
-            aspect={16 / 9}
-            guide="Recommended ratio 16:9 (e.g. 1920x1080)"
-          />
-          <div>
-            <label className="block text-sm font-medium mb-1">About the Event (Description)</label>
-            <textarea {...registerEdit('description')} rows={5} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" placeholder="Public description..." />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Internal Notes</label>
-            <textarea {...registerEdit('notes')} rows={2} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="is_featured" {...registerEdit('is_featured')} className="rounded" />
-            <label htmlFor="is_featured" className="text-sm font-medium">Mark as Featured</label>
-          </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setIsEditOpen(false)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
-            <button type="submit" disabled={saveProjectMutation.isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
-              {saveProjectMutation.isPending ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
+      <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Project" size="lg">
+        <ProjectForm
+          companies={project.companies ? [{ id: project.company_id, name: project.companies.name } as any] : []}
+          onSubmit={(v) => saveProjectMutation.mutate(v as any)}
+          onCancel={() => setIsEditOpen(false)}
+          isPending={saveProjectMutation.isPending}
+          defaultValues={project as any}
+        />
       </Modal>
 
       {/* Delete Project Modal */}

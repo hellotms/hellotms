@@ -50,6 +50,7 @@ export default function LeadsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
       setSelectedLead(null);
       toast('Lead updated successfully', 'success');
     },
@@ -96,6 +97,7 @@ export default function LeadsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
       setSelectedLead(null);
       setDeleteTarget(null);
       toast('Lead deleted successfully', 'success');

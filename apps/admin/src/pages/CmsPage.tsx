@@ -99,16 +99,18 @@ export default function CmsPage() {
       <PageHeader title="Core Settings" description="Global platform configurations and administrative controls" />
 
       {/* 3-Tab Navigation */}
-      <div className="flex gap-2 p-1.5 bg-card border border-border rounded-xl shadow-sm w-fit">
-        {[
-          { id: 'general', label: 'General Setting', icon: LayoutDashboard },
-          { id: 'cms', label: 'CMS Setting', icon: Globe },
-          { id: 'admin', label: 'Admin Setting', icon: Sliders },
-        ].map(tab => (
-          <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setIsEditing(false); }} className={cn("flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-lg transition-all tracking-wider uppercase", activeTab === tab.id ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
-            <tab.icon className="h-4 w-4" /> {tab.label}
-          </button>
-        ))}
+      <div className="w-full overflow-x-auto no-scrollbar pb-2">
+        <div className="flex gap-2 p-1.5 bg-card border border-border rounded-xl shadow-sm w-fit min-w-max">
+          {[
+            { id: 'general', label: 'General Setting', icon: LayoutDashboard },
+            { id: 'cms', label: 'CMS Setting', icon: Globe },
+            { id: 'admin', label: 'Admin Setting', icon: Sliders },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setIsEditing(false); }} className={cn("flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-lg transition-all tracking-wider uppercase whitespace-nowrap", activeTab === tab.id ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+              <tab.icon className="h-4 w-4" /> {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -116,14 +118,14 @@ export default function CmsPage() {
           <h2 className="font-bold text-xl text-foreground flex items-center gap-2">
             {activeTab === 'general' ? 'General' : activeTab === 'cms' ? 'Content Management System' : 'Administrative'} Configurations
           </h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {activeTab !== 'cms' && (
               !isEditing ? (
-                <button onClick={() => setIsEditing(true)} className="px-5 py-2 bg-primary/10 text-primary text-xs font-black rounded-xl hover:bg-primary/20 flex items-center gap-2 uppercase tracking-widest"><Pencil className="h-3.5 w-3.5" /> Edit Section</button>
+                <button onClick={() => setIsEditing(true)} className="px-5 py-2 bg-primary/10 text-primary text-xs font-black rounded-xl hover:bg-primary/20 flex items-center gap-2 uppercase tracking-widest"><Pencil className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Edit Section</span><span className="sm:hidden">Edit</span></button>
               ) : (
                 <>
                   <button onClick={() => { setIsEditing(false); form.reset(); }} className="px-4 py-2 text-xs font-bold hover:bg-muted rounded-xl">Cancel</button>
-                  <button onClick={form.handleSubmit(v => saveMutation.mutate(v))} disabled={saveMutation.isPending} className="px-5 py-2 bg-primary text-primary-foreground text-xs font-black rounded-xl hover:opacity-90 shadow-lg shadow-primary/10 flex items-center gap-2 uppercase tracking-widest">{saveMutation.isPending ? <CircleDashed className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save Changes</button>
+                  <button onClick={form.handleSubmit(v => saveMutation.mutate(v))} disabled={saveMutation.isPending} className="px-5 py-2 bg-primary text-primary-foreground text-xs font-black rounded-xl hover:opacity-90 shadow-lg shadow-primary/10 flex items-center gap-2 uppercase tracking-widest">{saveMutation.isPending ? <CircleDashed className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} <span className="hidden sm:inline">Save Changes</span><span className="sm:hidden">Save</span></button>
                 </>
               )
             )}
@@ -275,9 +277,9 @@ export default function CmsPage() {
                       <Info className="h-5 w-5 text-blue-500 shrink-0" /><p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed font-medium">The margins define safe printing zones. Content outside these areas will be truncated to fit your uploaded pad's design.</p>
                     </div>
                   </div>
-                  <div className="flex flex-col items-center">
+                  <div className="flex flex-col items-center w-full overflow-x-auto py-4">
                     <p className="text-[10px] font-black text-muted-foreground uppercase mb-6 tracking-widest">Live Rendering Preview</p>
-                    <div className="relative w-[300px] h-[424px] bg-white dark:bg-[#111] shadow-2xl border border-border overflow-hidden rounded-sm ring-8 ring-muted/20">
+                    <div className="relative w-full max-w-[300px] aspect-[210/297] bg-white dark:bg-[#111] shadow-2xl border border-border overflow-hidden rounded-sm ring-8 ring-muted/20 mx-auto">
                       {form.watch('invoice_pad_url') && <img src={form.watch('invoice_pad_url')} className="absolute inset-0 w-full h-full object-fill opacity-90" alt="Preview" />}
                       <div className="absolute top-0 inset-x-0 bg-red-500/15 border-b border-red-500/40 z-10 flex items-center justify-center font-black text-[9px] text-red-500" style={{ height: `${(form.watch('pad_margin_top') / 3508) * 100}%` }}>HEADER ({form.watch('pad_margin_top')}px)</div>
                       <div className="absolute bottom-0 inset-x-0 bg-red-500/15 border-t border-red-500/40 z-10 flex items-center justify-center font-black text-[9px] text-red-500" style={{ height: `${(form.watch('pad_margin_bottom') / 3508) * 100}%` }}>FOOTER ({form.watch('pad_margin_bottom')}px)</div>

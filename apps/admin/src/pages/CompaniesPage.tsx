@@ -17,6 +17,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { Company, CompanyInput } from '@hellotms/shared';
 import { mediaApi, auditApi } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { CompanyForm } from '@/components/CompanyForm';
 
 export default function CompaniesPage() {
   const navigate = useNavigate();
@@ -24,7 +25,6 @@ export default function CompaniesPage() {
   const { profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
-  const [logoUrl, setLogoUrl] = useState<string>('');
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
 
   const { data: companies = [], isLoading } = useQuery({
@@ -43,12 +43,8 @@ export default function CompaniesPage() {
     },
   });
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CompanyInput>({
-    resolver: zodResolver(companySchema),
-  });
-
   const saveMutation = useMutation({
-    mutationFn: async (values: CompanyInput) => {
+    mutationFn: async ({ values, logoUrl }: { values: CompanyInput; logoUrl: string }) => {
       const finalLogoUrl = await mediaApi.uploadAndCleanMedia(
         logoUrl,
         editingCompany?.logo_url,
@@ -82,7 +78,6 @@ export default function CompaniesPage() {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
       setIsOpen(false);
       setEditingCompany(null);
-      reset();
       toast('Company saved successfully!', 'success');
     },
     onError: (error: any) => {
@@ -139,8 +134,8 @@ export default function CompaniesPage() {
     }
   });
 
-  const openCreate = () => { setEditingCompany(null); reset(); setLogoUrl(''); setIsOpen(true); };
-  const openEdit = (c: Company) => { setEditingCompany(c); reset(c); setLogoUrl(c.logo_url ?? ''); setIsOpen(true); };
+  const openCreate = () => { setEditingCompany(null); setIsOpen(true); };
+  const openEdit = (c: Company) => { setEditingCompany(c); setIsOpen(true); };
 
   const columns: ColumnDef<Company, unknown>[] = [
     {
@@ -221,39 +216,13 @@ export default function CompaniesPage() {
         )}
       </div>
 
-      <Modal isOpen={isOpen} onClose={() => { setIsOpen(false); reset(); }} title={editingCompany ? 'Edit Company' : 'New Company'}>
-        <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
-          <ImageUpload
-            value={logoUrl || null}
-            onChange={(val) => setLogoUrl(val as string)}
-            label="Company Logo"
-          />
-
-          {[
-            { name: 'name', label: 'Company Name', required: true },
-            { name: 'email', label: 'Email', type: 'email' },
-            { name: 'phone', label: 'Phone' },
-            { name: 'address', label: 'Address' },
-          ].map(({ name, label, type = 'text', required }) => (
-            <div key={name}>
-              <label className="block text-sm font-medium text-foreground mb-1">{label}{required && ' *'}</label>
-              <input
-                {...register(name as keyof CompanyInput)}
-                type={type}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              {errors[name as keyof CompanyInput] && (
-                <p className="text-xs text-destructive mt-1">{errors[name as keyof CompanyInput]?.message}</p>
-              )}
-            </div>
-          ))}
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => { setIsOpen(false); reset(); }} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
-            <button type="submit" disabled={saveMutation.isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60">
-              {saveMutation.isPending ? 'Saving...' : 'Save Company'}
-            </button>
-          </div>
-        </form>
+      <Modal isOpen={isOpen} onClose={() => { setIsOpen(false); setEditingCompany(null); }} title={editingCompany ? 'Edit Company' : 'New Company'}>
+        <CompanyForm
+          isPending={saveMutation.isPending}
+          onSubmit={(values, logoUrl) => saveMutation.mutate({ values, logoUrl })}
+          onCancel={() => { setIsOpen(false); setEditingCompany(null); }}
+          defaultValues={editingCompany ?? undefined}
+        />
       </Modal>
 
       <CascadeConfirmModal

@@ -3,8 +3,8 @@ import { z } from 'zod';
 // ─── Company ─────────────────────────────────────────────────────────────────
 export const companySchema = z.object({
   name: z.string().min(1, 'Company name is required').max(120),
-  slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens').optional(),
-  logo_url: z.string().url().optional().nullable(),
+  slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens').optional().nullable(),
+  logo_url: z.any().optional().nullable(),
   phone: z.string().max(20).optional().nullable(),
   email: z.string().email().optional().nullable(),
   address: z.string().max(300).optional().nullable(),
@@ -16,6 +16,7 @@ export type CompanyInput = z.infer<typeof companySchema>;
 export const projectSchema = z.object({
   company_id: z.string().uuid(),
   title: z.string().min(1, 'Project title is required').max(200),
+  slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens').optional().nullable(),
   status: z.enum(['draft', 'active', 'completed']).default('draft'),
   event_start_date: z.string().min(1, 'Event start date is required'),
   proposal_date: z.string().optional().nullable(),
@@ -28,10 +29,10 @@ export const projectSchema = z.object({
   project_completed_at: z.string().optional().nullable(),
   payment_status: z.enum(['paid', 'unpaid']).optional().nullable(),
   paid_at: z.string().optional().nullable(),
-  invoice_amount: z.number().positive().optional().nullable(),
-  advance_received: z.number().min(0).optional().nullable(),
+  invoice_amount: z.preprocess((val) => (val === "" || val === null || (typeof val === 'number' && isNaN(val)) ? undefined : Number(val)), z.number({ invalid_type_error: 'Invoice amount is required' }).positive('Amount must be positive')),
+  advance_received: z.preprocess((val) => (val === "" || val === null || (typeof val === 'number' && isNaN(val)) ? undefined : Number(val)), z.number({ invalid_type_error: 'Advance received is required' }).min(0)),
   description: z.string().max(3000).optional().nullable(),
-  cover_image_url: z.string().url().optional().nullable(),
+  cover_image_url: z.any().optional().nullable(),
   category: z.string().max(100).optional().nullable(),
 });
 

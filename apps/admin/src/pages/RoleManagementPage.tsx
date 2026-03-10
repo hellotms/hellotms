@@ -213,8 +213,8 @@ export default function RoleManagementPage() {
             <Modal isOpen={isRoleModalOpen} onClose={() => setIsRoleModalOpen(false)} title="New Security Archetype">
                 <form onSubmit={roleEditForm.handleSubmit(v => roleSaveMutation.mutate(v))} className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
-                        <div><label className="text-[10px] font-black uppercase text-muted-foreground mb-1 block">Technical Slug</label><input {...roleEditForm.register('name', { required: true })} placeholder="e.g. site_admin" className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm font-mono" /></div>
-                        <div><label className="text-[10px] font-black uppercase text-muted-foreground mb-1 block">Display Name</label><input {...roleEditForm.register('label', { required: true })} placeholder="e.g. Site Admin" className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
+                        <div><label className="text-[10px] font-black uppercase text-muted-foreground mb-1 block">Technical Slug <span className="text-red-500">*</span></label><input {...roleEditForm.register('name', { required: true })} placeholder="e.g. site_admin" className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm font-mono" /></div>
+                        <div><label className="text-[10px] font-black uppercase text-muted-foreground mb-1 block">Display Name <span className="text-red-500">*</span></label><input {...roleEditForm.register('label', { required: true })} placeholder="e.g. Site Admin" className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
                     </div>
                     <button type="submit" disabled={roleSaveMutation.isPending} className="w-full py-4 bg-primary text-white font-black uppercase text-xs tracking-[0.2em] rounded-2xl shadow-xl shadow-primary/20 transition-all">{roleSaveMutation.isPending ? 'Finalizing...' : 'Create Role'}</button>
                 </form>
