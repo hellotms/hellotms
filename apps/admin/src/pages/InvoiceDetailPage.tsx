@@ -66,7 +66,6 @@ export default function InvoiceDetailPage() {
         .from('collections')
         .select('id, amount, payment_date, method, note')
         .eq('project_id', invoice!.project_id)
-        .eq('deleted_at', null)
         .order('payment_date', { ascending: true });
       return (data ?? []) as Collection[];
     },
@@ -272,7 +271,7 @@ export default function InvoiceDetailPage() {
   return (
     <div>
       <PageHeader
-        title={`Invoice ${invoice.invoice_number}`}
+        title={`${invoice.type === 'estimate' ? 'Estimate' : 'Invoice'} ${invoice.invoice_number}`}
         description={`${invoice.companies?.name ?? ''} — ${invoice.projects?.title ?? ''}`}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
@@ -315,7 +314,9 @@ export default function InvoiceDetailPage() {
             <div className="p-8 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-6 border-b border-border">
               {/* Left: Bill To */}
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Invoice To</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">
+                  {invoice.type === 'estimate' ? 'Estimate To' : 'Invoice To'}
+                </p>
                 <p className="font-bold text-lg leading-snug">{invoice.companies?.name ?? '—'}</p>
                 {invoice.companies?.address && (
                   <p className="text-sm text-muted-foreground mt-0.5">{invoice.companies.address}</p>
@@ -360,7 +361,9 @@ export default function InvoiceDetailPage() {
 
               {/* Right: INVOICE heading + date/no table */}
               <div className="sm:text-right shrink-0">
-                <h1 className="text-3xl sm:text-4xl font-black tracking-widest text-foreground mb-4 leading-none">INVOICE</h1>
+                <h1 className="text-3xl sm:text-4xl font-black tracking-widest text-foreground mb-4 leading-none">
+                  {invoice.type === 'estimate' ? 'ESTIMATE' : 'INVOICE'}
+                </h1>
                 <StatusBadge status={invoice.status} />
                 <table className="text-sm mt-3 sm:ml-auto border border-border rounded-lg overflow-hidden">
                   <tbody>
