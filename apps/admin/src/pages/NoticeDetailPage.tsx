@@ -39,6 +39,7 @@ export default function NoticeDetailPage() {
             </button>
 
             <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+                {notice.cover_url && (
                     <div 
                         className="h-64 w-full relative cursor-pointer group"
                         onClick={() => setPreviewUrl(notice.cover_url as string | null)}

@@ -445,28 +445,6 @@ export default function InvoicesPage() {
       // 2. Soft delete the invoice itself
       const { error } = await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', invoice.id);
       if (error) throw error;
-
-      // 3. Find and soft delete linked ledger entries
-      const { data: items } = await supabase.from('invoice_items').select('ledger_id').eq('invoice_id', invoice.id).not('ledger_id', 'is', null);
-      if (items && items.length > 0) {
-        const ledgerIds = items.map(i => i.ledger_id).filter(Boolean) as string[];
-        if (ledgerIds.length > 0) {
-          // Push to trash bin for ledger entries too
-          const { data: ledgersToTrash } = await supabase.from('ledger_entries').select('*').in('id', ledgerIds);
-          if (ledgersToTrash && ledgersToTrash.length > 0) {
-            await supabase.from('trash_bin').insert(
-              ledgersToTrash.map(l => ({
-                entity_type: 'ledger_entry',
-                entity_id: l.id,
-                entity_name: `Expense: ${l.category}`,
-                entity_data: l,
-                deleted_by: profile?.id,
-              }))
-            );
-          }
-          await supabase.from('ledger_entries').update({ deleted_at: new Date().toISOString() }).in('id', ledgerIds);
-        }
-      }
     },
     onSuccess: (_, invoice) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });

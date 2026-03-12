@@ -209,17 +209,6 @@ export default function InvoiceDetailPage() {
       const { error } = await supabase.from('invoice_items').delete().eq('id', itemId);
       if (error) throw error;
 
-      if (ledgerId) {
-        const { data: lData } = await supabase.from('ledger_entries').select('*').eq('id', ledgerId).single();
-        if (lData) {
-          await supabase.from('trash_bin').insert({
-            entity_type: 'ledger_entry', entity_id: ledgerId, entity_name: `Expense: ${lData.category}`,
-            entity_data: lData, deleted_by: profile?.id,
-          });
-          await supabase.from('ledger_entries').update({ deleted_at: new Date().toISOString() }).eq('id', ledgerId);
-        }
-      }
-
       if (item) {
         const newTotal = (invoice?.total_amount ?? 0) - item.amount;
         await supabase.from('invoices').update({ total_amount: Math.max(0, newTotal) }).eq('id', id!);
