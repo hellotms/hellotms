@@ -110,6 +110,20 @@ export default function RecycleBinPage() {
                     .eq('id', item.entity_id);
 
                 if (mainError) throw mainError;
+
+                // 1.5 If it's an invoice, delete the R2 PDF file if it exists
+                if (item.entity_type === 'invoice' && item.entity_data?.pdf_url) {
+                    try {
+                        const { mediaApi } = await import('@/lib/api');
+                        const url = new URL(item.entity_data.pdf_url);
+                        const key = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
+                        if (key && !key.startsWith('http')) {
+                            await mediaApi.delete(key);
+                        }
+                    } catch (err) {
+                        console.warn('[RecycleBin] Failed to delete invoice PDF from R2:', err);
+                    }
+                }
             }
 
             // 2. Delete from trash_bin

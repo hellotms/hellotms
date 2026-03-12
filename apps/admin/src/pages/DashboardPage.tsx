@@ -220,7 +220,7 @@ export default function DashboardPage() {
       // 1. Get projects in range
       const { data: projects } = await supabase
         .from('projects')
-        .select('id, title, status, advance_received, invoice_amount, event_start_date, created_at, companies(name)')
+        .select('id, title, status, payment_status, advance_received, invoice_amount, event_start_date, created_at, companies(name)')
         .gte('created_at', fromISO) // Using created_at for report range
         .lte('created_at', endTimestamp)
         .is('deleted_at', null);
@@ -298,7 +298,8 @@ export default function DashboardPage() {
           netExpenses: totalNetExpense,
           netProfit,
           margin,
-          turnoverDays
+          turnoverDays,
+          payment_status: p.payment_status
         };
       }).sort((a, b) => b.netProfit - a.netProfit);
     }
@@ -384,7 +385,7 @@ export default function DashboardPage() {
 
       {/* Per-Project P&L Table */}
       <div className="bg-card border border-border rounded-xl p-6 overflow-hidden">
-        <h3 className="text-base font-semibold text-foreground mb-4">Project Profit & Loss</h3>
+        <h3 className="text-base font-semibold text-foreground mb-4">Project Information</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead>
@@ -425,7 +426,15 @@ export default function DashboardPage() {
                     {p.margin.toFixed(1)}%
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-muted-foreground">{p.turnoverDays} days</td>
-                  <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      p.payment_status === 'paid' 
+                        ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400' 
+                        : 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400'
+                    }`}>
+                      {p.payment_status === 'paid' ? 'Received' : 'Pending'}
+                    </span>
+                  </td>
                 </tr>
               ))}
               {!projectPnL?.length && (
