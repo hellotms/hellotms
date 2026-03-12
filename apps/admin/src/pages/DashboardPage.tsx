@@ -339,7 +339,7 @@ export default function DashboardPage() {
                 <YAxis tickFormatter={(v) => `৳${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(v: number) => formatBDT(v)} />
                 <Legend />
-                <Line type="monotone" dataKey="invoiced" stroke="#10b981" strokeWidth={2} dot={false} name="Invoiced Amount" />
+                <Line type="monotone" dataKey="invoiced" stroke="#10b981" strokeWidth={2} dot={false} name="Revenue" />
                 <Line type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={2} dot={false} name="Net Expenses" />
                 <Line type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={2} dot={false} name="Net Profit" strokeDasharray="4 2" />
               </LineChart>

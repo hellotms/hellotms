@@ -154,50 +154,32 @@ export default function InvoicesPage() {
   // Reset items ONLY when the project ID actually changes
   // Remove the useEffect that was clearing lineItems incorrectly
   // Handle project selection and auto-population
-  const handleProjectChange = async (projectId: string) => {
+  const handleProjectChange = (projectId: string) => {
     setSelectedProjectId(projectId);
     setLineItems([]);
-
-    if (!projectId) return;
-
-    try {
-      // Fetch ledger entries directly instead of relying on useEffect
-      const { data, error } = await supabase
-        .from('ledger_entries')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('type', 'expense')
-        .or('is_external.eq.false,is_external.is.null') // Handle NULLs correctly
-        .is('deleted_at', null)
-        .order('entry_date', { ascending: true });
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        setLineItems(data.map(e => {
-          const qty = Number(e.quantity ?? 1);
-          const sellPrice = e.face_value !== null && e.face_value !== undefined ? Number(e.face_value) : Number(e.amount);
-          
-          // Debug fallback to avoid "undefined"
-          const categoryText = e.category || 'Expense';
-          const noteText = e.note ? ` — ${e.note}` : '';
-          const desc = `${categoryText}${noteText}`;
-
-          return {
-            description: desc,
-            costPrice: Number(e.amount),
-            quantity: qty,
-            unit_price: sellPrice,
-            amount: qty * sellPrice,
-            ledger_id: e.id,
-          };
-        }));
-      }
-    } catch (err) {
-      console.error("Error auto-populating items:", err);
-      toast("Failed to load project expenses", "error");
-    }
   };
+
+  // Sync effect: Populate lineItems from ledgerEntries if lineItems is empty
+  useEffect(() => {
+    if (selectedProjectId && isOpen && lineItems.length === 0 && ledgerEntries.length > 0 && !ledgerLoading) {
+      setLineItems(ledgerEntries.map(e => {
+        const qty = Number(e.quantity ?? 1);
+        const sellPrice = e.face_value !== null && e.face_value !== undefined ? Number(e.face_value) : Number(e.amount);
+        const categoryText = e.category || 'Expense';
+        const noteText = e.note ? ` — ${e.note}` : '';
+        const desc = `${categoryText}${noteText}`;
+
+        return {
+          description: desc,
+          costPrice: Number(e.amount),
+          quantity: qty,
+          unit_price: sellPrice,
+          amount: qty * sellPrice,
+          ledger_id: e.id,
+        };
+      }));
+    }
+  }, [selectedProjectId, isOpen, ledgerEntries, ledgerLoading]);
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['invoices', statusFilter],
