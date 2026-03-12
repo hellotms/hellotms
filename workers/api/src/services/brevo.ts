@@ -217,7 +217,7 @@ export function buildInvoiceEmailHtml(params: {
           </td>
           <!-- Invoice Details -->
           <td style="vertical-align:top;text-align:right">
-            <h1 style="margin:0 0 16px;font-size:36px;font-weight:900;letter-spacing:2px;color:#0f172a">INVOICE</h1>
+            <h1 style="margin:0 0 16px;font-size:30px;font-weight:900;letter-spacing:2px;color:#0f172a">INVOICE</h1>
             <table style="width:100%;border-collapse:collapse;margin-left:auto">
               <tr>
                 <td style="padding:4px 8px;color:#64748b;font-size:12px;font-weight:bold;text-align:left">Date</td>
@@ -236,13 +236,13 @@ export function buildInvoiceEmailHtml(params: {
     <!-- Items Table -->
     <div style="padding:0">
       <table style="width:100%;border-collapse:collapse">
-        <thead style="background:#f1f5f9;border-bottom:1px solid #cbd5e1">
+        <thead style="background:#494949;border-bottom:1px solid #cbd5e1">
           <tr>
-            <th style="padding:12px 10px;text-align:left;font-size:11px;color:#64748b;width:40px">SL</th>
-            <th style="padding:12px 10px;text-align:left;font-size:11px;color:#64748b">Description</th>
-            <th style="padding:12px 10px;text-align:center;font-size:11px;color:#64748b;width:60px">Qty</th>
-            <th style="padding:12px 10px;text-align:right;font-size:11px;color:#64748b;width:100px">Unit Price</th>
-            <th style="padding:12px 10px;text-align:right;font-size:11px;color:#64748b;width:120px">Total</th>
+            <th style="padding:12px 10px;text-align:left;font-size:11px;color:#ffffff;width:40px">SL</th>
+            <th style="padding:12px 10px;text-align:left;font-size:11px;color:#ffffff">Description</th>
+            <th style="padding:12px 10px;text-align:center;font-size:11px;color:#ffffff;width:60px">Qty</th>
+            <th style="padding:12px 10px;text-align:right;font-size:11px;color:#ffffff;width:100px">Unit Price</th>
+            <th style="padding:12px 10px;text-align:right;font-size:11px;color:#ffffff;width:120px">Total</th>
           </tr>
         </thead>
         <tbody>
@@ -299,6 +299,9 @@ export function buildInvoiceEmailHtml(params: {
           </td>
         </tr>
       </table>
+      <p style="margin:12px 0 0;font-size:10px;color:#94a3b8;font-style:italic;text-align:right">
+        * This is a computer generated invoice, no signature is required.
+      </p>
     </div>
 
     <!-- Download Action -->

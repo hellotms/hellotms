@@ -91,6 +91,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   const green = rgb(0.024, 0.584, 0.416);
   const red = rgb(0.863, 0.149, 0.149);
   const white = rgb(1, 1, 1);
+  const darkGray = rgb(0.286, 0.286, 0.286); // #494949
 
   const pageHeight = PageSizes.A4[1];
   const scaleFactor = pageHeight / 3508; // Scaling from UI's recommended 3508px height to PDF points
@@ -137,8 +138,8 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
     page.drawText(ownerUrl, { x: margin, y: height - 65, size: 11, font: regularFont, color: rgb(0.749, 0.859, 1) });
     const label = data.type === 'estimate' ? 'ESTIMATE' : 'INVOICE';
     page.drawText(label, {
-      x: width - margin - boldFont.widthOfTextAtSize(label, 26),
-      y: height - 50, size: 26, font: boldFont, color: white,
+      x: width - margin - boldFont.widthOfTextAtSize(label, 20),
+      y: height - 50, size: 20, font: boldFont, color: white,
     });
     page.drawText(cleanText(data.invoiceNumber), {
       x: width - margin - regularFont.widthOfTextAtSize(cleanText(data.invoiceNumber), 11),
@@ -171,8 +172,8 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   const headerTopY = y;
 
   // LEFT SIDE: INVOICE TO label
-  page.drawText('INVOICE TO', { x: billX, y, size: 7, font: boldFont, color: gray });
-  y -= 14;
+  page.drawText('INVOICE TO', { x: billX, y, size: 10, font: boldFont, color: gray });
+  y -= 16;
 
   // Company Name (bold, larger)
   const companyName = cleanText(data.company.name);
@@ -204,14 +205,14 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   // RIGHT SIDE: drawn relative to headerTopY (same top baseline as left)
   // Big "INVOICE" text, right-aligned
   const invoiceLabel = data.type === 'estimate' ? 'ESTIMATE' : 'INVOICE';
-  const invLabelSize = 28;
+  const invLabelSize = 20;
   page.drawText(invoiceLabel, {
     x: rightEdge - boldFont.widthOfTextAtSize(invoiceLabel, invLabelSize),
-    y: headerTopY - 2, size: invLabelSize, font: boldFont, color: dark,
+    y: headerTopY, size: invLabelSize, font: boldFont, color: dark,
   });
 
   // Date row
-  const dateRowY = headerTopY - 38;
+  const dateRowY = headerTopY - 32;
   page.drawText('Date', { x: rightEdge - 130, y: dateRowY, size: 9, font: boldFont, color: gray });
   const dateVal = cleanText(data.invoiceDate);
   page.drawText(dateVal, {
@@ -220,7 +221,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   });
 
   // INV NO# row
-  const invRowY = headerTopY - 54;
+  const invRowY = headerTopY - 48;
   page.drawText('INV NO#', { x: rightEdge - 130, y: invRowY, size: 9, font: boldFont, color: gray });
   const invVal = cleanText(data.invoiceNumber);
   page.drawText(invVal, {
@@ -238,7 +239,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   y -= 20;
 
   // ── Items Table Header ─────────────────────────────────────────────────────
-  page.drawRectangle({ x: margin, y: y - 8, width: width - 2 * margin, height: 26, color: blue });
+  page.drawRectangle({ x: margin, y: y - 8, width: width - 2 * margin, height: 26, color: darkGray });
   // Adjusted column positions for more room on the right
   const cols = { sl: margin + 6, desc: margin + 30, qty: width - 250, unit: width - 180, total: width - 100 };
   page.drawText('SL', { x: cols.sl, y: y + 4, size: 8, font: boldFont, color: white });
@@ -426,7 +427,20 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   const labelWidth = boldFont.widthOfTextAtSize(amtInWordsLabel, 8);
   page.drawText(cleanText(amtInWordsValue), { x: margin + 8 + labelWidth, y: textY, size: 8, font: regularFont, color: dark });
 
-  y -= 20;
+  y -= 22;
+  // Computer generated note
+  ensureSpace(20);
+  const disclaimer = '* This is a computer generated invoice, no signature is required.';
+  const discSize = 7;
+  const itFont = await doc.embedFont(StandardFonts.HelveticaOblique);
+  page.drawText(disclaimer, {
+    x: width - margin - itFont.widthOfTextAtSize(disclaimer, discSize),
+    y: y,
+    size: discSize,
+    font: itFont,
+    color: gray,
+  });
+  y -= 15;
 
   // ── Notes ────────────────────────────────────────────────────────────────
   if (data.notes) {

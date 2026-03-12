@@ -65,7 +65,7 @@ export interface Project {
 }
 
 export type LedgerEntryType = 'income' | 'expense';
-export type PaidStatus = 'paid' | 'unpaid';
+export type PaidStatus = 'paid' | 'unpaid' | 'partial';
 
 export interface LedgerEntry {
   id: string;
@@ -77,6 +77,8 @@ export interface LedgerEntry {
   face_value?: number | null;
   entry_date: string; // ISO date
   paid_status?: PaidStatus | null;
+  paid_amount?: number | null;
+  due_amount?: number | null;
   note?: string | null;
   attachment_url?: string | null;
   is_external: boolean;

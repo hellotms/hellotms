@@ -30,30 +30,22 @@ export default function DashboardPage() {
       // For created_at (timestamp), we need to ensure the end date covers the whole day
       const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999Z` : toISO;
 
-      const [incomeRes, expenseRes, projectsRes, advanceProjectsRes, collectionsRes, leadsRes] = await Promise.all([
+      const [expenseRes, activeProjectsRes, allProjectsRes, collectionsRes, leadsRes] = await Promise.all([
         supabase
           .from('ledger_entries')
-          .select('amount')
-          .eq('type', 'income')
-          .gte('entry_date', fromISO)
-          .lte('entry_date', toISO)
-          .is('deleted_at', null),
-        supabase
-          .from('ledger_entries')
-          .select('amount, is_external, paid_status')
+          .select('amount, paid_amount, due_amount, is_external, paid_status')
           .eq('type', 'expense')
           .gte('entry_date', fromISO)
           .lte('entry_date', toISO)
           .is('deleted_at', null),
         supabase
           .from('projects')
-          .select('id, status, invoice_amount')
-          .gte('event_start_date', fromISO)
-          .lte('event_start_date', toISO)
+          .select('id, status, invoice_amount, advance_received')
+          .eq('status', 'active')
           .is('deleted_at', null),
         supabase
           .from('projects')
-          .select('advance_received, created_at, invoice_amount')
+          .select('id, status, invoice_amount, advance_received, created_at')
           .gte('created_at', fromISO)
           .lte('created_at', endTimestamp)
           .is('deleted_at', null),
@@ -70,28 +62,34 @@ export default function DashboardPage() {
           .lte('created_at', endTimestamp),
       ]);
 
-      const totalAdvance = (advanceProjectsRes.data ?? []).reduce((s, p) => s + Number(p.advance_received || 0), 0);
-      const totalIncome = ((collectionsRes.data ?? []).reduce((s, r) => s + Number(r.amount), 0)) + totalAdvance;
-      const totalStandardExpense = (expenseRes.data ?? []).filter(e => !e.is_external).reduce((s, r) => s + Number(r.amount), 0);
-      const totalOthersExpense = (expenseRes.data ?? []).filter(e => e.is_external).reduce((s, r) => s + Number(r.amount), 0);
-      const totalNetExpense = totalStandardExpense + totalOthersExpense;
-      const totalDueVendor = (expenseRes.data ?? []).filter(e => e.paid_status === 'unpaid').reduce((s, r) => s + Number(r.amount), 0);
+      const totalInvoiced = (allProjectsRes.data ?? []).reduce((s, p) => s + Number(p.invoice_amount || 0), 0);
+      const totalAdvance = (allProjectsRes.data ?? []).reduce((s, p) => s + Number(p.advance_received || 0), 0);
+      const totalCollections = (collectionsRes.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
+      
+      const collectionReceived = totalAdvance + totalCollections;
+      const collectionDue = Math.max(0, totalInvoiced - collectionReceived);
 
-      const totalInvoiceAmount = (advanceProjectsRes.data ?? []).reduce((s, p) => s + Number(p.invoice_amount || 0), 0);
-      const totalDue = Math.max(0, totalInvoiceAmount - totalIncome);
+      const standardExpenses = (expenseRes.data ?? []).filter(e => !e.is_external).reduce((s, r) => s + Number(r.amount), 0);
+      const otherExpenses = (expenseRes.data ?? []).filter(e => e.is_external).reduce((s, r) => s + Number(r.amount), 0);
+      const netExpenses = standardExpenses + otherExpenses;
+      const netProfit = totalInvoiced - netExpenses;
+      const profitRatio = totalInvoiced > 0 ? (netProfit / totalInvoiced) * 100 : 0;
 
-      const activeProjects = (projectsRes.data ?? []).filter(p => p.status === 'active').length;
-      const completedProjects = (projectsRes.data ?? []).filter(p => p.status === 'completed').length;
+      // Vendor Due = Sum of all due_amount from ledger entries (V-Cash Due)
+      const vendorDue = (expenseRes.data ?? []).reduce((s, r) => s + Number(r.due_amount || 0), 0);
+
+      const activeProjects = activeProjectsRes.data?.length ?? 0;
+      const completedProjects = (allProjectsRes.data ?? []).filter(p => p.status === 'completed').length;
       const leadsCount = leadsRes.data?.length ?? 0;
 
       return {
-        totalRevenue: totalInvoiceAmount,
-        totalExpense: totalStandardExpense,
-        totalOthersExpense,
-        netProfit: totalInvoiceAmount - totalNetExpense,
-        grossProfit: totalInvoiceAmount - totalStandardExpense,
-        totalDue,
-        totalDueVendor,
+        totalInvoiced,
+        collectionReceived,
+        collectionDue,
+        netExpenses,
+        netProfit,
+        vendorDue,
+        profitRatio,
         activeProjects,
         completedProjects,
         leadsCount,
@@ -126,35 +124,30 @@ export default function DashboardPage() {
       const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999Z` : toISO;
       const { data: advances } = await supabase
         .from('projects')
-        .select('advance_received, created_at')
+        .select('advance_received, invoice_amount, created_at')
         .gte('created_at', fromISO)
         .lte('created_at', endTimestamp)
         .is('deleted_at', null)
         .order('created_at');
 
-      const map: Record<string, { date: string; revenue: number; expense: number; profit: number }> = {};
+      const map: Record<string, { date: string; invoiced: number; expense: number; profit: number }> = {};
 
       ledger?.forEach((row) => {
         const month = row.entry_date.slice(0, 7); // YYYY-MM
-        if (!map[month]) map[month] = { date: month, revenue: 0, expense: 0, profit: 0 };
+        if (!map[month]) map[month] = { date: month, invoiced: 0, expense: 0, profit: 0 };
         map[month].expense += Number(row.amount);
       });
 
-      collections?.forEach((row) => {
-        const month = row.payment_date.slice(0, 7); // YYYY-MM
-        if (!map[month]) map[month] = { date: month, revenue: 0, expense: 0, profit: 0 };
-        map[month].revenue += Number(row.amount);
-      });
-
       advances?.forEach((row) => {
+        // Use invoice_amount for revenue trend as requested ("Invoiced Amount")
         const month = row.created_at.slice(0, 7); // YYYY-MM
-        if (!map[month]) map[month] = { date: month, revenue: 0, expense: 0, profit: 0 };
-        map[month].revenue += Number(row.advance_received || 0);
+        if (!map[month]) map[month] = { date: month, invoiced: 0, expense: 0, profit: 0 };
+        map[month].invoiced += Number(row.invoice_amount || 0);
       });
 
       return Object.values(map)
         .sort((a, b) => a.date.localeCompare(b.date))
-        .map(m => ({ ...m, profit: m.revenue - m.expense }));
+        .map(m => ({ ...m, profit: m.invoiced - m.expense }));
     },
   });
 
@@ -223,12 +216,13 @@ export default function DashboardPage() {
   const { data: projectPnL } = useQuery({
     queryKey: ['dashboard-project-pnl', fromISO, toISO],
     queryFn: async () => {
+      const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999Z` : toISO;
       // 1. Get projects in range
       const { data: projects } = await supabase
         .from('projects')
-        .select('id, title, status, advance_received, invoice_amount, companies(name)')
-        .gte('event_start_date', fromISO)
-        .lte('event_start_date', toISO)
+        .select('id, title, status, advance_received, invoice_amount, event_start_date, created_at, companies(name)')
+        .gte('created_at', fromISO) // Using created_at for report range
+        .lte('created_at', endTimestamp)
         .is('deleted_at', null);
 
       if (!projects || projects.length === 0) return [];
@@ -239,7 +233,7 @@ export default function DashboardPage() {
       const [ledgerRes, collectionsRes] = await Promise.all([
         supabase
           .from('ledger_entries')
-          .select('project_id, amount, is_external')
+          .select('project_id, amount, paid_amount, due_amount, is_external')
           .eq('type', 'expense')
           .in('project_id', pIds)
           .is('deleted_at', null),
@@ -250,8 +244,8 @@ export default function DashboardPage() {
           .is('deleted_at', null)
       ]);
 
-      const pnlMap: Record<string, { income: number; standardExpense: number; othersExpense: number }> = {};
-      pIds.forEach(id => pnlMap[id] = { income: 0, standardExpense: 0, othersExpense: 0 });
+      const pnlMap: Record<string, { income: number; standardExpense: number; vCashAdv: number; vCashDue: number; othersExpense: number }> = {};
+      pIds.forEach(id => pnlMap[id] = { income: 0, standardExpense: 0, vCashAdv: 0, vCashDue: 0, othersExpense: 0 });
 
       ledgerRes.data?.forEach(row => {
         if (row.project_id && pnlMap[row.project_id]) {
@@ -259,6 +253,8 @@ export default function DashboardPage() {
             pnlMap[row.project_id].othersExpense += Number(row.amount);
           } else {
             pnlMap[row.project_id].standardExpense += Number(row.amount);
+            pnlMap[row.project_id].vCashAdv += Number(row.paid_amount || 0);
+            pnlMap[row.project_id].vCashDue += Number(row.due_amount || 0);
           }
         }
       });
@@ -273,9 +269,20 @@ export default function DashboardPage() {
         const stats = pnlMap[p.id];
         const totalReceived = stats.income + Number(p.advance_received || 0);
         const invoiceAmount = Number(p.invoice_amount || 0);
+        const clientDue = Math.max(0, invoiceAmount - totalReceived);
         const totalNetExpense = stats.standardExpense + stats.othersExpense;
         const netProfit = invoiceAmount - totalNetExpense;
         const margin = invoiceAmount > 0 ? (netProfit / invoiceAmount) * 100 : 0;
+        
+        // Turnover days
+        let turnoverDays = 0;
+        if (p.event_start_date && p.created_at) {
+          const start = new Date(p.created_at).getTime();
+          const end = new Date(p.event_start_date).getTime();
+          turnoverDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+          if (turnoverDays < 0) turnoverDays = 0;
+        }
+
         return {
           id: p.id,
           title: p.title,
@@ -283,12 +290,17 @@ export default function DashboardPage() {
           status: p.status,
           invoiceAmount,
           totalReceived,
+          clientDue,
           standardExpense: stats.standardExpense,
+          vCashAdv: stats.vCashAdv,
+          vCashDue: stats.vCashDue,
           othersExpense: stats.othersExpense,
+          netExpenses: totalNetExpense,
           netProfit,
-          margin
+          margin,
+          turnoverDays
         };
-      }).sort((a, b) => b.netProfit - a.netProfit); // Sort highest profit first
+      }).sort((a, b) => b.netProfit - a.netProfit);
     }
   });
 
@@ -302,21 +314,23 @@ export default function DashboardPage() {
 
       {/* KPI Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4">
-        <StatCard title="Total Invoiced" value={kpis?.totalRevenue ?? 0} isCurrency icon={DollarSign} iconColor="text-emerald-600 text-emerald-600 dark:text-emerald-400" iconBg="bg-emerald-50 dark:bg-emerald-500/10" />
-        <StatCard title="Total Expense" value={kpis?.totalExpense ?? 0} isCurrency icon={TrendingDown} iconColor="text-red-600 text-red-600 dark:text-red-400" iconBg="bg-red-50 dark:bg-red-500/10" />
-        <StatCard title="Gross Profit" value={kpis?.grossProfit ?? 0} isCurrency icon={TrendingUp} iconColor="text-indigo-600 text-indigo-600 dark:text-indigo-400" iconBg="bg-indigo-50 dark:bg-indigo-500/10" />
-        <StatCard title="Net Profit" value={kpis?.netProfit ?? 0} isCurrency icon={TrendingUp} iconColor="text-blue-600 text-blue-600 dark:text-blue-400" iconBg="bg-blue-50 dark:bg-blue-500/10" />
-        <StatCard title="Due (Vendor)" value={kpis?.totalDueVendor ?? 0} isCurrency icon={TrendingDown} iconColor="text-orange-600 text-orange-600 dark:text-orange-400" iconBg="bg-orange-50 dark:bg-orange-500/10" />
-        <StatCard title="Active Projects" value={kpis?.activeProjects ?? 0} icon={FolderOpen} iconColor="text-blue-600 text-blue-600 dark:text-blue-400" iconBg="bg-blue-50 dark:bg-blue-500/10" onClick={() => navigate('/projects?status=active')} />
-        <StatCard title="Completed" value={kpis?.completedProjects ?? 0} icon={CheckCircle2} iconColor="text-emerald-600 text-emerald-600 dark:text-emerald-400" iconBg="bg-emerald-50 dark:bg-emerald-500/10" onClick={() => navigate('/projects?status=completed')} />
-        <StatCard title="Contact Forms" value={kpis?.leadsCount ?? 0} icon={MessageSquare} iconColor="text-purple-600 text-purple-600 dark:text-purple-400" iconBg="bg-purple-50 dark:bg-purple-500/10" onClick={() => navigate('/leads')} />
+        <StatCard title="Total Invoiced" value={kpis?.totalInvoiced ?? 0} isCurrency icon={DollarSign} iconColor="text-emerald-600 dark:text-emerald-400" iconBg="bg-emerald-50 dark:bg-emerald-500/10" />
+        <StatCard title="Collection Received" value={kpis?.collectionReceived ?? 0} isCurrency icon={TrendingUp} iconColor="text-teal-600 dark:text-teal-400" iconBg="bg-teal-50 dark:bg-teal-500/10" />
+        <StatCard title="Collection Due" value={kpis?.collectionDue ?? 0} isCurrency icon={AlertCircle} iconColor="text-orange-600 dark:text-orange-400" iconBg="bg-orange-50 dark:bg-orange-500/10" />
+        <StatCard title="Net Expenses" value={kpis?.netExpenses ?? 0} isCurrency icon={TrendingDown} iconColor="text-red-600 dark:text-red-400" iconBg="bg-red-50 dark:bg-red-500/10" />
+        <StatCard title="Net Profit" value={kpis?.netProfit ?? 0} isCurrency icon={TrendingUp} iconColor="text-blue-600 dark:text-blue-400" iconBg="bg-blue-50 dark:bg-blue-500/10" />
+        <StatCard title="Vendor Due" value={kpis?.vendorDue ?? 0} isCurrency icon={TrendingDown} iconColor="text-pink-600 dark:text-pink-400" iconBg="bg-pink-50 dark:bg-pink-500/10" />
+        <StatCard title="Profit Ratio" value={`${(kpis?.profitRatio ?? 0).toFixed(1)}%`} icon={TrendingUp} iconColor="text-indigo-600 dark:text-indigo-400" iconBg="bg-indigo-50 dark:bg-indigo-500/10" />
+        <StatCard title="Active Project" value={kpis?.activeProjects ?? 0} icon={FolderOpen} iconColor="text-blue-600 dark:text-blue-400" iconBg="bg-blue-50 dark:bg-blue-500/10" onClick={() => navigate('/projects?status=active')} />
+        <StatCard title="Completed" value={kpis?.completedProjects ?? 0} icon={CheckCircle2} iconColor="text-emerald-600 dark:text-emerald-400" iconBg="bg-emerald-50 dark:bg-emerald-500/10" onClick={() => navigate('/projects?status=completed')} />
+        <StatCard title="Contact Form" value={kpis?.leadsCount ?? 0} icon={MessageSquare} iconColor="text-purple-600 dark:text-purple-400" iconBg="bg-purple-50 dark:bg-purple-500/10" onClick={() => navigate('/leads')} />
       </div>
 
       {/* Charts row */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Revenue vs Expense Line Chart */}
+        {/* Revenue Trend Line Chart */}
         <div className="xl:col-span-2 bg-card border border-border rounded-xl p-6">
-          <h3 className="text-base font-semibold text-foreground mb-4">Revenue vs Expense Trend</h3>
+          <h3 className="text-base font-semibold text-foreground mb-4">Revenue Trend</h3>
           {trendData && trendData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={trendData}>
@@ -325,9 +339,9 @@ export default function DashboardPage() {
                 <YAxis tickFormatter={(v) => `৳${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(v: number) => formatBDT(v)} />
                 <Legend />
-                <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} dot={false} name="Revenue" />
-                <Line type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={2} dot={false} name="Expense" />
-                <Line type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={2} dot={false} name="Profit" strokeDasharray="4 2" />
+                <Line type="monotone" dataKey="invoiced" stroke="#10b981" strokeWidth={2} dot={false} name="Invoiced Amount" />
+                <Line type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={2} dot={false} name="Net Expenses" />
+                <Line type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={2} dot={false} name="Net Profit" strokeDasharray="4 2" />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -377,29 +391,41 @@ export default function DashboardPage() {
               <tr className="bg-muted/50 border-y border-border">
                 <th className="px-4 py-3 font-semibold text-foreground">Project Name</th>
                 <th className="px-4 py-3 font-semibold text-foreground">Company</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right border-l border-border/10">Quoted Amount</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">Client Collection</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">Client Due</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right border-l border-border/10">Expenses</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">V-Cash Adv.</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">V-Cash Due</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right text-orange-600">Other expense</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right border-l border-border/10">Net Expenses</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">Net profit</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">Profit Ratio</th>
+                <th className="px-4 py-3 font-semibold text-foreground text-right">Turn Over Days</th>
                 <th className="px-4 py-3 font-semibold text-foreground">Status</th>
-                <th className="px-4 py-3 font-semibold text-foreground text-right">Invoice Amount</th>
-                <th className="px-4 py-3 font-semibold text-foreground text-right">Received</th>
-                <th className="px-4 py-3 font-semibold text-foreground text-right">Standard Exp.</th>
-                <th className="px-4 py-3 font-semibold text-foreground text-right">Net Profit</th>
-                <th className="px-4 py-3 font-semibold text-foreground text-right">Margin</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {projectPnL?.map((p) => (
                 <tr key={p.id} onClick={() => navigate(`/projects/${p.id}`)} className="hover:bg-muted/50 cursor-pointer transition-colors">
-                  <td className="px-4 py-3 font-medium text-foreground">{p.title}</td>
+                  <td className="px-4 py-3 font-medium text-foreground sticky left-0 bg-card/80 backdrop-blur-sm z-10">{p.title}</td>
                   <td className="px-4 py-3 text-muted-foreground">{p.company}</td>
-                  <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
-                  <td className="px-4 py-3 text-right text-indigo-600 dark:text-indigo-400 font-mono font-bold">{formatBDT(p.invoiceAmount)}</td>
-                  <td className="px-4 py-3 text-right text-emerald-600 text-emerald-600 dark:text-emerald-400 font-mono">{formatBDT(p.totalReceived)}</td>
-                  <td className="px-4 py-3 text-right text-red-600 text-red-600 dark:text-red-400 font-mono">{formatBDT(p.standardExpense)}</td>
-                  <td className={`px-4 py-3 text-right font-bold font-mono ${p.netProfit >= 0 ? 'text-blue-600 text-blue-600 dark:text-blue-400' : 'text-red-600 text-red-600 dark:text-red-400'}`}>
+                  <td className="px-4 py-3 text-right text-indigo-600 dark:text-indigo-400 font-mono font-bold border-l border-border/10">{formatBDT(p.invoiceAmount)}</td>
+                  <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400 font-mono">{formatBDT(p.totalReceived)}</td>
+                  <td className="px-4 py-3 text-right text-orange-600 dark:text-orange-400 font-mono">{formatBDT(p.clientDue)}</td>
+                  <td className="px-4 py-3 text-right text-red-600 dark:text-red-400 font-mono border-l border-border/10">{formatBDT(p.standardExpense)}</td>
+                  <td className="px-4 py-3 text-right text-teal-600 dark:text-teal-400 font-mono">{formatBDT(p.vCashAdv)}</td>
+                  <td className="px-4 py-3 text-right text-pink-600 dark:text-pink-400 font-mono">{formatBDT(p.vCashDue)}</td>
+                  <td className="px-4 py-3 text-right text-orange-500 font-mono">{formatBDT(p.othersExpense)}</td>
+                  <td className="px-4 py-3 text-right font-mono font-bold border-l border-border/10">{formatBDT(p.netExpenses)}</td>
+                  <td className={`px-4 py-3 text-right font-bold font-mono ${p.netProfit >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
                     {p.netProfit > 0 ? '+' : ''}{formatBDT(p.netProfit)}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-muted-foreground">
                     {p.margin.toFixed(1)}%
                   </td>
+                  <td className="px-4 py-3 text-right font-mono text-muted-foreground">{p.turnoverDays} days</td>
+                  <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
                 </tr>
               ))}
               {!projectPnL?.length && (

@@ -67,12 +67,12 @@ export default function CompanyDetailPage() {
       const [ledgerRes, collectionsRes] = await Promise.all([
         supabase
           .from('ledger_entries')
-          .select('type, amount, is_external, paid_status')
+          .select('project_id, type, amount, is_external, paid_status, paid_amount, due_amount')
           .in('project_id', pIds)
           .is('deleted_at', null),
         supabase
           .from('collections')
-          .select('amount')
+          .select('project_id, amount, payment_date')
           .in('project_id', pIds)
           .is('deleted_at', null)
       ]);
@@ -97,29 +97,57 @@ export default function CompanyDetailPage() {
       const dueVendor = ledger
         .filter(r => r.type === 'expense' && r.paid_status === 'unpaid')
         .reduce((s, r) => s + Number(r.amount), 0);
+      
+      const vCashAdv = ledger
+        .filter(r => r.type === 'expense' && !r.is_external)
+        .reduce((s, r) => s + Number((r as any).paid_amount ?? (r.paid_status === 'paid' ? r.amount : 0)), 0);
+      
+      const vCashDue = ledger
+        .filter(r => r.type === 'expense' && !r.is_external)
+        .reduce((s, r) => s + Number((r as any).due_amount ?? (r.paid_status === 'paid' ? 0 : r.amount)), 0);
 
       const netExpenses = totalStandardExpenses + othersExpenses;
-      const netProfit = totalInvoiceAmount - netExpenses;
-      const profitRatio = totalInvoiceAmount > 0 ? (netProfit / totalInvoiceAmount) * 100 : 0;
+      const quotedAmount = totalInvoiceAmount;
+      const netProfit = quotedAmount - netExpenses;
 
-      // Turn Over Days (average)
-      const projectsWithDates = projects.filter(p => p.event_start_date && p.project_completed_at);
-      let avgTurnOverDays = 0;
-      if (projectsWithDates.length > 0) {
-        const totalDays = projectsWithDates.reduce((s, p) => {
-          const start = new Date(p.event_start_date).getTime();
-          const end = new Date(p.project_completed_at!).getTime();
-          return s + Math.max(0, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
-        }, 0);
-        avgTurnOverDays = totalDays / projectsWithDates.length;
-      }
+      // Turnover Avg: Calculate individual project turnovers first (mirror logic from ProjectDetailPage)
+      let turnoverDaysSum = 0;
+      let turnoverCount = 0;
+
+      projects.forEach(p => {
+        const pQuoted = Number(p.invoice_amount || 0);
+        const pAdvance = Number(p.advance_received || 0);
+        const pCollections = collections.filter(c => c.project_id === p.id);
+        const pCollected = pCollections.reduce((s, c) => s + Number(c.amount), 0);
+        const pTotalReceived = pAdvance + pCollected;
+        
+        const isPaid = p.payment_status === 'paid' || (pQuoted > 0 && pTotalReceived >= pQuoted);
+        const startDateStr = p.proposal_date || p.event_start_date;
+
+        if (startDateStr) {
+          const start = new Date(startDateStr);
+          let end = new Date();
+          if (isPaid && p.paid_at) {
+            end = new Date(p.paid_at);
+          } else if (isPaid && pCollections.length > 0) {
+            end = new Date(Math.max(...pCollections.map(c => new Date(c.payment_date).getTime())));
+          }
+          const days = Math.max(0, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+          turnoverDaysSum += days;
+          turnoverCount++;
+        }
+      });
+
+      const avgTurnOverDays = turnoverCount > 0 ? turnoverDaysSum / turnoverCount : 0;
+      const profitRatio = quotedAmount > 0 ? (netProfit / quotedAmount) * 100 : 0;
 
       return {
-        totalInvoiceAmount,
+        quotedAmount,
         totalReceived,
         totalStandardExpenses,
-        dueClient: totalInvoiceAmount - totalReceived,
-        grossProfit: totalInvoiceAmount - totalStandardExpenses,
+        vCashAdv,
+        vCashDue,
+        dueClient: quotedAmount - totalReceived,
         othersExpenses,
         dueVendor,
         netExpenses,
@@ -355,13 +383,13 @@ export default function CompanyDetailPage() {
       {activeTab === 'Financials' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {[
-            { label: 'Invoice Amount', value: financials?.totalInvoiceAmount ?? 0, isCurrency: true },
-            { label: 'Received', value: financials?.totalReceived ?? 0, isCurrency: true, color: 'text-emerald-500' },
-            { label: 'Total Expenses', value: financials?.totalStandardExpenses ?? 0, isCurrency: true, color: 'text-red-500' },
-            { label: 'Due (Client)', value: financials?.dueClient ?? 0, isCurrency: true, color: 'text-orange-500' },
-            { label: 'Gross Profit', value: financials?.grossProfit ?? 0, isCurrency: true, color: 'text-blue-500' },
-            { label: 'Others Expenses', value: financials?.othersExpenses ?? 0, isCurrency: true, color: 'text-red-500/70' },
-            { label: 'Due (Vendor)', value: financials?.dueVendor ?? 0, isCurrency: true, color: 'text-orange-600' },
+            { label: 'Quoted Amount', value: financials?.quotedAmount ?? 0, isCurrency: true },
+            { label: 'Client Collection', value: financials?.totalReceived ?? 0, isCurrency: true, color: 'text-emerald-500' },
+            { label: 'Client Due', value: financials?.dueClient ?? 0, isCurrency: true, color: 'text-blue-500' },
+            { label: 'Expenses', value: financials?.totalStandardExpenses ?? 0, isCurrency: true, color: 'text-red-500' },
+            { label: 'V-Cash Adv.', value: financials?.vCashAdv ?? 0, isCurrency: true, color: 'text-orange-500' },
+            { label: 'V-Cash Due', value: financials?.vCashDue ?? 0, isCurrency: true, color: 'text-amber-500' },
+            { label: 'Other expense', value: financials?.othersExpenses ?? 0, isCurrency: true, color: 'text-red-500/70' },
             { label: 'Net Expenses', value: financials?.netExpenses ?? 0, isCurrency: true, color: 'text-red-600' },
             { label: 'Net Profit', value: financials?.netProfit ?? 0, isCurrency: true, color: financials && financials.netProfit >= 0 ? 'text-blue-600' : 'text-red-600' },
             { label: 'Profit Ratio', value: `${financials?.profitRatio.toFixed(1)}%`, isCurrency: false, color: 'text-purple-500' },

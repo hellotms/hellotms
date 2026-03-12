@@ -8,7 +8,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { Modal, CascadeConfirmModal } from '@/components/Modal';
 import { formatBDT, formatDate, formatDateTime } from '@/lib/utils';
 import { Plus, Receipt, Trash, Pencil, Trash2, ReceiptText } from 'lucide-react';
-import type { Invoice, Company, Project } from '@hellotms/shared';
+import type { Invoice, Company, Project, LedgerEntry } from '@hellotms/shared';
 import { generateInvoiceNumber } from '@hellotms/shared';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from '@/components/Toast';
@@ -17,15 +17,7 @@ import { useAuth } from '@/context/AuthContext';
 
 const STATUS_OPTIONS = ['all', 'draft', 'sent', 'paid', 'overdue'];
 
-type LedgerRow = {
-  id: string;
-  category: string;
-  amount: number;
-  note?: string | null;
-  entry_date: string;
-  quantity?: number | null;
-  face_value?: number | null;
-};
+type LedgerRow = LedgerEntry;
 
 type InvoiceLineItem = {
   description: string;
@@ -93,20 +85,19 @@ export default function InvoicesPage() {
 
   // Auto-fetch ledger entries when project is selected
   // Only fetch STANDARD expenses (is_external=false). "Others Expenses" should never appear on an invoice.
-  const { data: ledgerEntries = [], isFetching: ledgerLoading } = useQuery<LedgerRow[]>({
+  const { data: ledgerEntries = [], isLoading: ledgerLoading } = useQuery<LedgerRow[]>({
     queryKey: ['ledger-for-invoice', selectedProjectId],
     queryFn: async () => {
       if (!selectedProjectId) return [];
       const { data } = await supabase
         .from('ledger_entries')
-        .select('id, category, amount, note, entry_date, quantity, face_value, is_external')
+        .select('*')
         .eq('project_id', selectedProjectId)
         .eq('type', 'expense')
-        .eq('is_external', false)   // ← exclude "Others Expenses"
+        .eq('is_external', false)
         .is('deleted_at', null)
         .order('entry_date', { ascending: true });
-      // Safety JS filter in case is_external column is not yet in DB
-      return ((data ?? []) as any[]).filter(e => e.is_external === false || e.is_external === null) as LedgerRow[];
+      return (data ?? []) as LedgerRow[];
     },
     enabled: !!selectedProjectId,
   });
@@ -160,23 +151,53 @@ export default function InvoicesPage() {
   const totalCollections = collections.reduce((sum, c) => sum + Number(c.amount), 0);
   const totalReceived = advanceReceived + totalCollections;
 
-  // Auto-populate line items when ledger entries change
-  useEffect(() => {
-    if (ledgerEntries.length > 0) {
-      setLineItems(ledgerEntries.map(e => {
-        const qty = Number(e.quantity ?? 1);
-        const sellPrice = e.face_value !== null && e.face_value !== undefined ? Number(e.face_value) : Number(e.amount);
-        return {
-          description: e.category + (e.note ? ` — ${e.note}` : ''),
-          costPrice: e.amount,
-          quantity: qty,
-          unit_price: sellPrice,
-          amount: qty * sellPrice,
-          ledger_id: e.id,
-        };
-      }));
+  // Reset items ONLY when the project ID actually changes
+  // Remove the useEffect that was clearing lineItems incorrectly
+  // Handle project selection and auto-population
+  const handleProjectChange = async (projectId: string) => {
+    setSelectedProjectId(projectId);
+    setLineItems([]);
+
+    if (!projectId) return;
+
+    try {
+      // Fetch ledger entries directly instead of relying on useEffect
+      const { data, error } = await supabase
+        .from('ledger_entries')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('type', 'expense')
+        .or('is_external.eq.false,is_external.is.null') // Handle NULLs correctly
+        .is('deleted_at', null)
+        .order('entry_date', { ascending: true });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setLineItems(data.map(e => {
+          const qty = Number(e.quantity ?? 1);
+          const sellPrice = e.face_value !== null && e.face_value !== undefined ? Number(e.face_value) : Number(e.amount);
+          
+          // Debug fallback to avoid "undefined"
+          const categoryText = e.category || 'Expense';
+          const noteText = e.note ? ` — ${e.note}` : '';
+          const desc = `${categoryText}${noteText}`;
+
+          return {
+            description: desc,
+            costPrice: Number(e.amount),
+            quantity: qty,
+            unit_price: sellPrice,
+            amount: qty * sellPrice,
+            ledger_id: e.id,
+          };
+        }));
+      }
+    } catch (err) {
+      console.error("Error auto-populating items:", err);
+      toast("Failed to load project expenses", "error");
     }
-  }, [ledgerEntries]);
+  };
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['invoices', statusFilter],
@@ -189,20 +210,33 @@ export default function InvoicesPage() {
     },
   });
 
-  const { data: invoiceCount } = useQuery<number>({
-    queryKey: ['invoice-count'],
+  const { data: lastInvoiceNumber } = useQuery<number>({
+    queryKey: ['last-invoice-number'],
     queryFn: async () => {
-      const { count } = await supabase.from('invoices').select('*', { count: 'exact', head: true });
-      return count ?? 0;
+      const year = new Date().getFullYear();
+      const prefix = `TMS/${year}/`;
+      const { data } = await supabase
+        .from('invoices')
+        .select('invoice_number')
+        .like('invoice_number', `${prefix}%`)
+        .order('invoice_number', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data) {
+        const lastNum = parseInt(data.invoice_number.split('/').pop() || '0');
+        return isNaN(lastNum) ? 0 : lastNum;
+      }
+      return 0;
     },
   });
 
   // Set invoice number when modal opens
   useEffect(() => {
     if (isOpen) {
-      setInvoiceNum(generateInvoiceNumber((invoiceCount ?? 0) + 1));
+      setInvoiceNum(generateInvoiceNumber((lastInvoiceNumber ?? 0) + 1));
     }
-  }, [isOpen, invoiceCount]);
+  }, [isOpen, lastInvoiceNumber]);
 
   // Reset form when modal closes
   const closeModal = () => {
@@ -275,29 +309,38 @@ export default function InvoicesPage() {
       const { data: { user } } = await supabase.auth.getUser();
 
       // 1. Pre-process items to create ledger entries for manual costs
-      const processedItems = await Promise.all(lineItems.map(async (i) => {
+      // Use a local copy to update state later if needed
+      const tempLineItems = [...lineItems];
+      const processedItems = await Promise.all(tempLineItems.map(async (i, idx) => {
         let finalLedgerId = i.ledger_id;
 
         // If it's a manual item newly added here and has a cost, create an expense for it
         if (!finalLedgerId && i.costPrice > 0) {
-          const { data: newLedger, error: ledgerErr } = await supabase
-            .from('ledger_entries')
-            .insert({
-              project_id: selectedProjectId,
-              type: 'expense',
-              category: i.description || 'Invoice Item Cost',
-              amount: i.costPrice,
-              quantity: i.quantity,
-              face_value: i.unit_price,
-              entry_date: new Date().toISOString().slice(0, 10),
-              paid_status: 'unpaid',
-              is_external: false,
-            })
-            .select('id')
-            .single();
+          try {
+            const { data: newLedger, error: ledgerErr } = await supabase
+              .from('ledger_entries')
+              .insert({
+                project_id: selectedProjectId,
+                type: 'expense',
+                category: i.description || 'Invoice Item Cost',
+                amount: i.costPrice,
+                quantity: i.quantity,
+                face_value: i.unit_price,
+                entry_date: new Date().toISOString().slice(0, 10),
+                paid_status: 'unpaid',
+                is_external: false,
+              })
+              .select('id')
+              .single();
 
-          if (ledgerErr) throw ledgerErr;
-          finalLedgerId = newLedger.id;
+            if (!ledgerErr && newLedger) {
+              finalLedgerId = newLedger.id;
+              // Update our local copy so we can preserve this ID in state if invoice fails
+              tempLineItems[idx].ledger_id = finalLedgerId;
+            }
+          } catch (e) {
+            console.error("Failed to auto-create ledger entry", e);
+          }
         }
 
         return {
@@ -309,6 +352,13 @@ export default function InvoicesPage() {
           ledger_id: finalLedgerId,
         };
       }));
+
+      // Update state so if subsequent steps fail, we don't duplicate ledger entries
+      setLineItems(tempLineItems);
+
+      // 1. Check if invoice number already exists
+      const { data: existing } = await supabase.from('invoices').select('id').eq('invoice_number', invoiceNum).is('deleted_at', null).maybeSingle();
+      if (existing) throw new Error(`Invoice number ${invoiceNum} already exists. Please choose another.`);
 
       // 1. Create Invoice
       const { data: inv, error } = await supabase
@@ -460,15 +510,25 @@ export default function InvoicesPage() {
       cell: ({ row }) => (
         <div className="flex items-center gap-1 justify-end">
           <button
-            onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${row.original.id}`); }}
-            className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
+            type="button"
+            onClick={(e) => { 
+              e.preventDefault();
+              e.stopPropagation(); 
+              navigate(`/invoices/${row.original.id}`); 
+            }}
+            className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-primary z-10"
             title="View / Edit Invoice"
           >
             <Pencil className="h-4 w-4" />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); setDeleteTarget(row.original); }}
-            className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 transition-colors text-muted-foreground hover:text-destructive"
+            type="button"
+            onClick={(e) => { 
+              e.preventDefault();
+              e.stopPropagation(); 
+              setDeleteTarget(row.original); 
+            }}
+            className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors text-muted-foreground hover:text-destructive z-10"
             title="Delete Invoice"
           >
             <Trash className="h-4 w-4" />
@@ -536,7 +596,7 @@ export default function InvoicesPage() {
               <label className="block text-xs font-medium mb-1 text-muted-foreground">Project <span className="text-red-500">*</span></label>
               <select
                 value={selectedProjectId}
-                onChange={e => { setSelectedProjectId(e.target.value); setLineItems([]); }}
+                onChange={e => handleProjectChange(e.target.value)}
                 disabled={!selectedCompanyId}
                 className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card disabled:opacity-50"
               >

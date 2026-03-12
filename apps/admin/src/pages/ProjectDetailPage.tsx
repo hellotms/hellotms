@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { staffApi, mediaApi, auditApi } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -87,19 +87,21 @@ export default function ProjectDetailPage() {
   });
 
   // Financials refactored
-  const invoiceAmount = Number(project?.invoice_amount ?? 0);
-  const totalStandardExpense = ledger.filter(e => e.type === 'expense' && !e.is_external).reduce((s, e) => s + Number(e.amount), 0);
-  const othersExpense = ledger.filter(e => e.type === 'expense' && e.is_external).reduce((s, e) => s + Number(e.amount), 0);
-  const totalReceived = collections.reduce((s, c) => s + Number(c.amount), 0) + Number(project?.advance_received ?? 0);
+  const quotedAmount = Number(project?.invoice_amount ?? 0);
+  const expenses = ledger.filter(e => e.type === 'expense' && !e.is_external).reduce((s, e) => s + Number(e.amount), 0);
+  const otherExpenses = ledger.filter(e => e.type === 'expense' && e.is_external).reduce((s, e) => s + Number(e.amount), 0);
+  const clientCollection = collections.reduce((s, c) => s + Number(c.amount), 0) + Number(project?.advance_received ?? 0);
   const totalInvoiced = invoices.reduce((s, i) => s + Number(i.total_amount), 0);
 
   // New Metrics
-  const dueClient = Math.max(0, invoiceAmount - totalReceived);
-  const grossProfit = invoiceAmount - totalStandardExpense;
-  const dueVendor = ledger.filter(e => e.type === 'expense' && e.is_external && e.paid_status === 'unpaid').reduce((s, e) => s + Number(e.amount), 0);
-  const netExpenses = totalStandardExpense + othersExpense;
-  const netProfit = invoiceAmount - netExpenses;
-  const profitRatio = invoiceAmount > 0 ? (netProfit / invoiceAmount) * 100 : 0;
+  const vCashAdv = ledger.filter(e => e.type === 'expense' && !e.is_external).reduce((s, e) => s + Number((e as any).paid_amount ?? (e.paid_status === 'paid' ? e.amount : 0)), 0);
+  const vCashDue = ledger.filter(e => e.type === 'expense' && !e.is_external).reduce((s, e) => s + Number((e as any).due_amount ?? (e.paid_status === 'paid' ? 0 : e.amount)), 0);
+
+  const netExpenses = expenses + otherExpenses;
+  const balanceProfit = quotedAmount - expenses;
+  const clientDue = quotedAmount - clientCollection;
+  const netProfit = quotedAmount - netExpenses;
+  const profitRatio = quotedAmount > 0 ? (netProfit / quotedAmount) * 100 : 0;
 
   const isPaid = project?.payment_status === 'paid';
 
@@ -112,7 +114,7 @@ export default function ProjectDetailPage() {
 
     if (isPaid && project?.paid_at) {
       end = new Date(project.paid_at);
-    } else if (invoiceAmount > 0 && totalReceived >= invoiceAmount && collections.length > 0) {
+    } else if (quotedAmount > 0 && clientCollection >= quotedAmount && collections.length > 0) {
       // Fallback for projects already fully paid but without explicit payment_status
       end = new Date(Math.max(...collections.map(c => new Date(c.payment_date).getTime())));
     }
@@ -147,9 +149,28 @@ export default function ProjectDetailPage() {
       project_id: id!,
       type: 'expense',
       paid_status: 'unpaid',
-      entry_date: new Date().toISOString().split('T')[0]
+      entry_date: new Date().toISOString().split('T')[0],
+      paid_amount: 0,
+      due_amount: 0,
     },
   });
+
+  const watchPaidStatus = ledgerForm.watch('paid_status');
+  const watchAmount = ledgerForm.watch('amount');
+
+  useEffect(() => {
+    const amount = Number(watchAmount) || 0;
+    if (watchPaidStatus === 'paid') {
+      ledgerForm.setValue('paid_amount', amount);
+      ledgerForm.setValue('due_amount', 0);
+    } else if (watchPaidStatus === 'unpaid') {
+      ledgerForm.setValue('paid_amount', 0);
+      ledgerForm.setValue('due_amount', amount);
+    } else if (watchPaidStatus === 'partial') {
+      const currentPaid = Number(ledgerForm.getValues('paid_amount') || 0);
+      ledgerForm.setValue('due_amount', Math.max(0, amount - currentPaid));
+    }
+  }, [watchPaidStatus, watchAmount, ledgerForm]);
 
   const saveLedgerMutation = useMutation({
     mutationFn: async (values: LedgerEntryInput) => {
@@ -630,22 +651,27 @@ export default function ProjectDetailPage() {
       {/* Finance summary bar */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         {[
-          { label: 'Invoice Amount', value: invoiceAmount, color: 'indigo', isCurrency: true },
-          { label: 'Received', value: totalReceived, color: 'emerald', isCurrency: true },
-          { label: 'Total Expenses', value: totalStandardExpense, color: 'red', isCurrency: true },
-          { label: 'Due (Client)', value: dueClient, color: dueClient > 0 ? 'orange' : 'emerald', isCurrency: true },
-          { label: 'Gross Profit', value: grossProfit, color: 'blue', isCurrency: true },
-          { label: 'Others Expenses', value: othersExpense, color: 'purple', isCurrency: true },
-          { label: 'Due (Vendor)', value: dueVendor, color: 'pink', isCurrency: true },
+          { label: 'Quoted Amount', value: quotedAmount, color: 'indigo', isCurrency: true },
+          { label: 'Client Collection', value: clientCollection, color: 'emerald', isCurrency: true },
+          { label: 'Client Due', value: clientDue, color: 'blue', isCurrency: true },
+          { label: 'Expenses', value: expenses, color: 'red', isCurrency: true },
+          { label: 'V-Cash Adv.', value: vCashAdv, color: 'orange', isCurrency: true },
+          { label: 'V-Cash Due', value: vCashDue, color: 'amber', isCurrency: true },
+          { label: 'Other expense', value: otherExpenses, color: 'purple', isCurrency: true },
           { label: 'Net Expenses', value: netExpenses, color: 'rose', isCurrency: true },
-          { label: 'Net Profit', value: netProfit, color: netProfit >= 0 ? 'blue' : 'red', isCurrency: true },
+          { label: 'Net profit', value: netProfit, color: netProfit >= 0 ? 'blue' : 'red', isCurrency: true },
           { label: 'Profit Ratio', value: `${profitRatio.toFixed(1)}%`, color: 'cyan', isCurrency: false },
           { label: 'Turn Over Days', value: turnoverDays !== null ? `${turnoverDays} days` : '—', color: 'slate', isCurrency: false },
+          { label: 'Status', value: isPaid ? 'Received' : 'Pending', color: isPaid ? 'emerald' : 'red', isCurrency: false },
         ].map(({ label, value, color, isCurrency }) => (
           <div key={label} className="bg-card border border-border rounded-xl p-4 shadow-sm">
             <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">{label}</p>
             <p className={`text-base font-bold mt-1 text-${color}-600 dark:text-${color}-400`}>
-              {isCurrency ? formatBDT(value as number) : value}
+              {label === 'Status' ? (
+                <span className={isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>{value}</span>
+              ) : (
+                isCurrency ? formatBDT(value as number) : value
+              )}
             </p>
           </div>
         ))}
@@ -679,8 +705,8 @@ export default function ProjectDetailPage() {
               { label: 'Event End', value: project.event_end_date ? formatDate(project.event_end_date) : 'Same day' },
               { label: 'Location', value: project.location },
               { label: 'Status', value: project.status },
-              { label: 'Invoice Amount', value: project.invoice_amount ? formatBDT(Number(project.invoice_amount)) : '—' },
-              { label: 'Advance Paid', value: project.advance_received ? formatBDT(Number(project.advance_received)) : '—' },
+              { label: 'Quoted Amount', value: project.invoice_amount ? formatBDT(Number(project.invoice_amount)) : '—' },
+              { label: 'Client Collection', value: project.advance_received ? formatBDT(Number(project.advance_received)) : '—' },
               { label: 'Featured', value: project.is_featured ? 'Yes' : 'No' },
               { label: 'Cover Photo', value: project.cover_image_url ? 'Added' : 'Missing' },
             ].map(({ label, value }) => (
@@ -723,7 +749,15 @@ export default function ProjectDetailPage() {
                 setEditingEntry(null);
                 const today = new Date();
                 const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-                ledgerForm.reset({ project_id: id!, type: 'expense', paid_status: 'unpaid', is_external: false, entry_date: todayStr });
+                ledgerForm.reset({ 
+                  project_id: id!, 
+                  type: 'expense', 
+                  paid_status: 'unpaid', 
+                  is_external: false, 
+                  entry_date: todayStr,
+                  paid_amount: 0,
+                  due_amount: 0
+                });
                 setIsLedgerOpen(true);
               }}
               className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
@@ -735,7 +769,7 @@ export default function ProjectDetailPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
-                  {['Date', 'Category', 'Total Cost', 'Qty', 'Face Value', 'Status', 'Note', ''].map(h => (
+                  {['Date', 'Category', 'Total Cost', 'Paid', 'Due', 'Qty', 'Face Value', 'Status', 'Note', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -746,7 +780,13 @@ export default function ProjectDetailPage() {
                     <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{formatDate(entry.entry_date)}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap max-w-[150px] truncate" title={entry.category}>{entry.category}</td>
                     <td className="px-4 py-2.5 font-bold font-mono whitespace-nowrap text-red-500">
-                      −{formatBDT(Number(entry.amount))}
+                      {formatBDT(Number(entry.amount))}
+                    </td>
+                    <td className="px-4 py-2.5 text-emerald-600 font-mono">
+                      {formatBDT(Number((entry as any).paid_amount ?? (entry.paid_status === 'paid' ? entry.amount : 0)))}
+                    </td>
+                    <td className="px-4 py-2.5 text-orange-600 font-mono">
+                      {formatBDT(Number((entry as any).due_amount ?? (entry.paid_status === 'paid' ? 0 : entry.amount)))}
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground font-mono">{entry.quantity ?? '—'}</td>
                     <td className="px-4 py-2.5 text-muted-foreground font-mono">{entry.face_value ? formatBDT(Number(entry.face_value)) : '—'}</td>
@@ -771,8 +811,8 @@ export default function ProjectDetailPage() {
               {ledger.filter(e => !e.is_external).length > 0 && (
                 <tfoot className="bg-muted/30 border-t border-border">
                   <tr>
-                    <td colSpan={2} className="px-4 py-3 text-sm font-semibold text-foreground text-right">Total Standard Expenses</td>
-                    <td className="px-4 py-3 text-sm font-bold text-red-500 font-mono">−{formatBDT(totalStandardExpense)}</td>
+                    <td colSpan={2} className="px-4 py-3 text-sm font-semibold text-foreground text-right">Total Expenses</td>
+                    <td className="px-4 py-3 text-sm font-bold text-red-500 font-mono">{formatBDT(expenses)}</td>
                     <td colSpan={5}></td>
                   </tr>
                 </tfoot>
@@ -795,7 +835,15 @@ export default function ProjectDetailPage() {
                 setEditingEntry(null);
                 const today = new Date();
                 const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-                ledgerForm.reset({ project_id: id!, type: 'expense', paid_status: 'unpaid', is_external: true, entry_date: todayStr });
+                ledgerForm.reset({ 
+                  project_id: id!, 
+                  type: 'expense', 
+                  paid_status: 'unpaid', 
+                  is_external: true, 
+                  entry_date: todayStr,
+                  paid_amount: 0,
+                  due_amount: 0
+                });
                 setIsLedgerOpen(true);
               }}
               className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
@@ -807,7 +855,7 @@ export default function ProjectDetailPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
-                  {['Date', 'Category', 'Total Cost', 'Qty', 'Face Value', 'Status', 'Note', ''].map(h => (
+                  {['Date', 'Category', 'Total Cost', 'Paid', 'Due', 'Qty', 'Face Value', 'Status', 'Note', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -818,7 +866,13 @@ export default function ProjectDetailPage() {
                     <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{formatDate(entry.entry_date)}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap max-w-[150px] truncate" title={entry.category}>{entry.category}</td>
                     <td className="px-4 py-2.5 font-bold font-mono whitespace-nowrap text-red-500">
-                      −{formatBDT(Number(entry.amount))}
+                      {formatBDT(Number(entry.amount))}
+                    </td>
+                    <td className="px-4 py-2.5 text-emerald-600 font-mono">
+                      {formatBDT(Number((entry as any).paid_amount ?? (entry.paid_status === 'paid' ? entry.amount : 0)))}
+                    </td>
+                    <td className="px-4 py-2.5 text-orange-600 font-mono">
+                      {formatBDT(Number((entry as any).due_amount ?? (entry.paid_status === 'paid' ? 0 : entry.amount)))}
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground font-mono">{entry.quantity ?? '—'}</td>
                     <td className="px-4 py-2.5 text-muted-foreground font-mono">{entry.face_value ? formatBDT(Number(entry.face_value)) : '—'}</td>
@@ -844,7 +898,7 @@ export default function ProjectDetailPage() {
                 <tfoot className="bg-muted/30 border-t border-border">
                   <tr>
                     <td colSpan={2} className="px-4 py-3 text-sm font-semibold text-foreground text-right">Total Others Expenses</td>
-                    <td className="px-4 py-3 text-sm font-bold text-red-500 font-mono">−{formatBDT(othersExpense)}</td>
+                    <td className="px-4 py-3 text-sm font-bold text-red-500 font-mono">{formatBDT(otherExpenses)}</td>
                     <td colSpan={5}></td>
                   </tr>
                 </tfoot>
@@ -859,8 +913,8 @@ export default function ProjectDetailPage() {
         <div>
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h3 className="font-semibold text-foreground">Payment Collections</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Total Received: <strong className="text-emerald-600 text-emerald-600 dark:text-emerald-400">{formatBDT(totalReceived)}</strong></p>
+              <h3 className="font-semibold text-foreground">Client Collection</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Total Received: <strong className="text-emerald-600 text-emerald-600 dark:text-emerald-400">{formatBDT(clientCollection)}</strong></p>
             </div>
             <button onClick={openCollectionModal} className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
               <Plus className="h-3.5 w-3.5" /> Add Collection
@@ -954,8 +1008,8 @@ export default function ProjectDetailPage() {
               { label: 'Collection Duration', value: durations.collection_duration_days !== null ? `${durations.collection_duration_days} day(s)` : 'Not fully collected' },
               { label: 'Days from Event End to Full Collection', value: durations.days_to_full_collection_from_end !== null ? `${durations.days_to_full_collection_from_end} days` : 'Not fully collected' },
               { label: 'Total Invoiced', value: formatBDT(totalInvoiced) },
-              { label: 'Total Received', value: formatBDT(totalReceived) },
-              { label: 'Outstanding Due (Client)', value: formatBDT(dueClient) },
+              { label: 'Total Received', value: formatBDT(clientCollection) },
+              { label: 'Outstanding Due (Client)', value: formatBDT(quotedAmount - clientCollection) },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
                 <span className="text-sm text-muted-foreground">{label}</span>
@@ -1133,7 +1187,37 @@ export default function ProjectDetailPage() {
               <select {...ledgerForm.register('paid_status')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
                 <option value="unpaid">Unpaid</option>
                 <option value="paid">Paid</option>
+                <option value="partial">Partial Payment</option>
               </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Paid (Partial) (৳)</label>
+              <input
+                type="number"
+                step="0.01"
+                disabled={watchPaidStatus !== 'partial'}
+                {...ledgerForm.register('paid_amount', {
+                  valueAsNumber: true,
+                  onChange: (e) => {
+                    const amount = Number(ledgerForm.getValues('amount')) || 0;
+                    const paid = Number(e.target.value) || 0;
+                    ledgerForm.setValue('due_amount', Math.max(0, amount - paid));
+                  }
+                })}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:bg-muted"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Due (৳)</label>
+              <input
+                type="number"
+                step="0.01"
+                readOnly
+                {...ledgerForm.register('due_amount', { valueAsNumber: true })}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-muted"
+              />
             </div>
           </div>
           {/* Optional invoice-planning fields */}

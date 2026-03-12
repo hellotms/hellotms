@@ -287,7 +287,7 @@ export default function InvoiceDetailPage() {
         description={`${invoice.companies?.name ?? ''} — ${invoice.projects?.title ?? ''}`}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <button onClick={() => navigate('/invoices')} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-4 w-4" /> Back
             </button>
             {invoice.status === 'draft' && (
@@ -371,7 +371,7 @@ export default function InvoiceDetailPage() {
 
               {/* Right: INVOICE heading + date/no table */}
               <div className="sm:text-right shrink-0">
-                <h1 className="text-4xl sm:text-5xl font-black tracking-widest text-foreground mb-4 leading-none">INVOICE</h1>
+                <h1 className="text-3xl sm:text-4xl font-black tracking-widest text-foreground mb-4 leading-none">INVOICE</h1>
                 <StatusBadge status={invoice.status} />
                 <table className="text-sm mt-3 sm:ml-auto border border-border rounded-lg overflow-hidden">
                   <tbody>
@@ -430,15 +430,15 @@ export default function InvoiceDetailPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 border-b border-border">
                   <tr>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground w-10">SL</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Description</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground w-24">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-white w-10">SL</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-white">Description</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-white w-24">
                       Cost Price
-                      <span className="ml-1 text-[10px] bg-amber-100 dark:bg-amber-500/20 text-amber-700 px-1 py-0.5 rounded font-normal">admin only</span>
+                      <span className="ml-1 text-[10px] bg-amber-100 dark:bg-amber-500/20 text-amber-900 px-1 py-0.5 rounded font-normal">admin only</span>
                     </th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground w-20">Qty</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground w-32">Sell Price (৳)</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground w-28">Total (৳)</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-white w-20">Qty</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-white w-32">Sell Price (৳)</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-white w-28">Total (৳)</th>
                     {isDraft && <th className="w-20" />}
                   </tr>
                 </thead>
@@ -551,6 +551,9 @@ export default function InvoiceDetailPage() {
                 <p className="text-sm text-foreground">
                   <span className="font-semibold">Amount in Words: </span>
                   Taka {numberToWords(due > 0 ? due : invoiceNetPayable)} Only
+                </p>
+                <p className="text-[10px] text-muted-foreground italic text-right mt-1">
+                  * This is a computer generated invoice, no signature is required.
                 </p>
               </div>
             </div>

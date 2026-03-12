@@ -102,7 +102,7 @@ export function ProjectForm({ companies, onSubmit, onCancel, isPending, defaultV
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Invoice Amount (৳) <span className="text-red-500">*</span></label>
+          <label className="block text-sm font-medium text-foreground mb-1">Quoted Amount (৳) <span className="text-red-500">*</span></label>
           <input type="number" step="0.01" min="0" {...register('invoice_amount', { valueAsNumber: true })} placeholder="e.g. 150000" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
           {errors.invoice_amount && <p className="text-xs text-destructive mt-1">{(errors.invoice_amount as any)?.message}</p>}
         </div>

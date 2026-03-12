@@ -3,12 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { formatDate } from '@/lib/utils';
-import { ArrowLeft, Calendar, User, FileText, Pin } from 'lucide-react';
+import { ArrowLeft, Calendar, User, FileText, Pin, ExternalLink } from 'lucide-react';
 import type { Notice } from '@hellotms/shared';
+import { useState } from 'react';
+import { Modal } from '@/components/Modal';
 
 export default function NoticeDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
     const { data: notice, isLoading } = useQuery<Notice>({
         queryKey: ['notice', id],
@@ -36,9 +39,16 @@ export default function NoticeDetailPage() {
             </button>
 
             <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-                {notice.cover_url && (
-                    <div className="h-64 w-full relative">
-                        <img src={notice.cover_url} alt="" className="w-full h-full object-cover" />
+                    <div 
+                        className="h-64 w-full relative cursor-pointer group"
+                        onClick={() => setPreviewUrl(notice.cover_url as string | null)}
+                    >
+                        <img src={notice.cover_url} alt="" className="w-full h-full object-cover group-hover:opacity-90 transition-opacity" />
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10">
+                            <div className="bg-white/90 p-2 rounded-full shadow-lg">
+                                <ExternalLink className="h-5 w-5 text-primary" />
+                            </div>
+                        </div>
                         {notice.is_pinned && (
                             <div className="absolute top-4 left-4 bg-primary text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-md shadow flex items-center gap-1.5">
                                 <Pin className="h-3.5 w-3.5" /> Pinned Notice
@@ -105,6 +115,12 @@ export default function NoticeDetailPage() {
                     )}
                 </div>
             </div>
+
+            <Modal isOpen={!!previewUrl} onClose={() => setPreviewUrl(null)} title="Image Preview" size="xl">
+                <div className="flex items-center justify-center p-2">
+                    <img src={previewUrl || ''} alt="Full size preview" className="max-w-full max-h-[70vh] rounded-lg shadow-2xl" />
+                </div>
+            </Modal>
         </div>
     );
 }
