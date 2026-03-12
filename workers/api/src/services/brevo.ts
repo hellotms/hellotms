@@ -144,7 +144,8 @@ export function buildPasswordResetEmailHtml(params: {
 }
 
 export function buildInvoiceEmailHtml(params: {
-  recipientName: string;
+  recipientName: string; // The person's name (for greeting)
+  clientName: string;    // The company name (for Bill To)
   invoiceNumber: string;
   invoiceDate: string;
   subject: string;
@@ -182,7 +183,7 @@ export function buildInvoiceEmailHtml(params: {
     </tr>
   `).join('');
 
-  const collectionsHtml = params.collections.length > 0 ? `
+  const collectionsHtml = params.collections.length > 0 && params.type === 'invoice' ? `
     <div style="margin-top:20px">
       <h3 style="color:#1e40af;font-size:14px;margin-bottom:8px">Payments Received</h3>
       <table style="width:100%;font-size:12px;color:#475569;border-collapse:collapse">
@@ -205,12 +206,17 @@ export function buildInvoiceEmailHtml(params: {
     
     <!-- Header -->
     <div style="padding:40px;border-bottom:1px solid #e2e8f0">
+      <div style="margin-bottom:24px;color:#1e293b;font-size:15px;line-height:1.5">
+        Dear <strong>${params.recipientName}</strong>,<br>
+        Please find below your <strong>${labelPrefix.toLowerCase()}</strong> from <strong>${companyName}</strong>.
+      </div>
+
       <table style="width:100%;border-collapse:collapse">
         <tr>
           <!-- Bill To -->
           <td style="vertical-align:top;width:60%">
             <p style="margin:0 0 4px;font-size:10px;color:#64748b;font-weight:bold;letter-spacing:1px">${labelPrefix} TO</p>
-            <p style="margin:0;font-size:18px;font-weight:bold;color:#0f172a">${params.recipientName}</p>
+            <p style="margin:0;font-size:18px;font-weight:bold;color:#0f172a">${params.clientName || 'Client'}</p>
             <p style="margin:4px 0 0;font-size:13px;color:#475569">${params.companyAddress}</p>
             <div style="margin-top:20px;display:flex;align-items:flex-start;gap:8px">
               <span style="font-size:12px;font-weight:bold;color:#475569">Sub:</span>
@@ -287,7 +293,7 @@ export function buildInvoiceEmailHtml(params: {
 
             ${collectionsHtml}
 
-            ${params.totalPaid !== '৳ 0' ? `
+            ${params.totalPaid !== '৳ 0' && params.type === 'invoice' ? `
             <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
               <tr>
                 <td style="padding:4px 0;color:#0f172a;font-weight:bold">Total Paid:</td>
@@ -295,9 +301,10 @@ export function buildInvoiceEmailHtml(params: {
               </tr>
             </table>` : ''}
 
+            ${params.type === 'invoice' ? `
             <div style="margin-top:20px;background:${dueColor};color:#fff;text-align:center;padding:8px;border-radius:4px;font-weight:bold;font-size:14px">
               ${dueText}
-            </div>
+            </div>` : ''}
           </td>
         </tr>
       </table>

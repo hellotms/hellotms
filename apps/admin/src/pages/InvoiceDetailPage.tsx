@@ -123,7 +123,7 @@ export default function InvoiceDetailPage() {
       const amount = values.quantity * values.unit_price;
       let finalLedgerId = null;
 
-      if (invoice?.projects?.id && values.cost_price > 0) {
+      if (invoice?.type === 'invoice' && invoice?.projects?.id && values.cost_price > 0) {
         const { data: newLedger, error: ledgerErr } = await supabase
           .from('ledger_entries')
           .insert({
@@ -168,16 +168,17 @@ export default function InvoiceDetailPage() {
       const { error } = await supabase.from('invoice_items').update({ ...values, amount }).eq('id', itemId);
       if (error) throw error;
 
-      if (ledgerId) {
-        await supabase.from('ledger_entries').update({
-          quantity: values.quantity,
-          face_value: values.unit_price,
-          amount: values.cost_price,
-          category: values.description,
-        }).eq('id', ledgerId);
-      } else if (values.cost_price > 0 && invoice?.projects?.id) {
-        // Create a ledger if it didn't have one but now has cost
-        const { data: newLedger } = await supabase
+      if (invoice?.type === 'invoice') {
+        if (ledgerId) {
+          await supabase.from('ledger_entries').update({
+            quantity: values.quantity,
+            face_value: values.unit_price,
+            amount: values.cost_price,
+            category: values.description,
+          }).eq('id', ledgerId);
+        } else if (values.cost_price > 0 && invoice?.projects?.id) {
+          // Create a ledger if it didn't have one but now has cost
+          const { data: newLedger } = await supabase
           .from('ledger_entries')
           .insert({
             project_id: invoice.projects.id, type: 'expense', category: values.description,
@@ -185,8 +186,9 @@ export default function InvoiceDetailPage() {
             entry_date: new Date().toISOString().slice(0, 10), paid_status: 'unpaid', is_external: false,
           })
           .select('id').single();
-        if (newLedger) {
-          await supabase.from('invoice_items').update({ ledger_id: newLedger.id }).eq('id', itemId);
+          if (newLedger) {
+            await supabase.from('invoice_items').update({ ledger_id: newLedger.id }).eq('id', itemId);
+          }
         }
       }
 
@@ -253,11 +255,11 @@ export default function InvoiceDetailPage() {
 
   // ── Computed financials ─────────────────────────────────────────────────────
   const subtotal = invoice.total_amount;
-  const totalCostPrice = ledger.reduce((s, e) => s + Number(e.amount), 0);
+  const totalCostPrice = invoice.type === 'invoice' ? ledger.reduce((s, e) => s + Number(e.amount), 0) : 0;
   const discountValue = invoice.discount_value ?? 0;
   const invoiceNetPayable = Math.max(0, subtotal - discountValue);
-  const totalReceived = collections.reduce((s, c) => s + c.amount, 0) + (invoice.projects?.advance_received ?? 0);
-  const due = Math.max(0, invoiceNetPayable - totalReceived);
+  const totalReceived = invoice.type === 'invoice' ? collections.reduce((s, c) => s + c.amount, 0) + (invoice.projects?.advance_received ?? 0) : 0;
+  const due = invoice.type === 'invoice' ? Math.max(0, invoiceNetPayable - totalReceived) : 0;
 
   // Invoice date (prefer explicit invoice_date, fallback to created_at)
   const displayDate = invoice.invoice_date || invoice.created_at;
@@ -511,10 +513,12 @@ export default function InvoiceDetailPage() {
                     <span className="text-muted-foreground">Sub Total</span>
                     <span className="font-medium tabular-nums">{formatBDT(subtotal)}</span>
                   </div>
-                  <div className="flex justify-between text-xs text-muted-foreground/70 italic">
-                    <span>Total Cost Price</span>
-                    <span className="tabular-nums">{formatBDT(totalCostPrice)}</span>
-                  </div>
+                  {totalCostPrice > 0 && invoice.type === 'invoice' && (
+                    <div className="flex justify-between text-xs text-muted-foreground/70 italic">
+                      <span>Total Cost Price</span>
+                      <span className="tabular-nums">{formatBDT(totalCostPrice)}</span>
+                    </div>
+                  )}
                   {discountValue > 0 && (
                     <div className="flex justify-between text-red-600 dark:text-red-400">
                       <span>Discount {invoice.discount_type === 'percent' ? '(%)' : ''}</span>
@@ -531,10 +535,12 @@ export default function InvoiceDetailPage() {
                       <span className="tabular-nums">− {formatBDT(totalReceived)}</span>
                     </div>
                   )}
-                  <div className={`flex justify-between text-base font-bold border-t-2 pt-2 mt-1 ${due > 0 ? 'text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30' : 'text-emerald-600 dark:text-emerald-400 border-emerald-200'}`}>
-                    <span>{due > 0 ? 'Balance Due' : 'Project Paid'}</span>
-                    <span className="tabular-nums">{due > 0 ? formatBDT(due) : '✓ Paid'}</span>
-                  </div>
+                  {invoice.type === 'invoice' && (
+                    <div className={`flex justify-between text-base font-bold border-t-2 pt-2 mt-1 ${due > 0 ? 'text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30' : 'text-emerald-600 dark:text-emerald-400 border-emerald-200'}`}>
+                      <span>{due > 0 ? 'Balance Due' : 'Project Paid'}</span>
+                      <span className="tabular-nums">{due > 0 ? formatBDT(due) : '✓ Paid'}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -542,7 +548,7 @@ export default function InvoiceDetailPage() {
               <div className="mt-6 -mx-6 px-6 py-3.5 bg-muted/30 border-y border-border/40">
                 <p className="text-sm text-foreground">
                   <span className="font-semibold">Amount in Words: </span>
-                  Taka {numberToWords(due > 0 ? due : invoiceNetPayable)} Only
+                  Taka {numberToWords(invoice.type === 'estimate' ? invoiceNetPayable : (due > 0 ? due : invoiceNetPayable))} Only
                 </p>
                 <p className="text-[10px] text-muted-foreground italic text-right mt-1">
                   * This is a computer generated invoice, no signature is required.
@@ -562,7 +568,7 @@ export default function InvoiceDetailPage() {
           </div>
 
           {/* Payment History */}
-          {collections.length > 0 && (
+          {collections.length > 0 && invoice.type === 'invoice' && (
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="px-6 py-4 border-b border-border">
                 <h3 className="font-semibold">Payments Received</h3>
@@ -609,18 +615,25 @@ export default function InvoiceDetailPage() {
           </div>
 
           {/* Due summary in sidebar */}
-          <div className={`rounded-xl p-5 border ${due > 0 ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30' : 'bg-green-50 dark:bg-green-500/10 border-green-200'}`}>
-            <h3 className={`font-semibold mb-2 text-sm ${due > 0 ? 'text-red-800' : 'text-green-800'}`}>
-              {due > 0 ? 'Outstanding Due' : 'Payment Status'}
-            </h3>
-            <p className={`text-2xl font-bold ${due > 0 ? 'text-red-700' : 'text-green-700'}`}>
-              {due > 0 ? formatBDT(due) : 'Fully Paid ✓'}
-            </p>
-            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-              <div className="flex justify-between"><span>Total Payable</span><span>{formatBDT(invoiceNetPayable)}</span></div>
-              <div className="flex justify-between"><span>Total Paid</span><span className="text-green-700">{formatBDT(totalReceived)}</span></div>
+          {invoice.type === 'invoice' ? (
+            <div className={`rounded-xl p-5 border ${due > 0 ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30' : 'bg-green-50 dark:bg-green-500/10 border-green-200'}`}>
+              <h3 className={`font-semibold mb-2 text-sm ${due > 0 ? 'text-red-800' : 'text-green-800'}`}>
+                {due > 0 ? 'Outstanding Due' : 'Payment Status'}
+              </h3>
+              <p className={`text-2xl font-bold ${due > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                {due > 0 ? formatBDT(due) : 'Fully Paid ✓'}
+              </p>
+              <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                <div className="flex justify-between"><span>Total Payable</span><span>{formatBDT(invoiceNetPayable)}</span></div>
+                <div className="flex justify-between"><span>Total Paid</span><span className="text-green-700">{formatBDT(totalReceived)}</span></div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-card border border-border rounded-xl p-5">
+              <h3 className="font-semibold mb-2 text-sm">Total Amount</h3>
+              <p className="text-2xl font-bold text-primary">{formatBDT(invoiceNetPayable)}</p>
+            </div>
+          )}
 
           {invoice.pdf_url && (
             <div className="bg-card border border-border rounded-xl p-5">
@@ -641,14 +654,14 @@ export default function InvoiceDetailPage() {
       </div>
 
       {/* Send Modal */}
-      <Modal isOpen={isSendOpen} onClose={() => setIsSendOpen(false)} title="Send Invoice to Client">
+      <Modal isOpen={isSendOpen} onClose={() => setIsSendOpen(false)} title={`Send ${invoice.type === 'estimate' ? 'Estimate' : 'Invoice'} to Client`}>
         {sendSuccess ? (
           <div className="text-center py-6">
             <div className="w-12 h-12 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
               <Send className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
-            <p className="font-semibold text-foreground">Invoice sent!</p>
-            <p className="text-sm text-muted-foreground mt-1">The invoice has been emailed with a PDF attachment.</p>
+            <p className="font-semibold text-foreground">{invoice.type === 'estimate' ? 'Estimate' : 'Invoice'} sent!</p>
+            <p className="text-sm text-muted-foreground mt-1">The {invoice.type === 'estimate' ? 'estimate' : 'invoice'} has been emailed with a PDF attachment.</p>
             <button onClick={() => setIsSendOpen(false)} className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm">Close</button>
           </div>
         ) : (
@@ -666,7 +679,7 @@ export default function InvoiceDetailPage() {
               <button type="button" onClick={() => setIsSendOpen(false)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
               <button type="submit" disabled={sendMutation.isPending} className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
                 {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {sendMutation.isPending ? 'Sending...' : 'Send Invoice'}
+                {sendMutation.isPending ? 'Sending...' : `Send ${invoice.type === 'estimate' ? 'Estimate' : 'Invoice'}`}
               </button>
             </div>
           </form>
@@ -682,7 +695,7 @@ export default function InvoiceDetailPage() {
           deleteItemMutation.mutate({ itemId: deleteItemId, ledgerId: it?.ledger_id });
         }}
         title="Delete Line Item"
-        message="Are you sure you want to remove this line item? The invoice total will be updated."
+        message={`Are you sure you want to remove this line item? The ${invoice.type === 'estimate' ? 'estimate' : 'invoice'} total will be updated.`}
         confirmLabel="Delete"
         danger
       />

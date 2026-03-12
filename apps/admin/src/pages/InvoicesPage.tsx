@@ -161,14 +161,19 @@ export default function InvoicesPage() {
     if (!selectedProjectId || !isOpen || ledgerLoading) return;
 
     if (invoiceType === 'invoice') {
-      // populate from ledger and lock
       if (ledgerEntries.length > 0) {
         setLineItems(ledgerEntries.map(e => {
           const qty = Number(e.quantity ?? 1);
           const sellPrice = e.face_value !== null && e.face_value !== undefined ? Number(e.face_value) : Number(e.amount);
-          const categoryText = e.category || 'Expense';
-          const noteText = e.note ? ` — ${e.note}` : '';
-          const desc = `${categoryText}${noteText}`;
+          
+          let desc = e.category || 'Expense';
+          const isGeneric = desc.toLowerCase() === 'expense';
+          
+          if (isGeneric && e.note) {
+            desc = e.note;
+          } else if (e.note && !isGeneric) {
+            desc = `${desc} — ${e.note}`;
+          }
 
           return {
             description: desc,
@@ -208,12 +213,12 @@ export default function InvoicesPage() {
         .from('invoices')
         .select('invoice_number')
         .like('invoice_number', `${prefix}%`)
-        .order('invoice_number', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        // Sort descending by created_at to get the latest, as string sorting of numbers like 009 vs 010 might be tricky, though here it should be fine.
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (data) {
-        const lastNum = parseInt(data.invoice_number.split('/').pop() || '0');
+      if (data && data.length > 0) {
+        const lastNum = parseInt(data[0].invoice_number.split('/').pop() || '0', 10);
         return isNaN(lastNum) ? 0 : lastNum;
       }
       return 0;
@@ -303,6 +308,18 @@ export default function InvoicesPage() {
       const processedItems = await Promise.all(tempLineItems.map(async (i, idx) => {
         let finalLedgerId = i.ledger_id;
 
+        // SKIP ledger logic for estimates
+        if (invoiceType === 'estimate') {
+           return {
+            description: i.description,
+            quantity: i.quantity,
+            unit_price: i.unit_price,
+            amount: i.amount,
+            cost_price: i.costPrice,
+            ledger_id: undefined, // ensure no ledger link
+          };
+        }
+
         // If it's a manual item newly added here and has a cost, create an expense for it
         if (!finalLedgerId && i.costPrice > 0) {
           try {
@@ -345,55 +362,73 @@ export default function InvoicesPage() {
       // Update state so if subsequent steps fail, we don't duplicate ledger entries
       setLineItems(tempLineItems);
 
-      // 1. Check if invoice number already exists
-      const { data: existing } = await supabase.from('invoices').select('id').eq('invoice_number', invoiceNum).is('deleted_at', null).maybeSingle();
-      if (existing) throw new Error(`Invoice number ${invoiceNum} already exists. Please choose another.`);
+      // Force a unique invoice number by checking and incrementing if a collision occurs
+      let currentInvoiceNum = invoiceNum;
+      let isUnique = false;
+      let suffix = 1;
+      let finalInvoiceId = null;
 
-      // 1. Create Invoice
-      const { data: inv, error } = await supabase
-        .from('invoices')
-        .insert({
-          invoice_number: invoiceNum,
-          company_id: selectedCompanyId,
-          project_id: selectedProjectId,
-          type: invoiceType,
-          status: invoiceStatus,
-          due_date: dueDate || null,
-          total_amount: subtotal,
-          discount_type: discountType,
-          discount_value: discountAmt,
-          notes: notes || null,
-          created_by: user?.id,
-        })
-        .select()
-        .single();
-      if (error) throw error;
+      // Try inserting. If it fails due to unique constraint (23505), increment and retry
+      while (!isUnique) {
+        const { data: inv, error } = await supabase
+          .from('invoices')
+          .insert({
+            invoice_number: currentInvoiceNum,
+            company_id: selectedCompanyId,
+            project_id: selectedProjectId,
+            type: invoiceType,
+            status: invoiceStatus,
+            due_date: dueDate || null,
+            total_amount: subtotal,
+            discount_type: discountType,
+            discount_value: discountAmt,
+            notes: notes || null,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          if (error.code === '23505') { // Postgres unique violation code
+            const year = new Date().getFullYear();
+            currentInvoiceNum = `TMS/${year}/${String(parseInt(currentInvoiceNum.split('/').pop() || '0', 10) + suffix).padStart(3, '0')}`;
+            suffix++;
+          } else {
+            throw error;
+          }
+        } else {
+          isUnique = true;
+          finalInvoiceId = inv.id;
+        }
+      }
 
       // 2. Create Invoice Items
       if (processedItems.length > 0) {
-        await supabase.from('invoice_items').insert(processedItems.map(i => ({ ...i, invoice_id: inv.id })));
+        await supabase.from('invoice_items').insert(processedItems.map(i => ({ ...i, invoice_id: finalInvoiceId })));
       }
 
       // 3. Sync back to Ledger (Update face_value and quantity for PRE-EXISTING items)
-      const syncTasks = lineItems
-        .filter(item => item.ledger_id) // only update items that were already linked
-        .map(item =>
-          supabase
-            .from('ledger_entries')
-            .update({
-              quantity: item.quantity,
-              face_value: item.unit_price,
-            })
-            .eq('id', item.ledger_id!)
-        );
+      // ONLY for Invoices
+      if (invoiceType === 'invoice') {
+        const syncTasks = lineItems
+          .filter(item => item.ledger_id)
+          .map(item =>
+            supabase
+              .from('ledger_entries')
+              .update({
+                quantity: item.quantity,
+                face_value: item.unit_price,
+              })
+              .eq('id', item.ledger_id!)
+          );
 
-      if (syncTasks.length > 0) {
-        await Promise.all(syncTasks);
+        if (syncTasks.length > 0) {
+          await Promise.all(syncTasks);
+        }
       }
 
-      return inv;
+      return { id: finalInvoiceId, invoice_number: currentInvoiceNum };
     },
-    onSuccess: (inv) => {
+    onSuccess: (inv: any) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-count'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
@@ -419,88 +454,7 @@ export default function InvoicesPage() {
     onError: (e: Error) => toast(e.message, 'error'),
   });
 
-  const sendEstimateMutation = useMutation({
-    mutationFn: async () => {
-      const company = companies.find(c => c.id === selectedCompanyId);
-      const project = allProjects.find(p => p.id === selectedProjectId);
-      if (!company || !project) throw new Error('Company and Project are required');
 
-      const payload = {
-        invoiceNumber: invoiceNum,
-        invoiceDate: formatDate(new Date().toISOString()),
-        type: 'estimate',
-        company: {
-          name: company.name,
-          address: (company as any).address,
-          email: (company as any).email,
-          phone: (company as any).phone
-        },
-        project: {
-          title: project.title,
-          location: (project as any).location
-        },
-        items: lineItems.map(i => ({
-          description: i.description,
-          quantity: i.quantity,
-          unitPrice: i.unit_price,
-          amount: i.amount
-        })),
-        totalAmount: subtotal,
-        discountType,
-        discountValue: discountAmt
-      };
-
-      return invoicesApi.sendEstimate(payload);
-    },
-    onSuccess: (res) => {
-      if (res.success) {
-        toast('Estimate sent successfully!', 'success');
-        if (res.pdfUrl) window.open(res.pdfUrl, '_blank');
-        closeModal();
-      }
-    },
-    onError: (e: Error) => toast(e.message, 'error')
-  });
-
-  const downloadEstimateMutation = useMutation({
-    mutationFn: async () => {
-       const company = companies.find(c => c.id === selectedCompanyId);
-      const project = allProjects.find(p => p.id === selectedProjectId);
-      if (!company || !project) throw new Error('Company and Project are required');
-
-      const payload = {
-        invoiceNumber: invoiceNum,
-        invoiceDate: formatDate(new Date().toISOString()),
-        type: 'estimate',
-        company: {
-          name: company.name,
-          address: (company as any).address,
-          email: (company as any).email,
-          phone: (company as any).phone
-        },
-        project: {
-          title: project.title,
-          location: (project as any).location
-        },
-        items: lineItems.map(i => ({
-          description: i.description,
-          quantity: i.quantity,
-          unitPrice: i.unit_price,
-          amount: i.amount
-        })),
-        totalAmount: subtotal,
-        discountType,
-        discountValue: discountAmt
-      };
-
-      // Since we don't have a direct 'download' endpoint yet, we'll use the 'send' one but maybe we should add a separate preview/download one in the future.
-      // For now, let's just trigger the send mutation which returns a pdfUrl.
-      return invoicesApi.sendEstimate(payload);
-    },
-    onSuccess: (res) => {
-      if (res.pdfUrl) window.open(res.pdfUrl, '_blank');
-    }
-  });
 
   const deleteMutation = useMutation({
     mutationFn: async (invoice: Invoice) => {
@@ -736,8 +690,7 @@ export default function InvoicesPage() {
                           value={item.quantity}
                           onChange={e => updateItem(i, 'quantity', Number(e.target.value))}
                           min={1}
-                          disabled={!!item.ledger_id && invoiceType === 'invoice'}
-                          className="w-full border border-border rounded px-2 py-1 text-xs disabled:opacity-70"
+                          className="w-full border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring bg-transparent text-center"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -746,8 +699,7 @@ export default function InvoicesPage() {
                           value={item.unit_price || ''}
                           onChange={e => updateItem(i, 'unit_price', Number(e.target.value))}
                           placeholder="0"
-                          disabled={!!item.ledger_id && invoiceType === 'invoice'}
-                          className="w-full border border-border rounded px-2 py-1 text-xs disabled:opacity-70"
+                          className="w-full border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring bg-transparent text-right"
                         />
                       </td>
                       <td className="px-3 py-2 font-semibold text-foreground">{formatBDT(item.amount)}</td>
@@ -834,7 +786,7 @@ export default function InvoicesPage() {
                 <span>− {formatBDT(discountAmt)}</span>
               </div>
             )}
-            {totalReceived > 0 && (
+            {totalReceived > 0 && invoiceType === 'invoice' && (
               <div className="flex justify-between w-64 text-teal-600">
                 <span>Payments Received:</span>
                 <span>− {formatBDT(totalReceived)}</span>
@@ -843,7 +795,7 @@ export default function InvoicesPage() {
             <div className="flex justify-between w-64 border-t border-primary/20 pt-1.5">
               <span className="font-semibold text-foreground">Total Payable:</span>
               <span className="font-bold text-lg text-primary">
-                {formatBDT(Math.max(0, subtotal - discountAmt - totalReceived))}
+                {formatBDT(invoiceType === 'invoice' ? Math.max(0, subtotal - discountAmt - totalReceived) : Math.max(0, subtotal - discountAmt))}
               </span>
             </div>
           </div>
@@ -851,32 +803,13 @@ export default function InvoicesPage() {
           {/* Actions */}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={closeModal} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
-            {invoiceType === 'estimate' ? (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => downloadEstimateMutation.mutate()}
-                  disabled={downloadEstimateMutation.isPending || !selectedCompanyId || !selectedProjectId}
-                  className="px-5 py-2 text-sm border border-primary text-primary rounded-lg hover:bg-primary/5 disabled:opacity-60 font-medium"
-                >
-                  {downloadEstimateMutation.isPending ? 'Generating...' : 'Download Estimate'}
-                </button>
-                <button
-                  onClick={() => sendEstimateMutation.mutate()}
-                  disabled={sendEstimateMutation.isPending || !selectedCompanyId || !selectedProjectId}
-                  className="px-5 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-medium"
-                >
-                  {sendEstimateMutation.isPending ? 'Sending...' : 'Email Estimate'}
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => createMutation.mutate()}
-                disabled={createMutation.isPending || !selectedCompanyId || !selectedProjectId}
-                className="px-5 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-medium"
-              >
-                {createMutation.isPending ? 'Creating...' : 'Create Invoice'}
-              </button>
-            )}
+            <button
+              onClick={() => createMutation.mutate()}
+              disabled={createMutation.isPending || !selectedCompanyId || !selectedProjectId}
+              className="px-5 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-medium capitalize"
+            >
+              {createMutation.isPending ? 'Saving...' : `Save ${invoiceType}`}
+            </button>
           </div>
         </div>
       </Modal>

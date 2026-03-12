@@ -225,6 +225,7 @@ invoicesRoute.post('/estimate/send', requirePermission('manage_invoices'), async
     
     const html = buildInvoiceEmailHtml({
       recipientName: data.company.name,
+      clientName: data.company.name,
       invoiceNumber: data.invoiceNumber,
       invoiceDate: data.invoiceDate,
       subject: cleanStr(data.subject || `Estimate for ${data.project.title}`),
@@ -353,6 +354,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
     // Build and send email with PDF attachment
     const html = buildInvoiceEmailHtml({
       recipientName: recipientName ?? (invoice.companies as any)?.name ?? 'Client',
+      clientName: (invoice.companies as any)?.name ?? 'Client',
       invoiceNumber: invoice.invoice_number,
       invoiceDate: invoice.invoice_date || new Date().toISOString().slice(0, 10),
       subject: cleanStr(subjectPrefix),
@@ -388,7 +390,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       c.env.BREVO_SENDER_NAME,
       {
         to: [{ email: recipientEmail, name: recipientName }],
-        subject: `Invoice ${invoice.invoice_number} from ${settings?.hero_title ?? 'Marketing Solution'}`,
+        subject: `${invoice.type === 'estimate' ? 'Estimate' : 'Invoice'} ${invoice.invoice_number} from ${settings?.hero_title ?? 'Marketing Solution'}`,
         htmlContent: html,
         attachments: [{ name: `${invoice.invoice_number}.pdf`, content: pdfResult.pdfBase64 || '', contentType: 'application/pdf' }],
       }

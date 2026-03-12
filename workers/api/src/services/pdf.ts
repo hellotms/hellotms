@@ -329,7 +329,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   const hasPayments = (data.payments ?? []).length > 0;
   const hasAdvance = (data.advanceReceived ?? 0) > 0;
 
-  if (hasPayments || hasAdvance) {
+  if (data.type === 'invoice' && (hasPayments || hasAdvance)) {
     page.drawText('PAYMENTS RECEIVED', { x: totalsX, y: rightY, size: 9, font: boldFont, color: blue });
     rightY -= 14;
 
@@ -360,7 +360,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   }
 
   // Total Paid summary line
-  if (totalPaid > 0) {
+  if (data.type === 'invoice' && totalPaid > 0) {
     page.drawText('Total Paid:', { x: totalsX, y: rightY, size: 9, font: boldFont, color: dark });
     const paidStr = `- ${fmtBDT(totalPaid)}`;
     page.drawText(paidStr, {
@@ -372,15 +372,16 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   rightY -= 10;
 
   // ── DUE BOX ───────────────────────────────────────────────────────────────
-  const dueColor = due > 0 ? red : green;
-  const dueLabel = due > 0 ? `AMOUNT DUE: ${fmtBDT(due)}` : 'FULLY PAID';
-  page.drawRectangle({ x: totalsX - 8, y: rightY - 10, width: width - margin - totalsX + 8, height: 28, color: dueColor });
-  const dueTxtW = boldFont.widthOfTextAtSize(dueLabel, 11);
-  page.drawText(dueLabel, {
-    x: totalsX + (width - margin - totalsX - dueTxtW) / 2,
-    y: rightY + 5, size: 11, font: boldFont, color: white,
-  });
-  rightY -= 20;
+  if (data.type === 'invoice') {
+    const dueColor = due > 0 ? red : green;
+    const dueLabel = due > 0 ? `AMOUNT DUE: ${fmtBDT(due)}` : 'FULLY PAID';
+    page.drawRectangle({ x: totalsX - 8, y: rightY - 10, width: width - margin - totalsX + 8, height: 28, color: dueColor });
+    const dueTxtW = boldFont.widthOfTextAtSize(dueLabel, 11);
+    page.drawText(dueLabel, {
+      x: totalsX + (width - margin - totalsX - dueTxtW) / 2,
+      y: rightY - 3, size: 11, font: boldFont, color: white,
+    });
+  }
 
   // ── LEFT COLUMN: Other Comments + Amount in Words ──────────────────────────
   let leftY = columnsStartY;
@@ -390,7 +391,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   const comments = [
     '1. Make all payments in Cash / A/C Cheque / PO favoring of "THE MARKETING SOLUTION"',
     '2. All rates are Excluding VAT and other Taxes.',
-    '3. Payment should be paid within 15 days after product delivery / submission of the bill.',
+    '3. Payment should be paid within 15 days after product delivery/submission of the bill.',
   ];
 
   const commentMaxWidth = totalsX - commentsX - 20;
