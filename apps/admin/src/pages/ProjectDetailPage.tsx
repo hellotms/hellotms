@@ -71,7 +71,7 @@ export default function ProjectDetailPage() {
   const { data: collections = [] } = useQuery<Collection[]>({
     queryKey: ['collections', id],
     queryFn: async () => {
-      const { data } = await supabase.from('collections').select('*').eq('project_id', id!).is('deleted_at', null).order('payment_date', { ascending: true });
+      const { data } = await supabase.from('collections').select('*').eq('project_id', id!).order('payment_date', { ascending: true });
       return (data ?? []) as Collection[];
     },
     enabled: !!id,
@@ -291,7 +291,9 @@ export default function ProjectDetailPage() {
           deleted_by: authProfile?.id,
         });
       }
-      const { error } = await supabase.from('collections').update({ deleted_at: new Date().toISOString() }).eq('id', collectionId);
+      /* Column missing in DB */
+      // const { error } = await supabase.from('collections').update({ deleted_at: new Date().toISOString() }).eq('id', collectionId);
+      const { error } = await supabase.from('collections').delete().eq('id', collectionId);
       if (error) throw error;
       auditApi.log({
         action: 'delete_collection',

@@ -12,7 +12,7 @@ import type { Invoice, Company, Project, LedgerEntry } from '@hellotms/shared';
 import { generateInvoiceNumber } from '@hellotms/shared';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from '@/components/Toast';
-import { auditApi } from '@/lib/api';
+import { auditApi, invoicesApi } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
 const STATUS_OPTIONS = ['all', 'draft', 'sent', 'paid', 'overdue'];
@@ -395,7 +395,7 @@ export default function InvoicesPage() {
       if (selectedProjectId) {
         queryClient.invalidateQueries({ queryKey: ['ledger', selectedProjectId] });
       }
-      closeModal(); // This was `setIsCreateModalOpen(false); reset();` in the instruction, but `closeModal` is defined above and does the reset. Keeping `closeModal` for consistency.
+      closeModal();
       toast('Invoice created successfully!', 'success');
       auditApi.log({
         action: 'create_invoice',
@@ -410,6 +410,89 @@ export default function InvoicesPage() {
       });
     },
     onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  const sendEstimateMutation = useMutation({
+    mutationFn: async () => {
+      const company = companies.find(c => c.id === selectedCompanyId);
+      const project = allProjects.find(p => p.id === selectedProjectId);
+      if (!company || !project) throw new Error('Company and Project are required');
+
+      const payload = {
+        invoiceNumber: invoiceNum,
+        invoiceDate: formatDate(new Date().toISOString()),
+        type: 'estimate',
+        company: {
+          name: company.name,
+          address: (company as any).address,
+          email: (company as any).email,
+          phone: (company as any).phone
+        },
+        project: {
+          title: project.title,
+          location: (project as any).location
+        },
+        items: lineItems.map(i => ({
+          description: i.description,
+          quantity: i.quantity,
+          unitPrice: i.unit_price,
+          amount: i.amount
+        })),
+        totalAmount: subtotal,
+        discountType,
+        discountValue: discountAmt
+      };
+
+      return invoicesApi.sendEstimate(payload);
+    },
+    onSuccess: (res) => {
+      if (res.success) {
+        toast('Estimate sent successfully!', 'success');
+        if (res.pdfUrl) window.open(res.pdfUrl, '_blank');
+        closeModal();
+      }
+    },
+    onError: (e: Error) => toast(e.message, 'error')
+  });
+
+  const downloadEstimateMutation = useMutation({
+    mutationFn: async () => {
+       const company = companies.find(c => c.id === selectedCompanyId);
+      const project = allProjects.find(p => p.id === selectedProjectId);
+      if (!company || !project) throw new Error('Company and Project are required');
+
+      const payload = {
+        invoiceNumber: invoiceNum,
+        invoiceDate: formatDate(new Date().toISOString()),
+        type: 'estimate',
+        company: {
+          name: company.name,
+          address: (company as any).address,
+          email: (company as any).email,
+          phone: (company as any).phone
+        },
+        project: {
+          title: project.title,
+          location: (project as any).location
+        },
+        items: lineItems.map(i => ({
+          description: i.description,
+          quantity: i.quantity,
+          unitPrice: i.unit_price,
+          amount: i.amount
+        })),
+        totalAmount: subtotal,
+        discountType,
+        discountValue: discountAmt
+      };
+
+      // Since we don't have a direct 'download' endpoint yet, we'll use the 'send' one but maybe we should add a separate preview/download one in the future.
+      // For now, let's just trigger the send mutation which returns a pdfUrl.
+      return invoicesApi.sendEstimate(payload);
+    },
+    onSuccess: (res) => {
+      if (res.pdfUrl) window.open(res.pdfUrl, '_blank');
+    }
   });
 
   const deleteMutation = useMutation({
@@ -758,13 +841,32 @@ export default function InvoicesPage() {
           {/* Actions */}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={closeModal} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
-            <button
-              onClick={() => createMutation.mutate()}
-              disabled={createMutation.isPending || !selectedCompanyId || !selectedProjectId}
-              className="px-5 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-medium"
-            >
-              {createMutation.isPending ? 'Creating...' : 'Create Invoice'}
-            </button>
+            {invoiceType === 'estimate' ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => downloadEstimateMutation.mutate()}
+                  disabled={downloadEstimateMutation.isPending || !selectedCompanyId || !selectedProjectId}
+                  className="px-5 py-2 text-sm border border-primary text-primary rounded-lg hover:bg-primary/5 disabled:opacity-60 font-medium"
+                >
+                  {downloadEstimateMutation.isPending ? 'Generating...' : 'Download Estimate'}
+                </button>
+                <button
+                  onClick={() => sendEstimateMutation.mutate()}
+                  disabled={sendEstimateMutation.isPending || !selectedCompanyId || !selectedProjectId}
+                  className="px-5 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-medium"
+                >
+                  {sendEstimateMutation.isPending ? 'Sending...' : 'Email Estimate'}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => createMutation.mutate()}
+                disabled={createMutation.isPending || !selectedCompanyId || !selectedProjectId}
+                className="px-5 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-medium"
+              >
+                {createMutation.isPending ? 'Creating...' : 'Create Invoice'}
+              </button>
+            )}
           </div>
         </div>
       </Modal>

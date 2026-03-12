@@ -53,8 +53,7 @@ export default function DashboardPage() {
           .from('collections')
           .select('amount')
           .gte('payment_date', fromISO)
-          .lte('payment_date', toISO)
-          .is('deleted_at', null),
+          .lte('payment_date', toISO),
         supabase
           .from('leads')
           .select('id, status')
@@ -117,7 +116,6 @@ export default function DashboardPage() {
         .select('amount, payment_date')
         .gte('payment_date', fromISO)
         .lte('payment_date', toISO)
-        .is('deleted_at', null)
         .order('payment_date');
 
       // Get Advances from projects
@@ -241,7 +239,6 @@ export default function DashboardPage() {
           .from('collections')
           .select('project_id, amount')
           .in('project_id', pIds)
-          .is('deleted_at', null)
       ]);
 
       const pnlMap: Record<string, { income: number; standardExpense: number; vCashAdv: number; vCashDue: number; othersExpense: number }> = {};

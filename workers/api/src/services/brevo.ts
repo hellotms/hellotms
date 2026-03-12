@@ -162,6 +162,7 @@ export function buildInvoiceEmailHtml(params: {
   companyName?: string;
   companyUrl?: string;
   companyEmail?: string;
+  type?: string;
 }): string {
   const companyName = params.companyName || 'The Marketing Solution';
   const companyUrl = params.companyUrl || 'hellotms.com.bd';
@@ -169,6 +170,7 @@ export function buildInvoiceEmailHtml(params: {
   const hostname = companyUrl.replace(/^https?:\/\//, '').split('/')[0];
   const dueColor = params.dueAmountNumber > 0 ? '#dc2626' : '#059669';
   const dueText = params.dueAmountNumber > 0 ? `AMOUNT DUE: ${params.dueAmount}` : 'FULLY PAID';
+  const labelPrefix = params.type === 'estimate' ? 'ESTIMATE' : 'INVOICE';
 
   const itemsHtml = params.items.map((item, i) => `
     <tr style="border-bottom:1px solid #e2e8f0;background:${i % 2 === 0 ? '#f8fafc' : '#ffffff'}">
@@ -197,7 +199,7 @@ export function buildInvoiceEmailHtml(params: {
   return `
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>Invoice ${params.invoiceNumber}</title></head>
+<head><meta charset="UTF-8"><title>${labelPrefix} ${params.invoiceNumber}</title></head>
 <body style="font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px">
   <div style="max-width:700px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
     
@@ -207,7 +209,7 @@ export function buildInvoiceEmailHtml(params: {
         <tr>
           <!-- Bill To -->
           <td style="vertical-align:top;width:60%">
-            <p style="margin:0 0 4px;font-size:10px;color:#64748b;font-weight:bold;letter-spacing:1px">INVOICE TO</p>
+            <p style="margin:0 0 4px;font-size:10px;color:#64748b;font-weight:bold;letter-spacing:1px">${labelPrefix} TO</p>
             <p style="margin:0;font-size:18px;font-weight:bold;color:#0f172a">${params.recipientName}</p>
             <p style="margin:4px 0 0;font-size:13px;color:#475569">${params.companyAddress}</p>
             <div style="margin-top:20px;display:flex;align-items:flex-start;gap:8px">
@@ -215,16 +217,16 @@ export function buildInvoiceEmailHtml(params: {
               <span style="font-size:13px;color:#0f172a">${params.subject}</span>
             </div>
           </td>
-          <!-- Invoice Details -->
+          <!-- Details -->
           <td style="vertical-align:top;text-align:right">
-            <h1 style="margin:0 0 16px;font-size:30px;font-weight:900;letter-spacing:2px;color:#0f172a">INVOICE</h1>
+            <h1 style="margin:0 0 16px;font-size:30px;font-weight:900;letter-spacing:2px;color:#0f172a">${labelPrefix}</h1>
             <table style="width:100%;border-collapse:collapse;margin-left:auto">
               <tr>
                 <td style="padding:4px 8px;color:#64748b;font-size:12px;font-weight:bold;text-align:left">Date</td>
                 <td style="padding:4px 8px;color:#0f172a;font-size:13px;text-align:right">${params.invoiceDate}</td>
               </tr>
               <tr>
-                <td style="padding:4px 8px;color:#64748b;font-size:12px;font-weight:bold;text-align:left">INV NO#</td>
+                <td style="padding:4px 8px;color:#64748b;font-size:12px;font-weight:bold;text-align:left">${labelPrefix} NO#</td>
                 <td style="padding:4px 8px;color:#1e40af;font-size:13px;font-weight:bold;text-align:right">${params.invoiceNumber}</td>
               </tr>
             </table>
@@ -306,7 +308,7 @@ export function buildInvoiceEmailHtml(params: {
 
     <!-- Download Action -->
     <div style="background:#fff;padding:30px;text-align:center;border-top:1px solid #e2e8f0">
-      <p style="margin:0 0 20px;color:#475569;font-size:14px">Please find attached the official PDF copy of your invoice.</p>
+      <p style="margin:0 0 20px;color:#475569;font-size:14px">Please find attached the official PDF copy of your ${labelPrefix.toLowerCase()}.</p>
       <a href="${params.downloadUrl}" target="_blank"
          style="background:#1e40af;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:15px;display:inline-block">
         Download Original PDF

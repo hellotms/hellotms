@@ -74,7 +74,6 @@ export default function CompanyDetailPage() {
           .from('collections')
           .select('project_id, amount, payment_date')
           .in('project_id', pIds)
-          .is('deleted_at', null)
       ]);
 
       const ledger = ledgerRes.data ?? [];

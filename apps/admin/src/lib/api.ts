@@ -90,6 +90,11 @@ export const invoicesApi = {
     }),
   getPdf: (id: string, force = false) =>
     apiFetch<{ pdfUrl: string | null }>(`/invoices/${id}/pdf${force ? '?force=true' : ''}`),
+  sendEstimate: (payload: any) =>
+    apiFetch<{ success: boolean; pdfUrl: string; emailSent: boolean }>('/invoices/estimate/send', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
 };
 
 // ─── Media ───────────────────────────────────────────────────────────────────

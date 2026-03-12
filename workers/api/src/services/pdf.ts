@@ -171,8 +171,9 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   // ── Record the top Y so right side can be drawn at same baseline ──────────
   const headerTopY = y;
 
-  // LEFT SIDE: INVOICE TO label
-  page.drawText('INVOICE TO', { x: billX, y, size: 10, font: boldFont, color: gray });
+  // LEFT SIDE: Label
+  const billToLabel = data.type === 'estimate' ? 'ESTIMATE TO' : 'INVOICE TO';
+  page.drawText(billToLabel, { x: billX, y, size: 11, font: boldFont, color: gray });
   y -= 16;
 
   // Company Name (bold, larger)
@@ -205,7 +206,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   // RIGHT SIDE: drawn relative to headerTopY (same top baseline as left)
   // Big "INVOICE" text, right-aligned
   const invoiceLabel = data.type === 'estimate' ? 'ESTIMATE' : 'INVOICE';
-  const invLabelSize = 20;
+  const invLabelSize = 16;
   page.drawText(invoiceLabel, {
     x: rightEdge - boldFont.widthOfTextAtSize(invoiceLabel, invLabelSize),
     y: headerTopY, size: invLabelSize, font: boldFont, color: dark,
@@ -461,7 +462,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   y -= 20;
   page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
   y -= 18;
-  const thankMsg = 'Thank you for choosing us! We look forward to serving you again.';
+  const thankMsg = 'Thank you for being with us! We look forward to serving you again.';
   const thankW = regularFont.widthOfTextAtSize(thankMsg, 9);
   page.drawText(thankMsg, { x: (width - thankW) / 2, y, size: 9, font: regularFont, color: blue });
   y -= 14;
