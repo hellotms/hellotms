@@ -147,39 +147,46 @@ export default function InvoicesPage() {
     enabled: !!selectedProjectId,
   });
 
-  const advanceReceived = Number(projectDetails?.advance_received || 0);
-  const totalCollections = collections.reduce((sum, c) => sum + Number(c.amount), 0);
+  const advanceReceived = invoiceType === 'invoice' ? Number(projectDetails?.advance_received || 0) : 0;
+  const totalCollections = invoiceType === 'invoice' ? collections.reduce((sum, c) => sum + Number(c.amount), 0) : 0;
   const totalReceived = advanceReceived + totalCollections;
 
-  // Reset items ONLY when the project ID actually changes
-  // Remove the useEffect that was clearing lineItems incorrectly
-  // Handle project selection and auto-population
   const handleProjectChange = (projectId: string) => {
     setSelectedProjectId(projectId);
     setLineItems([]);
   };
 
-  // Sync effect: Populate lineItems from ledgerEntries if lineItems is empty
+  // Sync effect: Populate lineItems based on invoiceType
   useEffect(() => {
-    if (selectedProjectId && isOpen && lineItems.length === 0 && ledgerEntries.length > 0 && !ledgerLoading) {
-      setLineItems(ledgerEntries.map(e => {
-        const qty = Number(e.quantity ?? 1);
-        const sellPrice = e.face_value !== null && e.face_value !== undefined ? Number(e.face_value) : Number(e.amount);
-        const categoryText = e.category || 'Expense';
-        const noteText = e.note ? ` — ${e.note}` : '';
-        const desc = `${categoryText}${noteText}`;
+    if (!selectedProjectId || !isOpen || ledgerLoading) return;
 
-        return {
-          description: desc,
-          costPrice: Number(e.amount),
-          quantity: qty,
-          unit_price: sellPrice,
-          amount: qty * sellPrice,
-          ledger_id: e.id,
-        };
-      }));
+    if (invoiceType === 'invoice') {
+      // populate from ledger and lock
+      if (ledgerEntries.length > 0) {
+        setLineItems(ledgerEntries.map(e => {
+          const qty = Number(e.quantity ?? 1);
+          const sellPrice = e.face_value !== null && e.face_value !== undefined ? Number(e.face_value) : Number(e.amount);
+          const categoryText = e.category || 'Expense';
+          const noteText = e.note ? ` — ${e.note}` : '';
+          const desc = `${categoryText}${noteText}`;
+
+          return {
+            description: desc,
+            costPrice: Number(e.amount),
+            quantity: qty,
+            unit_price: sellPrice,
+            amount: qty * sellPrice,
+            ledger_id: e.id,
+          };
+        }));
+      } else {
+        setLineItems([]);
+      }
+    } else {
+      // Estimate mode: clear items for fresh entry as per user request
+      setLineItems([]);
     }
-  }, [selectedProjectId, isOpen, ledgerEntries, ledgerLoading]);
+  }, [selectedProjectId, isOpen, ledgerEntries, ledgerLoading, invoiceType]);
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['invoices', statusFilter],
@@ -701,14 +708,15 @@ export default function InvoicesPage() {
                 </thead>
                 <tbody>
                   {lineItems.map((item, i) => (
-                    <tr key={i} className={`border-b border-border last:border-0 hover:bg-muted/20 ${item.ledger_id ? 'bg-primary/5' : ''}`}>
+                    <tr key={i} className={`border-b border-border last:border-0 hover:bg-muted/20 ${item.ledger_id && invoiceType === 'invoice' ? 'bg-primary/5' : ''}`}>
                       <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
                       <td className="px-3 py-2">
                         <input
                           value={item.description}
                           onChange={e => updateItem(i, 'description', e.target.value)}
                           placeholder="Description"
-                          className="w-full border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring bg-transparent"
+                          disabled={!!item.ledger_id && invoiceType === 'invoice'}
+                          className="w-full border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring bg-transparent disabled:opacity-70"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -717,7 +725,7 @@ export default function InvoicesPage() {
                           value={item.costPrice || ''}
                           onChange={e => updateItem(i, 'costPrice', Number(e.target.value))}
                           placeholder="0"
-                          disabled={!!item.ledger_id}
+                          disabled={!!item.ledger_id || invoiceType === 'estimate'}
                           className="w-full border border-border rounded px-2 py-1 text-xs bg-transparent disabled:opacity-60"
                           title={item.ledger_id ? "Sourced from ledger, cannot edit cost here" : "Enter cost price"}
                         />
@@ -728,7 +736,8 @@ export default function InvoicesPage() {
                           value={item.quantity}
                           onChange={e => updateItem(i, 'quantity', Number(e.target.value))}
                           min={1}
-                          className="w-full border border-border rounded px-2 py-1 text-xs"
+                          disabled={!!item.ledger_id && invoiceType === 'invoice'}
+                          className="w-full border border-border rounded px-2 py-1 text-xs disabled:opacity-70"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -737,7 +746,8 @@ export default function InvoicesPage() {
                           value={item.unit_price || ''}
                           onChange={e => updateItem(i, 'unit_price', Number(e.target.value))}
                           placeholder="0"
-                          className="w-full border border-border rounded px-2 py-1 text-xs"
+                          disabled={!!item.ledger_id && invoiceType === 'invoice'}
+                          className="w-full border border-border rounded px-2 py-1 text-xs disabled:opacity-70"
                         />
                       </td>
                       <td className="px-3 py-2 font-semibold text-foreground">{formatBDT(item.amount)}</td>

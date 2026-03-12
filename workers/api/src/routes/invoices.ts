@@ -316,11 +316,20 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
 
     const { data: invoice } = await (supabase as any)
       .from('invoices')
-      .select('invoice_number, invoice_date, subject, total_amount, due_date, discount_value, discount_type, companies(name, address), projects(title, location), invoice_items(description, quantity, unit_price, amount), collections(amount, payment_date, method)')
+      .select('invoice_number, invoice_date, subject, total_amount, due_date, discount_value, discount_type, type, companies(name, address), projects(id, title, location, advance_received), invoice_items(description, quantity, unit_price, amount)')
       .eq('id', id)
       .single();
 
     if (!invoice) return c.json({ error: 'Invoice not found after PDF gen' }, 404);
+
+    // Fetch collections separately
+    const { data: collectionsData } = await (supabase as any)
+      .from('collections')
+      .select('amount, payment_date, method')
+      .eq('project_id', invoice.projects.id)
+      .order('payment_date', { ascending: true });
+
+    const collections = collectionsData || [];
 
     // Update sent_at and status
     await (supabase as any)
@@ -334,8 +343,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       ? rawSubtotal * ((invoice.discount_value || 0) / 100)
       : (invoice.discount_value || 0);
     const totalPayable = Math.max(0, rawSubtotal - discountAmt);
-    const collections = invoice.collections || [];
-    const totalPaid = collections.reduce((s: number, p: any) => s + (p.amount || 0), 0);
+    const totalPaid = (invoice.projects?.advance_received || 0) + collections.reduce((s: number, p: any) => s + (p.amount || 0), 0);
     const dueAmountNum = Math.max(0, totalPayable - totalPaid);
 
     const fmt = (num: number) => `৳ ${Number(num).toLocaleString('en-IN')}`;
