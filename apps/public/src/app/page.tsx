@@ -5,6 +5,7 @@ import { ArrowRight, Camera, Users, Star, Award, Play, CheckCircle, Sparkles, Tr
 import { supabase } from '@/lib/supabase';
 import { HeroSlider } from '@/components/HeroSlider';
 import ClientSlider from '@/components/ClientSlider';
+import { FloatingBubbles } from '@/components/FloatingBubbles';
 import { HeroSlide } from '@hellotms/shared';
 
 const DEMO_STATS = [
@@ -136,11 +137,11 @@ export default function HomePage() {
               {heroContent.motto.toUpperCase()}
             </div>
 
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight text-[var(--foreground)] mb-6 drop-shadow-sm">
+            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight text-white mb-6 drop-shadow-md">
               <BrandText text={heroContent.title} />
             </h1>
 
-            <p className="text-base sm:text-lg text-[var(--muted)] max-w-xl ml-auto leading-relaxed mb-10 font-medium">
+            <p className="text-base sm:text-lg text-white/80 max-w-xl ml-auto leading-relaxed mb-10 font-medium drop-shadow-sm">
               <BrandText text={heroContent.subtitle} />
             </p>
 
@@ -153,7 +154,7 @@ export default function HomePage() {
               </Link>
               <Link
                 href="/portfolio"
-                className="inline-flex items-center justify-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-[var(--foreground)] px-8 py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] transition-all hover:-translate-y-0.5"
+                className="inline-flex items-center justify-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white px-8 py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] transition-all hover:-translate-y-0.5"
               >
                 <Play className="h-4 w-4 fill-current text-primary" /> View Portfolio
               </Link>
@@ -176,8 +177,9 @@ export default function HomePage() {
 
 
       {/* ── Services ─────────────────────────────────────── */}
-      <section className="section bg-[var(--surface)]">
-        <div className="container">
+      <section className="section bg-[var(--surface)] relative overflow-hidden">
+        <FloatingBubbles />
+        <div className="container relative z-10">
           <div className="text-center mb-14">
             <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">What We Do</p>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[var(--foreground)]">
