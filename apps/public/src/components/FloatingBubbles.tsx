@@ -13,11 +13,13 @@ export const FloatingBubbles = () => {
 
   return (
     <div className={styles.container}>
-      {[...Array(20)].map((_, i) => {
-        const size = Math.random() * 70 + 30; // 30px to 100px
+      {[...Array(18)].map((_, i) => {
+        const size = Math.random() * 60 + 20; // 20px to 80px
         const left = Math.random() * 100; // 0% to 100%
-        const delay = Math.random() * 15; // 0s to 15s
-        const duration = Math.random() * 10 + 12; // 12s to 22s
+        const delay = Math.random() * 10; // 0s to 10s
+        const duration = Math.random() * 8 + 10; // 10s to 18s
+        const swayDuration = Math.random() * 3 + 3; // 3s to 6s
+        const swayDistance = `${Math.random() * 40 + 20}px`; // 20px to 60px
         const colorClass = styles[`color-${(i % 5) + 1}`];
         
         return (
@@ -30,8 +32,12 @@ export const FloatingBubbles = () => {
               left: `${left}%`,
               animationDelay: `${delay}s`,
               '--duration': `${duration}s`,
+              '--sway-duration': `${swayDuration}s`,
+              '--sway-distance': swayDistance,
             } as any}
-          />
+          >
+            <div className={styles.shine} />
+          </div>
         );
       })}
     </div>

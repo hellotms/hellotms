@@ -156,7 +156,7 @@ export default function HomePage() {
                 href="/portfolio"
                 className="inline-flex items-center justify-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white px-8 py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] transition-all hover:-translate-y-0.5"
               >
-                <Play className="h-4 w-4 fill-current text-primary" /> View Portfolio
+                <Play className="h-4 w-4 fill-current text-white" /> View Portfolio
               </Link>
             </div>
 
@@ -164,7 +164,7 @@ export default function HomePage() {
               {DEMO_STATS.map(({ icon: Icon, value, label }) => (
                 <div key={label} className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 text-center border border-white/20 shadow-2xl shadow-black/80 hover:border-primary/50 transition-all flex flex-col items-center justify-center">
                   <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center mb-2 shadow-inner">
-                    {mounted ? <Icon className="h-5 w-5 text-primary drop-shadow-sm" /> : <div className="h-5 w-5" />}
+                    {mounted ? <Icon className="h-5 w-5 text-white drop-shadow-sm" /> : <div className="h-5 w-5" />}
                   </div>
                   <p className="text-xl font-black text-white drop-shadow-md">{value}</p>
                   <p className="text-[10px] font-bold text-white/90 uppercase tracking-widest mt-0.5 drop-shadow-sm">{label}</p>
