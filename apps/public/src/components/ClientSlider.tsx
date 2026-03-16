@@ -54,11 +54,11 @@ export default function ClientSlider() {
                 <img
                   src={company.logo_url}
                   alt={company.name}
-                  className="h-8 md:h-11 w-auto object-contain filter grayscale opacity-40 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-500 hover:scale-105"
+                  className="h-8 md:h-11 w-auto object-contain transition-all duration-500 hover:scale-110 drop-shadow-sm"
                 />
               ) : (
-                <div className="h-10 w-10 bg-muted rounded-lg flex items-center justify-center opacity-40 group-hover:opacity-100 transition-all">
-                  <span className="text-[10px] font-black text-muted-foreground uppercase">{company.name.slice(0, 2)}</span>
+                <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center transition-all group-hover:bg-primary/20">
+                  <span className="text-[10px] font-black text-primary uppercase">{company.name.slice(0, 2)}</span>
                 </div>
               )}
               <span className="text-sm md:text-base font-bold text-muted-foreground/60 group-hover:text-foreground transition-colors tracking-tight">
@@ -70,7 +70,7 @@ export default function ClientSlider() {
       </div>
 
       {/* Modern minimal background highlights */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-full bg-[radial-gradient(circle_at_center,rgba(var(--primary-rgb),0.03)_0%,transparent_70%)] -z-10 pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-full bg-[radial-gradient(circle_at_center,rgba(var(--primary-rgb),0.08)_0%,transparent_70%)] -z-10 pointer-events-none" />
     </section>
   );
 }
