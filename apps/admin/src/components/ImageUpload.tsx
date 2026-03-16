@@ -47,6 +47,7 @@ export function ImageUpload({
     const [zoom, setZoom] = useState(1);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
     const [isCropping, setIsCropping] = useState(false);
+    const [originalFileType, setOriginalFileType] = useState<string>('image/jpeg');
 
     const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
         setCroppedAreaPixels(croppedAreaPixels);
@@ -58,12 +59,13 @@ export function ImageUpload({
         setError('');
 
         try {
-            const croppedImageFile = await getCroppedImg(cropModalSrc, croppedAreaPixels);
+            const croppedImageFile = await getCroppedImg(cropModalSrc, croppedAreaPixels, 0, { horizontal: false, vertical: false }, originalFileType);
             if (!croppedImageFile) throw new Error("Could not process cropping");
 
             // We generate a proper File object instead of a Blob
-            const file = new File([croppedImageFile], "cropped_image.jpeg", {
-                type: croppedImageFile.type,
+            const extension = originalFileType === 'image/png' ? 'png' : originalFileType === 'image/webp' ? 'webp' : 'jpg';
+            const file = new File([croppedImageFile], `cropped_image.${extension}`, {
+                type: originalFileType,
                 lastModified: Date.now(),
             });
 
@@ -78,6 +80,7 @@ export function ImageUpload({
 
     const handleFile = async (file: File) => {
         setError('');
+        setOriginalFileType(file.type);
         if (noCrop) {
             setUploading(true);
             try {
@@ -158,7 +161,7 @@ export function ImageUpload({
                     <p className="text-xs text-muted-foreground">
                         {uploading ? 'Uploading...' : 'Click or drag & drop to upload'}
                     </p>
-                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">JPG, PNG, WEBP up to 10MB</p>
+                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">JPG, PNG, WEBP, SVG up to 10MB</p>
                     {guide && <p className="text-[10px] text-primary/60 mt-1 font-medium">{guide}</p>}
                 </div>
             )}

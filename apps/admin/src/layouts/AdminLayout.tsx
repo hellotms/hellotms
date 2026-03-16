@@ -12,11 +12,11 @@ import { supabase } from '@/lib/supabase';
 import { useTheme } from 'next-themes';
 
 const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/dashboard', label: 'My Dashboard', icon: LayoutDashboard },
   { to: '/companies', label: 'Companies', icon: Building2, permission: 'manage_companies' },
-  { to: '/projects', label: 'Projects', icon: FolderOpen, permission: 'view_projects' },
-  { to: '/invoices', label: 'Invoices', icon: Receipt, permission: 'manage_invoices' },
   { to: '/estimates', label: 'Estimates', icon: FileText, permission: 'manage_invoices' },
+  { to: '/projects', label: 'Business Portfolio', icon: FolderOpen, permission: 'view_projects' },
+  { to: '/invoices', label: 'Invoices', icon: Receipt, permission: 'manage_invoices' },
   { to: '/leads', label: 'Contact Form', icon: MessageSquare, permission: 'view_leads' },
   { to: '/notices', label: 'Notice Board', icon: Megaphone, permission: 'view_notices' },
   { to: '/staff', label: 'All Staff', icon: Users, permission: 'view_staff' },
@@ -25,6 +25,86 @@ const navItems = [
   { to: '/work-logs', label: 'Activity Log', icon: ClipboardList, permission: 'view_audit_logs' },
   { to: '/cms', label: 'Core Settings', icon: Globe, permission: 'manage_cms' },
 ];
+
+interface SidebarProps {
+  mobile?: boolean;
+  profile: any;
+  role: any;
+  setSidebarOpen: (open: boolean) => void;
+  navigate: (path: string) => void;
+  handleSignOut: () => void;
+  can: (permission: string) => boolean;
+}
+
+const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, handleSignOut, can }: SidebarProps) => (
+  <div className={cn(
+    'flex flex-col h-full bg-sidebar text-sidebar-foreground',
+    mobile ? 'w-72' : 'w-64'
+  )}>
+    {/* User Identity - Top of Sidebar */}
+    <div
+      className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border cursor-pointer hover:bg-sidebar-accent transition-colors group"
+      onClick={() => { navigate('/profile'); if (mobile) setSidebarOpen(false); }}
+    >
+      {profile?.avatar_url ? (
+        <img src={profile.avatar_url} alt={profile.name} className="h-9 w-9 rounded-full object-cover shrink-0 ring-2 ring-transparent group-hover:ring-primary/20 transition-all shadow-sm" />
+      ) : (
+        <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white shrink-0 ring-2 ring-primary/10 group-hover:ring-primary/20 transition-all shadow-sm">
+          {getInitials(profile?.name ?? 'U')}
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-sidebar-foreground truncate">{profile?.name ?? 'User'}</p>
+        <p className="text-[10px] text-sidebar-foreground/60 truncate capitalize font-medium">{role?.name?.replace('_', ' ') ?? 'Viewer'}</p>
+      </div>
+      {mobile && (
+        <button onClick={() => setSidebarOpen(false)} className="ml-2 shrink-0 text-sidebar-foreground/60 hover:text-sidebar-foreground">
+          <X className="h-5 w-5" />
+        </button>
+      )}
+    </div>
+
+    {/* Nav */}
+    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+      {navItems.filter(item => {
+        if (!item.permission) return true;
+        if (role?.name === 'super_admin') return true;
+        return can(item.permission);
+      }).map(({ to, label, icon: Icon }) => (
+        <NavLink
+          key={to}
+          to={to}
+          onClick={() => setSidebarOpen(false)}
+          className={({ isActive }) => cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors group',
+            isActive
+              ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+              : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+          )}
+        >
+          {({ isActive }) => (
+            <>
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{label}</span>
+              {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-60" />}
+            </>
+          )}
+        </NavLink>
+      ))}
+    </nav>
+
+    {/* Sign Out */}
+    <div className="px-3 py-4 border-t border-sidebar-border mt-auto">
+      <button
+        onClick={handleSignOut}
+        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-destructive transition-colors group"
+      >
+        <LogOut className="h-4 w-4 shrink-0 opacity-60 group-hover:opacity-100" />
+        <span>Sign out</span>
+      </button>
+    </div>
+  </div>
+);
 
 export default function AdminLayout() {
   const { profile, role, signOut, can } = useAuth();
@@ -73,81 +153,18 @@ export default function AdminLayout() {
     navigate('/login');
   };
 
-  const Sidebar = ({ mobile = false }: { mobile?: boolean }) => (
-    <div className={cn(
-      'flex flex-col h-full bg-sidebar text-sidebar-foreground',
-      mobile ? 'w-72' : 'w-64'
-    )}>
-      {/* User Identity - Top of Sidebar */}
-      <div
-        className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border cursor-pointer hover:bg-sidebar-accent transition-colors group"
-        onClick={() => { navigate('/profile'); if (mobile) setSidebarOpen(false); }}
-      >
-        {profile?.avatar_url ? (
-          <img src={profile.avatar_url} alt={profile.name} className="h-9 w-9 rounded-full object-cover shrink-0 ring-2 ring-transparent group-hover:ring-primary/20 transition-all shadow-sm" />
-        ) : (
-          <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white shrink-0 ring-2 ring-primary/10 group-hover:ring-primary/20 transition-all shadow-sm">
-            {getInitials(profile?.name ?? 'U')}
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-sidebar-foreground truncate">{profile?.name ?? 'User'}</p>
-          <p className="text-[10px] text-sidebar-foreground/60 truncate capitalize font-medium">{role?.name?.replace('_', ' ') ?? 'Viewer'}</p>
-        </div>
-        {mobile && (
-          <button onClick={() => setSidebarOpen(false)} className="ml-2 shrink-0 text-sidebar-foreground/60 hover:text-sidebar-foreground">
-            <X className="h-5 w-5" />
-          </button>
-        )}
-      </div>
-
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        {navItems.filter(item => {
-          if (!item.permission) return true;
-          if (role?.name === 'super_admin') return true;
-          return can(item.permission);
-        }).map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            onClick={() => setSidebarOpen(false)}
-            className={({ isActive }) => cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors group',
-              isActive
-                ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-            )}
-          >
-            {({ isActive }) => (
-              <>
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="flex-1">{label}</span>
-                {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-60" />}
-              </>
-            )}
-          </NavLink>
-        ))}
-      </nav>
-
-      {/* Sign Out */}
-      <div className="px-3 py-4 border-t border-sidebar-border mt-auto">
-        <button
-          onClick={handleSignOut}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-destructive transition-colors group"
-        >
-          <LogOut className="h-4 w-4 shrink-0 opacity-60 group-hover:opacity-100" />
-          <span>Exit</span>
-        </button>
-      </div>
-    </div>
-  );
-
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col border-r border-border shrink-0">
-        <Sidebar />
+        <Sidebar
+          profile={profile}
+          role={role}
+          setSidebarOpen={setSidebarOpen}
+          navigate={navigate}
+          handleSignOut={handleSignOut}
+          can={can}
+        />
       </aside>
 
       {/* Mobile sidebar overlay */}
@@ -155,7 +172,15 @@ export default function AdminLayout() {
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
           <div className="absolute left-0 top-0 h-full shadow-xl">
-            <Sidebar mobile />
+            <Sidebar
+              mobile
+              profile={profile}
+              role={role}
+              setSidebarOpen={setSidebarOpen}
+              navigate={navigate}
+              handleSignOut={handleSignOut}
+              can={can}
+            />
           </div>
         </div>
       )}

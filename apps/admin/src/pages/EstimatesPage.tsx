@@ -341,7 +341,7 @@ export default function EstimatesPage() {
     },
     { accessorKey: 'status', header: 'Status', cell: ({ getValue }) => <StatusBadge status={getValue() as string} /> },
     { accessorKey: 'total_amount', header: 'Amount', cell: ({ getValue }) => <span className="font-semibold">{formatBDT(Number(getValue()))}</span> },
-    { accessorKey: 'due_date', header: 'Due Date', cell: ({ getValue }) => getValue() ? formatDate(getValue() as string) : '—' },
+    { accessorKey: 'due_date', header: 'Expiry Date', cell: ({ getValue }) => getValue() ? formatDate(getValue() as string) : '—' },
     { accessorKey: 'created_at', header: 'Created', cell: ({ getValue }) => formatDateTime(getValue() as string) },
     {
       id: 'actions',

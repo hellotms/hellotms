@@ -52,6 +52,8 @@ export default function InvoicesPage() {
   const [discountType, setDiscountType] = useState<'flat' | 'percent'>('flat');
   const [discountValue, setDiscountValue] = useState(0);
   const [notes, setNotes] = useState('');
+  const [otherCompanyName, setOtherCompanyName] = useState('');
+  const [otherProjectName, setOtherProjectName] = useState('');
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
 
   // Queries
@@ -243,6 +245,8 @@ export default function InvoicesPage() {
     setDiscountType('flat');
     setNotes('');
     setDueDate('');
+    setOtherCompanyName('');
+    setOtherProjectName('');
   };
 
   // Line item helpers
@@ -299,6 +303,8 @@ export default function InvoicesPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!selectedCompanyId || !selectedProjectId) throw new Error('Please select a Company and Project.');
+      if (selectedCompanyId === 'others' && !otherCompanyName.trim()) throw new Error('Please enter a company name.');
+      if (selectedProjectId === 'others' && !otherProjectName.trim()) throw new Error('Please enter a project name.');
       if (lineItems.every(i => i.amount === 0)) throw new Error('At least one line item must have a price.');
 
       const { data: { user } } = await supabase.auth.getUser();
@@ -357,8 +363,10 @@ export default function InvoicesPage() {
           .from('invoices')
           .insert({
             invoice_number: currentInvoiceNum,
-            company_id: selectedCompanyId,
-            project_id: selectedProjectId,
+            company_id: selectedCompanyId === 'others' ? null : selectedCompanyId,
+            project_id: selectedProjectId === 'others' ? null : selectedProjectId,
+            other_company_name: selectedCompanyId === 'others' ? otherCompanyName : null,
+            other_project_name: selectedProjectId === 'others' ? otherProjectName : null,
             type: invoiceType,
             status: invoiceStatus,
             due_date: dueDate || null,
@@ -571,8 +579,20 @@ export default function InvoicesPage() {
               >
                 <option value="">Select company...</option>
                 {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="others" className="font-bold text-primary italic">Others...</option>
               </select>
             </div>
+            {selectedCompanyId === 'others' && (
+              <div>
+                <label className="block text-xs font-medium mb-1 text-muted-foreground">Custom Company Name <span className="text-red-500">*</span></label>
+                <input 
+                  value={otherCompanyName} 
+                  onChange={e => setOtherCompanyName(e.target.value)} 
+                  placeholder="Enter company name"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-primary/5 focus:bg-card transition-colors"
+                />
+              </div>
+            )}
             <div>
               <label className="block text-xs font-medium mb-1 text-muted-foreground">Project <span className="text-red-500">*</span></label>
               <select
@@ -583,8 +603,20 @@ export default function InvoicesPage() {
               >
                 <option value="">Select project...</option>
                 {filteredProjects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                {selectedCompanyId && <option value="others" className="font-bold text-primary italic">Others...</option>}
               </select>
             </div>
+            {selectedProjectId === 'others' && (
+              <div>
+                <label className="block text-xs font-medium mb-1 text-muted-foreground">Custom Project Name <span className="text-red-500">*</span></label>
+                <input 
+                  value={otherProjectName} 
+                  onChange={e => setOtherProjectName(e.target.value)} 
+                  placeholder="Enter project name"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-primary/5 focus:bg-card transition-colors"
+                />
+              </div>
+            )}
             <div>
               <label className="block text-xs font-medium mb-1 text-muted-foreground">Status</label>
               <select value={invoiceStatus} onChange={e => setInvoiceStatus(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card">

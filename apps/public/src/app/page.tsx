@@ -5,7 +5,6 @@ import { ArrowRight, Camera, Users, Star, Award, Play, CheckCircle, Sparkles, Tr
 import { supabase } from '@/lib/supabase';
 import { HeroSlider } from '@/components/HeroSlider';
 import ClientSlider from '@/components/ClientSlider';
-import { FloatingBubbles } from '@/components/FloatingBubbles';
 import { HeroSlide } from '@hellotms/shared';
 
 const DEMO_STATS = [
@@ -53,9 +52,9 @@ const BrandText = ({ text }: { text: string }) => {
   const parts = text.split(/(The Marketing Solution)/i);
   return (
     <>
-      {parts.map((part, i) => 
-        part.toLowerCase() === 'the marketing solution' 
-          ? <span key={i} className="text-[#d6802b] font-bold">{part}</span> 
+      {parts.map((part, i) =>
+        part.toLowerCase() === 'the marketing solution'
+          ? <span key={i} className="text-[#d6802b] font-bold">{part}</span>
           : <span key={i}>{part}</span>
       )}
     </>
@@ -69,6 +68,7 @@ export default function HomePage() {
   const [whyUsContent, setWhyUsContent] = useState('With 8+ years of experience and hundreds of successful events, The Marketing Solution is the trusted partner for brands and individuals who refuse to settle for ordinary.');
   const [whyUsFeatures, setWhyUsFeatures] = useState<any[]>(WHY_US.map(w => ({ title: w.title, description: w.text, iconStr: null, IconComp: w.icon })));
   const [heroSlider, setHeroSlider] = useState<HeroSlide[]>([]);
+  const [siteSettings, setSiteSettings] = useState<any>(null);
   const [heroContent, setHeroContent] = useState({ title: 'We Create Unforgettable Experiences', motto: 'Bangladesh\'s Premier Marketing Agency', subtitle: '' });
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -89,13 +89,14 @@ export default function HomePage() {
           .limit(6),
         supabase
           .from('site_settings')
-          .select('services_page_config, about_content, services, hero_title, site_motto, hero_subtitle, hero_slider')
+          .select('services_page_config, about_content, services, hero_title, site_motto, hero_subtitle, hero_slider, company_logo_url')
           .eq('id', 1)
           .single()
       ]);
 
       setProjects((projectsResp.data ?? []) as unknown as Project[]);
       if (settingsResp.data) {
+        setSiteSettings(settingsResp.data);
         if (settingsResp.data.services_page_config?.services) {
           setServices(settingsResp.data.services_page_config.services.slice(0, 6));
         }
@@ -132,16 +133,21 @@ export default function HomePage() {
 
         <div className="container relative z-10 py-20 flex justify-end">
           <div className="max-w-2xl text-right animate-fade-up">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-xs font-black tracking-widest mb-6 ml-auto">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-white mb-6 ml-auto">
               <Sparkles className="h-3.5 w-3.5" />
-              {heroContent.motto.toUpperCase()}
+              <span className="text-[11px] font-normal italic tracking-wider font-[family-name:var(--font-lato)]">
+                empowering brands by
+              </span>
+              {siteSettings?.company_logo_url && (
+                <img src={siteSettings.company_logo_url} alt="Logo" className="h-7 w-auto object-contain" />
+              )}
             </div>
 
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight text-white mb-6 drop-shadow-md">
               <BrandText text={heroContent.title} />
             </h1>
 
-            <p className="text-base sm:text-lg text-white/80 max-w-xl ml-auto leading-relaxed mb-10 font-medium drop-shadow-sm">
+            <p className="text-base sm:text-lg text-white/80 max-w-xl ml-auto pl-6 leading-relaxed mb-10 font-medium drop-shadow-sm border-l-2 border-primary/30">
               <BrandText text={heroContent.subtitle} />
             </p>
 
@@ -177,13 +183,27 @@ export default function HomePage() {
 
 
       {/* ── Services ─────────────────────────────────────── */}
-      <section className="section bg-[var(--surface)] relative overflow-hidden">
-        <FloatingBubbles />
+      <section className="section relative overflow-hidden bg-white dark:bg-[#050505]">
+        {/* Video Background */}
+        <div className="absolute inset-0 z-0 text-white">
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="w-full h-full object-cover opacity-50"
+          >
+            <source src="https://pub-d74fef399a584bd1a3f644d818273e03.r2.dev/site/The_Marketing_Solution_BG.mp4" type="video/mp4" />
+          </video>
+          {/* Adaptive Overlay */}
+          <div className="absolute inset-0 bg-transparent dark:bg-black/60 z-[1]" />
+        </div>
+
         <div className="container relative z-10">
           <div className="text-center mb-14">
-            <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">What We Do</p>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[var(--foreground)]">
-              Our <span className="gradient-text">Services</span>
+            <h2 className="text-3xl md:text-5xl font-black mb-4 flex items-center justify-center gap-3 text-[#cc252d]">
+              <Sparkles className="h-8 w-8 text-[#cc252d]" />
+              Our Services
             </h2>
             <p className="mt-4 text-[var(--muted)] max-w-xl mx-auto">
               Comprehensive solutions for every event need — creative, strategic, and flawlessly executed.
@@ -194,10 +214,10 @@ export default function HomePage() {
             {services.map((service) => (
               <div
                 key={service.title}
-                className="bg-white/10 dark:bg-white/[0.03] backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl p-6 transition-all duration-300 hover:bg-white/15 dark:hover:bg-white/10 hover:border-indigo-500/30 hover:-translate-y-1 group relative overflow-hidden shadow-xl shadow-black/5"
+                className="bg-white/40 dark:bg-black/40 backdrop-blur-md border border-white/40 dark:border-white/10 rounded-2xl p-6 transition-all duration-300 hover:bg-white/60 dark:hover:bg-black/60 hover:border-[#cc252d]/30 hover:-translate-y-1 group relative overflow-hidden shadow-lg dark:shadow-2xl dark:shadow-black/50"
               >
                 <div className="text-4xl mb-4">{service.icon}</div>
-                <h3 className="font-bold text-[var(--foreground)] text-lg mb-2 group-hover:text-indigo-500 transition-colors">
+                <h3 className="font-bold text-[#cc252d] text-lg mb-2 transition-colors">
                   {service.title}
                 </h3>
                 <p className="text-sm text-[var(--muted)] leading-relaxed">{service.description}</p>

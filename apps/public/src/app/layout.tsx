@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Outfit } from 'next/font/google';
+import { Outfit, Lato } from 'next/font/google';
 import './globals.css';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
@@ -9,6 +9,13 @@ const outfit = Outfit({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700', '800', '900'],
   variable: '--font-outfit',
+  display: 'swap',
+});
+
+const lato = Lato({
+  subsets: ['latin'],
+  weight: ['400', '700', '900'],
+  variable: '--font-lato',
   display: 'swap',
 });
 
@@ -63,8 +70,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={outfit.variable} suppressHydrationWarning>
-      <body className={outfit.className} suppressHydrationWarning>
+    <html lang="en" className={`${outfit.variable} ${lato.variable}`} suppressHydrationWarning>
+      <body className={`${outfit.className} ${lato.className}`} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark">
           <Navbar />
           <main>{children}</main>

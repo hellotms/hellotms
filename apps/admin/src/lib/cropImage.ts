@@ -15,9 +15,11 @@ export default async function getCroppedImg(
     imageSrc: string,
     pixelCrop: { x: number; y: number; width: number; height: number },
     rotation = 0,
-    flip = { horizontal: false, vertical: false }
+    flip = { horizontal: false, vertical: false },
+    fileType = 'image/jpeg'
 ): Promise<File | null> {
     const image = await createImage(imageSrc);
+    // ... existing canvas logic remains same ...
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
@@ -54,10 +56,11 @@ export default async function getCroppedImg(
     return new Promise((resolve) => {
         canvas.toBlob((file) => {
             if (file) {
-                resolve(new File([file], 'cropped.jpg', { type: 'image/jpeg' }));
+                const extension = fileType === 'image/png' ? 'png' : fileType === 'image/webp' ? 'webp' : 'jpg';
+                resolve(new File([file], `cropped.${extension}`, { type: fileType }));
             } else {
                 resolve(null);
             }
-        }, 'image/jpeg');
+        }, fileType);
     });
 }

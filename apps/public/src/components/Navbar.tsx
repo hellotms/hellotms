@@ -78,21 +78,21 @@ export function Navbar() {
             </div>
           </Link>
 
-          {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1">
-            {NAV_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="px-3 py-2 rounded-lg text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface)] transition-all"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-
-          {/* Actions */}
+          {/* Actions & Desktop Nav */}
           <div className="flex items-center gap-2">
+            {/* Desktop nav - tucked closely to the right */}
+            <nav className="hidden md:flex items-center gap-1 mr-2">
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="px-3 py-2 rounded-lg text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface)] transition-all"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+
             {/* Theme toggle */}
             <button
               onClick={toggle}
