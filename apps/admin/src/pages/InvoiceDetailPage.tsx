@@ -421,7 +421,8 @@ export default function InvoiceDetailPage() {
                   </button>
                 )}
               </div>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[600px]">
                 <thead className="bg-muted/50 border-b border-border">
                   <tr>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-white w-10">SL</th>
@@ -491,6 +492,7 @@ export default function InvoiceDetailPage() {
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {/* ── Footer: Other Comments (left) + Totals (right) ── */}
@@ -545,7 +547,7 @@ export default function InvoiceDetailPage() {
               </div>
 
               {/* Amount in Words */}
-              <div className="mt-6 -mx-6 px-6 py-3.5 bg-muted/30 border-y border-border/40">
+              <div className="mt-6 -mx-8 px-8 py-3.5 bg-muted/30 border-y border-border/40">
                 <p className="text-sm text-foreground">
                   <span className="font-semibold">Amount in Words: </span>
                   Taka {numberToWords(invoice.type === 'estimate' ? invoiceNetPayable : (due > 0 ? due : invoiceNetPayable))} Only

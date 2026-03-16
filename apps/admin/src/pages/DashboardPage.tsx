@@ -27,8 +27,9 @@ export default function DashboardPage() {
   const { data: kpis, isLoading: kpisLoading } = useQuery({
     queryKey: ['dashboard-kpis', fromISO, toISO],
     queryFn: async () => {
-      // For created_at (timestamp), we need to ensure the end date covers the whole day
-      const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999Z` : toISO;
+      // For created_at (timestamp), we need to ensure the end date covers the whole day in BD Time (GMT+6)
+      const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999+06:00` : toISO;
+      const startTimestamp = fromISO && !fromISO.includes('T') ? `${fromISO}T00:00:00.000+06:00` : fromISO;
 
       const [expenseRes, activeProjectsRes, allProjectsRes, collectionsRes, leadsRes] = await Promise.all([
         supabase
@@ -214,7 +215,8 @@ export default function DashboardPage() {
   const { data: projectPnL } = useQuery({
     queryKey: ['dashboard-project-pnl', fromISO, toISO],
     queryFn: async () => {
-      const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999Z` : toISO;
+      const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999+06:00` : toISO;
+      const startTimestamp = fromISO && !fromISO.includes('T') ? `${fromISO}T00:00:00.000+06:00` : fromISO;
       // 1. Get projects in range
       const { data: projects } = await supabase
         .from('projects')

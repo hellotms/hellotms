@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { ArrowRight, Camera, Users, Star, Award, Play, CheckCircle, Sparkles, TrendingUp, Globe } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { HeroSlider } from '@/components/HeroSlider';
+import ClientSlider from '@/components/ClientSlider';
+import { HeroSlide } from '@hellotms/shared';
 
 const DEMO_STATS = [
   { icon: Camera, value: '500+', label: 'Events Executed' },
@@ -58,11 +61,14 @@ const BrandText = ({ text }: { text: string }) => {
   );
 };
 
+
 export default function HomePage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [services, setServices] = useState(DEMO_SERVICES);
   const [whyUsContent, setWhyUsContent] = useState('With 8+ years of experience and hundreds of successful events, The Marketing Solution is the trusted partner for brands and individuals who refuse to settle for ordinary.');
   const [whyUsFeatures, setWhyUsFeatures] = useState<any[]>(WHY_US.map(w => ({ title: w.title, description: w.text, iconStr: null, IconComp: w.icon })));
+  const [heroSlider, setHeroSlider] = useState<HeroSlide[]>([]);
+  const [heroContent, setHeroContent] = useState({ title: 'We Create Unforgettable Experiences', motto: 'Bangladesh\'s Premier Marketing Agency', subtitle: '' });
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
@@ -82,7 +88,7 @@ export default function HomePage() {
           .limit(6),
         supabase
           .from('site_settings')
-          .select('services_page_config, about_content, services')
+          .select('services_page_config, about_content, services, hero_title, site_motto, hero_subtitle, hero_slider')
           .eq('id', 1)
           .single()
       ]);
@@ -103,6 +109,13 @@ export default function HomePage() {
             IconComp: null
           })).slice(0, 4));
         }
+
+        setHeroSlider(settingsResp.data.hero_slider || []);
+        setHeroContent({
+          title: settingsResp.data.hero_title || 'We Create Unforgettable Experiences',
+          motto: settingsResp.data.site_motto || 'Bangladesh\'s Premier Marketing Agency',
+          subtitle: settingsResp.data.hero_subtitle || 'From intimate gatherings to grand spectacles — The Marketing Solution delivers events that leave lasting impressions.'
+        });
       }
 
       setLoading(false);
@@ -112,58 +125,55 @@ export default function HomePage() {
 
   return (
     <div className="overflow-x-hidden">
-
       {/* ── Hero ─────────────────────────────────────────── */}
-      <section className="relative min-h-screen flex items-center hero-gradient pt-16">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-amber-500/8 rounded-full blur-3xl pointer-events-none" />
+      <section className="relative min-h-[90vh] lg:min-h-screen flex items-center pt-16 overflow-hidden">
+        <HeroSlider slides={heroSlider} />
 
-        <div className="container relative z-10 py-20">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold tracking-wide mb-6">
+        <div className="container relative z-10 py-20 flex justify-end">
+          <div className="max-w-2xl text-right animate-fade-up">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-black tracking-widest mb-6 ml-auto">
               <Sparkles className="h-3.5 w-3.5" />
-              Bangladesh's Premier Marketing Agency
+              {heroContent.motto.toUpperCase()}
             </div>
 
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight text-[var(--foreground)] mb-6">
-              We Create{' '}
-              <span className="text-[#d6802b]">Unforgettable</span>
-              <br />Experiences
+            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight text-[var(--foreground)] mb-6 drop-shadow-sm">
+              <BrandText text={heroContent.title} />
             </h1>
 
-            <p className="text-lg sm:text-xl text-[var(--muted)] max-w-2xl mx-auto leading-relaxed mb-10">
-              <BrandText text="From intimate gatherings to grand spectacles — The Marketing Solution delivers events that leave lasting impressions. Let us bring your vision to life." />
+            <p className="text-base sm:text-lg text-[var(--muted)] max-w-xl ml-auto leading-relaxed mb-10 font-medium">
+              <BrandText text={heroContent.subtitle} />
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-end">
               <Link
                 href="/contact"
-                className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold text-base transition-all hover:shadow-xl hover:shadow-indigo-500/25 hover:-translate-y-0.5"
+                className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white px-8 py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] transition-all hover:shadow-xl hover:shadow-primary/25 hover:-translate-y-0.5"
               >
                 Start Your Project <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/portfolio"
-                className="inline-flex items-center justify-center gap-2 bg-[var(--surface)] border border-[var(--border)] hover:border-indigo-500/40 text-[var(--foreground)] px-8 py-4 rounded-xl font-semibold text-base transition-all hover:-translate-y-0.5"
+                className="inline-flex items-center justify-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-[var(--foreground)] px-8 py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] transition-all hover:-translate-y-0.5"
               >
-                <Play className="h-4 w-4 fill-current text-indigo-500" /> View Portfolio
+                <Play className="h-4 w-4 fill-current text-primary" /> View Portfolio
               </Link>
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-16 max-w-3xl mx-auto">
-            {DEMO_STATS.map(({ icon: Icon, value, label }) => (
-              <div key={label} className="glass rounded-2xl p-4 text-center card-hover border border-[var(--border)]">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center mx-auto mb-2">
-                  {mounted ? <Icon className="h-5 w-5 text-indigo-400" /> : <div className="h-5 w-5" />}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mt-16 max-w-3xl ml-auto">
+              {DEMO_STATS.map(({ icon: Icon, value, label }) => (
+                <div key={label} className="bg-white/5 backdrop-blur-md rounded-2xl p-4 text-center border border-white/10 hover:border-primary/30 transition-all">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
+                    {mounted ? <Icon className="h-5 w-5 text-primary" /> : <div className="h-5 w-5" />}
+                  </div>
+                  <p className="text-xl font-black text-[var(--foreground)]">{value}</p>
+                  <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-0.5">{label}</p>
                 </div>
-                <p className="text-2xl font-black text-[var(--foreground)]">{value}</p>
-                <p className="text-xs text-[var(--muted)] mt-0.5">{label}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </section>
+
 
       {/* ── Services ─────────────────────────────────────── */}
       <section className="section bg-[var(--surface)]">
@@ -331,7 +341,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
+      {/* ── Client Slider ─────────────────────────────────── */}
+      <ClientSlider />
     </div>
   );
 }

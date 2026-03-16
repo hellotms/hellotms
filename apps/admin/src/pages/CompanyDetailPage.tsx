@@ -11,8 +11,9 @@ import { useDateFilter } from '@/context/DateFilterContext';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { ProjectForm } from '@/components/ProjectForm';
 import { CompanyForm } from '@/components/CompanyForm';
-import { ArrowLeft, Plus, Pencil, Building2, FolderOpen, Receipt, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Building2, FolderOpen, Receipt, Trash2, Eye, EyeOff, CircleDashed, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { slugify } from '@/lib/utils';
 import { mediaApi } from '@/lib/api';
@@ -279,8 +280,36 @@ export default function CompanyDetailPage() {
     }
   });
 
+  const { data: siteSettings } = useQuery({
+    queryKey: ['site-settings'],
+    queryFn: async () => {
+      const { data } = await supabase.from('site_settings').select('public_site_url').eq('id', 1).single();
+      return data;
+    }
+  });
+
+  const togglePublishMutation = useMutation({
+    mutationFn: async (published: boolean) => {
+      const { error } = await supabase.from('companies').update({ is_published: published }).eq('id', id!);
+      if (error) throw error;
+      auditApi.log({ 
+        action: published ? 'publish_company' : 'unpublish_company', 
+        entity_type: 'company', 
+        entity_id: id!, 
+        after: { is_published: published } 
+      });
+    },
+    onSuccess: (_, published) => {
+      queryClient.invalidateQueries({ queryKey: ['company', id] });
+      toast(`Company ${published ? 'published' : 'unpublished'} successfully!`, 'success');
+    },
+    onError: (error: any) => toast(`Failed to update status: ${error.message}`, 'error')
+  });
+
   if (isLoading) return <div className="py-20 text-center text-muted-foreground">Loading...</div>;
   if (!company) return <div className="py-20 text-center text-muted-foreground">Company not found</div>;
+
+  const publicUrl = siteSettings?.public_site_url ? `${siteSettings.public_site_url.replace(/\/$/, '')}/#clients` : null;
 
   return (
     <div className="space-y-6">
@@ -299,6 +328,33 @@ export default function CompanyDetailPage() {
           <PageHeader title={company.name} description={company.address ?? company.email ?? ''} />
         </div>
         <div className="flex items-center gap-2">
+          {publicUrl && (
+            <a
+              href={publicUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden md:flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-muted-foreground"
+            >
+              <ExternalLink className="h-4 w-4" /> View on Public Site
+            </a>
+          )}
+          <button
+            onClick={() => togglePublishMutation.mutate(!company.is_published)}
+            disabled={togglePublishMutation.isPending}
+            className={cn(
+              "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all shadow-sm",
+              company.is_published 
+                ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20" 
+                : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
+            )}
+          >
+            {togglePublishMutation.isPending ? (
+              <CircleDashed className="h-4 w-4 animate-spin" />
+            ) : (
+              company.is_published ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />
+            )}
+            <span className="hidden sm:inline">{company.is_published ? 'Published' : 'Draft'}</span>
+          </button>
           <button
             onClick={() => setIsProjectModalOpen(true)}
             className="flex items-center gap-2 bg-primary text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"

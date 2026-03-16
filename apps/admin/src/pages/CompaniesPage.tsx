@@ -167,6 +167,15 @@ export default function CompaniesPage() {
       cell: ({ getValue }) => formatDateTime(getValue() as string),
     },
     {
+      accessorKey: 'is_published',
+      header: 'Status',
+      cell: ({ getValue }) => (
+        <StatusBadge 
+          status={getValue() ? 'published' : 'draft'} 
+        />
+      ),
+    },
+    {
       id: 'actions',
       header: '',
       cell: ({ row }) => (

@@ -49,8 +49,16 @@ export function DateFilterProvider({ children }: { children: React.ReactNode }) 
     setRange(r);
   };
 
-  const fromISO = range.from.toISOString().split('T')[0];
-  const toISO = range.to.toISOString().split('T')[0];
+  // Helper to get YYYY-MM-DD in local time
+  const toLocalDateString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const fromISO = toLocalDateString(range.from);
+  const toISO = toLocalDateString(range.to);
 
   return (
     <DateFilterContext.Provider value={{ preset, range, setPreset, setCustomRange, fromISO, toISO }}>

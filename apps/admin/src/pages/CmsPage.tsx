@@ -9,9 +9,10 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { cn } from '@/lib/utils';
 import {
   Save, Globe, Phone, LayoutDashboard, Sliders, Database,
-  Pencil, Users, ShieldCheck, ExternalLink, Check, Trash2, Plus, ArrowRight, Info, CircleDashed, Sparkles
+  Pencil, Users, ShieldCheck, ExternalLink, Check, Trash2, Plus, ArrowRight, Info, CircleDashed, Sparkles, Image as ImageIcon
 } from 'lucide-react';
-import type { SiteSettings } from '@hellotms/shared';
+import type { SiteSettings, HeroSlide } from '@hellotms/shared';
+import { HeroSliderManager } from '@/components/HeroSliderManager';
 import { Link, useSearchParams } from 'react-router-dom';
 
 export default function CmsPage() {
@@ -23,7 +24,7 @@ export default function CmsPage() {
     setSearchParams({ tab });
   };
 
-  const [isEditing, setIsEditing] = useState(false);
+  const [editingSection, setEditingSection] = useState<string | null>(null);
 
   const form = useForm<any>({ defaultValues: { services: [] } });
   const { fields: serviceFields, append: appendService, remove: removeService } = useFieldArray({ control: form.control, name: 'services' });
@@ -58,6 +59,8 @@ export default function CmsPage() {
         invoice_pad_url: settings.invoice_pad_url ?? '',
         pad_margin_top: settings.pad_margin_top ?? 150,
         pad_margin_bottom: settings.pad_margin_bottom ?? 100,
+        hero_slider: settings.hero_slider || [],
+        login_bg_url: settings.login_bg_url ?? '',
         services: (settings.services ?? []).map((s: any) => ({
           title: s.title ?? s.name ?? '',
           description: s.description ?? '',
@@ -68,29 +71,101 @@ export default function CmsPage() {
   }, [settings, form]);
 
   const saveMutation = useMutation({
-    mutationFn: async (values: any) => {
+    mutationFn: async ({ values, section, logMessage }: { values: any, section: string, logMessage: string }) => {
       const payload: any = { ...values };
+      
+      // Handle specific uploads if present in the values
       if (values.company_logo_url && values.company_logo_url !== settings?.company_logo_url) {
         payload.company_logo_url = await mediaApi.uploadAndCleanMedia(values.company_logo_url, settings?.company_logo_url, 'cms', 'logo', 'company_logo');
       }
       if (values.invoice_pad_url && values.invoice_pad_url !== settings?.invoice_pad_url) {
         payload.invoice_pad_url = await mediaApi.uploadAndCleanMedia(values.invoice_pad_url, settings?.invoice_pad_url, 'cms', 'pad', 'invoice_pad');
       }
-      payload.contact_info = { phone: values.contact_phone, email: values.contact_email, address: values.contact_address };
-      payload.socials = { facebook: values.facebook_url, instagram: values.instagram_url, youtube: values.youtube_url };
-      delete payload.contact_phone; delete payload.contact_email; delete payload.contact_address;
-      delete payload.facebook_url; delete payload.instagram_url; delete payload.youtube_url;
+      if (values.login_bg_url && values.login_bg_url !== settings?.login_bg_url) {
+        payload.login_bg_url = await mediaApi.uploadAndCleanMedia(values.login_bg_url, settings?.login_bg_url, 'cms', 'bg', 'login_bg');
+      }
+
+      // Handle slider images
+      if (values.hero_slider && section === 'slider') {
+        const processedSlider = await Promise.all(values.hero_slider.map(async (slide: HeroSlide, index: number) => {
+          const oldSlide = settings?.hero_slider?.find(s => s.id === slide.id);
+          let finalUrl = slide.image_url;
+          if (slide.image_url && slide.image_url !== oldSlide?.image_url) {
+            finalUrl = (await mediaApi.uploadAndCleanMedia(slide.image_url, oldSlide?.image_url, 'cms', 'hero', `slide_${slide.id}`)) || slide.image_url;
+          }
+          return { ...slide, image_url: finalUrl, order: index };
+        }));
+        payload.hero_slider = processedSlider;
+      }
+
+      // Map form fields back to JSON objects if needed
+      if (payload.contact_phone || payload.contact_email || payload.contact_address) {
+        payload.contact_info = { 
+          phone: values.contact_phone ?? (settings?.contact_info as any)?.phone, 
+          email: values.contact_email ?? (settings?.contact_info as any)?.email, 
+          address: values.contact_address ?? (settings?.contact_info as any)?.address 
+        };
+        delete payload.contact_phone; delete payload.contact_email; delete payload.contact_address;
+      }
+      
+      if (payload.facebook_url || payload.instagram_url || payload.youtube_url) {
+        payload.socials = { 
+          facebook: values.facebook_url ?? settings?.socials?.facebook, 
+          instagram: values.instagram_url ?? settings?.socials?.instagram, 
+          youtube: values.youtube_url ?? settings?.socials?.youtube 
+        };
+        delete payload.facebook_url; delete payload.instagram_url; delete payload.youtube_url;
+      }
+
       const { error } = await supabase.from('site_settings').update(payload).eq('id', 1);
       if (error) throw error;
+      return { logMessage };
     },
-    onSuccess: (data: any, vars: any) => {
-      auditApi.log({ action: 'update_settings', entity_type: 'settings', entity_id: '1', after: vars });
+    onSuccess: (data: any) => {
+      auditApi.log({ action: 'update_settings', entity_type: 'settings', entity_id: '1', after: { description: data.logMessage || 'Settings updated' } });
       queryClient.invalidateQueries({ queryKey: ['site-settings'] });
-      setIsEditing(false);
+      setEditingSection(null);
       toast('Settings updated!', 'success');
     },
     onError: (e: any) => toast(e.message, 'error')
   });
+
+  const SectionHeader = ({ title, section, logMessage, onReset }: { title: string, section: string, logMessage: string, onReset?: () => void }) => {
+    const isEditing = editingSection === section;
+    const isPending = saveMutation.isPending && saveMutation.variables?.section === section;
+
+    return (
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">{title}</h3>
+        <div className="flex gap-2">
+          {!isEditing ? (
+            <button 
+              onClick={() => setEditingSection(section)} 
+              className="px-4 py-1.5 bg-primary/5 text-primary text-[10px] font-black rounded-lg hover:bg-primary/10 flex items-center gap-2 uppercase tracking-widest"
+            >
+              <Pencil className="h-3 w-3" /> Edit
+            </button>
+          ) : (
+            <>
+              <button 
+                onClick={() => { setEditingSection(null); onReset?.(); }} 
+                className="px-3 py-1.5 text-[10px] font-bold hover:bg-muted rounded-lg uppercase tracking-widest"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={form.handleSubmit(v => saveMutation.mutate({ values: v, section, logMessage }))} 
+                disabled={saveMutation.isPending} 
+                className="px-4 py-1.5 bg-primary text-primary-foreground text-[10px] font-black rounded-lg hover:opacity-90 shadow-lg shadow-primary/10 flex items-center gap-2 uppercase tracking-widest"
+              >
+                {isPending ? <CircleDashed className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />} Save
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   if (isLoading) return <div className="flex items-center justify-center min-h-[400px]"><CircleDashed className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -106,7 +181,7 @@ export default function CmsPage() {
             { id: 'cms', label: 'CMS Setting', icon: Globe },
             { id: 'admin', label: 'Admin Setting', icon: Sliders },
           ].map(tab => (
-            <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setIsEditing(false); }} className={cn("flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-lg transition-all tracking-wider uppercase whitespace-nowrap", activeTab === tab.id ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+            <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setEditingSection(null); }} className={cn("flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-lg transition-all tracking-wider uppercase whitespace-nowrap", activeTab === tab.id ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
               <tab.icon className="h-4 w-4" /> {tab.label}
             </button>
           ))}
@@ -118,18 +193,6 @@ export default function CmsPage() {
           <h2 className="font-bold text-xl text-foreground flex items-center gap-2">
             {activeTab === 'general' ? 'General' : activeTab === 'cms' ? 'Content Management System' : 'Administrative'} Configurations
           </h2>
-          <div className="flex flex-wrap gap-2">
-            {activeTab !== 'cms' && (
-              !isEditing ? (
-                <button onClick={() => setIsEditing(true)} className="px-5 py-2 bg-primary/10 text-primary text-xs font-black rounded-xl hover:bg-primary/20 flex items-center gap-2 uppercase tracking-widest"><Pencil className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Edit Section</span><span className="sm:hidden">Edit</span></button>
-              ) : (
-                <>
-                  <button onClick={() => { setIsEditing(false); form.reset(); }} className="px-4 py-2 text-xs font-bold hover:bg-muted rounded-xl">Cancel</button>
-                  <button onClick={form.handleSubmit(v => saveMutation.mutate(v))} disabled={saveMutation.isPending} className="px-5 py-2 bg-primary text-primary-foreground text-xs font-black rounded-xl hover:opacity-90 shadow-lg shadow-primary/10 flex items-center gap-2 uppercase tracking-widest">{saveMutation.isPending ? <CircleDashed className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} <span className="hidden sm:inline">Save Changes</span><span className="sm:hidden">Save</span></button>
-                </>
-              )
-            )}
-          </div>
         </div>
 
         <div className="bg-card border border-border rounded-2xl p-6 md:p-8 shadow-sm min-h-[500px]">
@@ -139,41 +202,59 @@ export default function CmsPage() {
           {activeTab === 'general' && (
             <div className="space-y-12">
               {/* Branding & Hero */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="space-y-6">
-                  <div className="bg-muted/30 p-5 rounded-2xl border border-border/50">
-                    <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-4">Brand Identity</h3>
-                    <ImageUpload label="Company Logo" value={form.watch('company_logo_url')} onChange={v => form.setValue('company_logo_url', v)} disabled={!isEditing} aspect={1} />
-                    <div className="mt-4"><label className="text-[10px] font-black mb-1 block uppercase">Site Motto</label><input {...form.register('site_motto')} disabled={!isEditing} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
+              <div>
+                <SectionHeader title="Branding & Primary Content" section="branding" logMessage="System branding and hero content updated" onReset={() => form.reset()} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <div className="space-y-6">
+                    <div className="bg-muted/30 p-5 rounded-2xl border border-border/50">
+                      <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-4">Brand Identity</h3>
+                      <ImageUpload label="Company Logo" value={form.watch('company_logo_url')} onChange={v => form.setValue('company_logo_url', v)} disabled={editingSection !== 'branding'} aspect={1} />
+                      <div className="mt-4"><label className="text-[10px] font-black mb-1 block uppercase">Site Motto</label><input {...form.register('site_motto')} disabled={editingSection !== 'branding'} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
+                    </div>
+                    <div className="bg-muted/30 p-5 rounded-2xl border border-border/50">
+                      <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-4">Login Page Background</h3>
+                      <ImageUpload label="Background Image" value={form.watch('login_bg_url')} onChange={v => form.setValue('login_bg_url', v)} disabled={editingSection !== 'branding'} aspect={16 / 9} />
+                      <p className="text-[10px] text-muted-foreground mt-2 italic">* This image will be blurred on the login page.</p>
+                    </div>
+                  </div>
+                  <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-2"><label className="text-sm font-bold">Homepage Hero Title</label><input {...form.register('hero_title')} disabled={editingSection !== 'branding'} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
+                    <div className="space-y-2"><label className="text-sm font-bold">Primary CTA Action Label</label><input {...form.register('hero_cta_primary_label')} disabled={editingSection !== 'branding'} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
+                    <div className="sm:col-span-2 space-y-2"><label className="text-sm font-bold">Hero Subtitle / Description</label><textarea {...form.register('hero_subtitle')} disabled={editingSection !== 'branding'} rows={2} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm resize-none" /></div>
+                    <div className="sm:col-span-2 space-y-2 pt-4 border-t border-border mt-4"><label className="text-sm font-bold">About Our Story (Brief)</label><textarea {...form.register('about_content')} disabled={editingSection !== 'branding'} rows={4} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm resize-none" /></div>
                   </div>
                 </div>
-                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-2"><label className="text-sm font-bold">Homepage Hero Title</label><input {...form.register('hero_title')} disabled={!isEditing} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
-                  <div className="space-y-2"><label className="text-sm font-bold">Primary CTA Action Label</label><input {...form.register('hero_cta_primary_label')} disabled={!isEditing} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
-                  <div className="sm:col-span-2 space-y-2"><label className="text-sm font-bold">Hero Subtitle / Description</label><textarea {...form.register('hero_subtitle')} disabled={!isEditing} rows={2} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm resize-none" /></div>
-                  <div className="sm:col-span-2 space-y-2 pt-4 border-t border-border mt-4"><label className="text-sm font-bold">About Our Story (Brief)</label><textarea {...form.register('about_content')} disabled={!isEditing} rows={4} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm resize-none" /></div>
-                </div>
+              </div>
+
+              {/* Hero Slider Management */}
+              <div className="pt-8 border-t border-border">
+                <SectionHeader title="Homepage Hero Slider" section="slider" logMessage="Homepage hero slider updated" onReset={() => form.reset()} />
+                <HeroSliderManager 
+                  control={form.control} 
+                  register={form.register} 
+                  watch={form.watch} 
+                  setValue={form.setValue} 
+                  disabled={editingSection !== 'slider'} 
+                />
               </div>
 
               {/* Core Services */}
               <div className="pt-8 border-t border-border space-y-6">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="text-sm font-black uppercase tracking-widest text-foreground">Core Services</h3>
-                    <p className="text-xs text-muted-foreground font-medium mt-1">These populate the 3-column features grid on the landing page.</p>
-                  </div>
-                  {isEditing && <button onClick={() => appendService({ title: 'New Service', description: '', icon: '✨' })} className="flex items-center gap-2 text-[10px] font-black bg-primary/10 text-primary px-4 py-2 rounded-xl uppercase tracking-widest transition-all hover:bg-primary/20"><Plus className="h-3 w-3" /> Add Service</button>}
+                <SectionHeader title="Core Platform Services" section="services" logMessage="Core services list updated" onReset={() => form.reset()} />
+                <div className="flex justify-between items-center -mt-2">
+                  <p className="text-xs text-muted-foreground font-medium">These populate the 3-column features grid on the landing page.</p>
+                  {editingSection === 'services' && <button onClick={() => appendService({ title: 'New Service', description: '', icon: '✨' })} className="flex items-center gap-2 text-[10px] font-black bg-primary/10 text-primary px-4 py-2 rounded-xl uppercase tracking-widest transition-all hover:bg-primary/20"><Plus className="h-3 w-3" /> Add Service</button>}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {serviceFields.map((f, i) => (
                     <div key={f.id} className="bg-muted/20 border border-border p-5 rounded-3xl relative group transition-all hover:bg-muted/40">
                       <div className="flex gap-4 p-2">
-                        <input {...form.register(`services.${i}.icon`)} disabled={!isEditing} className="w-12 h-12 bg-background border border-border shadow-sm rounded-2xl text-center text-2xl outline-none" />
+                        <input {...form.register(`services.${i}.icon`)} disabled={editingSection !== 'services'} className="w-12 h-12 bg-background border border-border shadow-sm rounded-2xl text-center text-2xl outline-none" />
                         <div className="flex-1 space-y-2">
-                          <input {...form.register(`services.${i}.title`)} disabled={!isEditing} placeholder="Service Title" className="w-full bg-transparent border-none p-0 text-sm font-black outline-none" />
-                          <textarea {...form.register(`services.${i}.description`)} disabled={!isEditing} placeholder="Short description..." rows={2} className="w-full bg-transparent border-none p-0 text-xs text-muted-foreground outline-none resize-none" />
+                          <input {...form.register(`services.${i}.title`)} disabled={editingSection !== 'services'} placeholder="Service Title" className="w-full bg-transparent border-none p-0 text-sm font-black outline-none" />
+                          <textarea {...form.register(`services.${i}.description`)} disabled={editingSection !== 'services'} placeholder="Short description..." rows={2} className="w-full bg-transparent border-none p-0 text-xs text-muted-foreground outline-none resize-none" />
                         </div>
-                        {isEditing && <button onClick={() => removeService(i)} className="text-red-300 hover:text-red-500 transition-colors"><Trash2 className="h-4 w-4" /></button>}
+                        {editingSection === 'services' && <button onClick={() => removeService(i)} className="text-red-300 hover:text-red-500 transition-colors"><Trash2 className="h-4 w-4" /></button>}
                       </div>
                     </div>
                   ))}
@@ -181,25 +262,28 @@ export default function CmsPage() {
               </div>
 
               {/* Contact Information & Socials */}
-              <div className="pt-8 border-t border-border grid grid-cols-1 lg:grid-cols-2 gap-12">
-                <div className="space-y-6">
-                  <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest border-b border-border pb-3 flex items-center gap-2"><Phone className="h-3 w-3 mb-0.5" /> Official Contact Info</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div className="space-y-2"><label className="text-xs font-bold text-muted-foreground">Emergency / Direct Phone</label><input {...form.register('contact_phone')} disabled={!isEditing} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
-                    <div className="space-y-2"><label className="text-xs font-bold text-muted-foreground">WhatsApp Connect</label><input {...form.register('whatsapp')} disabled={!isEditing} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
-                    <div className="sm:col-span-2 space-y-2"><label className="text-xs font-bold text-muted-foreground">Public Email Address</label><input {...form.register('contact_email')} disabled={!isEditing} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
-                    <div className="sm:col-span-2 space-y-2"><label className="text-xs font-bold text-muted-foreground">Headquarters Address</label><textarea {...form.register('contact_address')} disabled={!isEditing} rows={2} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm resize-none" /></div>
+              <div className="pt-8 border-t border-border">
+                <SectionHeader title="Corporate Presence & Contact" section="contact" logMessage="Corporate contact and social media info updated" onReset={() => form.reset()} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                  <div className="space-y-6">
+                    <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest border-b border-border pb-3 flex items-center gap-2"><Phone className="h-3 w-3 mb-0.5" /> Official Contact Info</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="space-y-2"><label className="text-xs font-bold text-muted-foreground">Emergency / Direct Phone</label><input {...form.register('contact_phone')} disabled={editingSection !== 'contact'} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
+                      <div className="space-y-2"><label className="text-xs font-bold text-muted-foreground">WhatsApp Connect</label><input {...form.register('whatsapp')} disabled={editingSection !== 'contact'} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
+                      <div className="sm:col-span-2 space-y-2"><label className="text-xs font-bold text-muted-foreground">Public Email Address</label><input {...form.register('contact_email')} disabled={editingSection !== 'contact'} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm" /></div>
+                      <div className="sm:col-span-2 space-y-2"><label className="text-xs font-bold text-muted-foreground">Headquarters Address</label><textarea {...form.register('contact_address')} disabled={editingSection !== 'contact'} rows={2} className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm resize-none" /></div>
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-6">
-                  <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest border-b border-border pb-3 flex items-center gap-2"><Globe className="h-3 w-3 mb-0.5" /> Social Presence Channels</h3>
-                  <div className="space-y-4">
-                    {['Facebook', 'Instagram', 'YouTube'].map((s: any) => (
-                      <div key={s} className="space-y-1.5 p-1 bg-muted/10 border border-border/50 rounded-2xl px-4 py-3">
-                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{s} URL</label>
-                        <input {...form.register(`${s.toLowerCase()}_url` as any)} disabled={!isEditing} className="w-full bg-transparent border-none p-0 text-sm font-medium outline-none" placeholder={`https://${s.toLowerCase()}.com/...`} />
-                      </div>
-                    ))}
+                  <div className="space-y-6">
+                    <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest border-b border-border pb-3 flex items-center gap-2"><Globe className="h-3 w-3 mb-0.5" /> Social Presence Channels</h3>
+                    <div className="space-y-4">
+                      {['Facebook', 'Instagram', 'YouTube'].map((s: any) => (
+                        <div key={s} className="space-y-1.5 p-1 bg-muted/10 border border-border/50 rounded-2xl px-4 py-3">
+                          <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{s} URL</label>
+                          <input {...form.register(`${s.toLowerCase()}_url` as any)} disabled={editingSection !== 'contact'} className="w-full bg-transparent border-none p-0 text-sm font-medium outline-none" placeholder={`https://${s.toLowerCase()}.com/...`} />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -263,15 +347,15 @@ export default function CmsPage() {
               </div>
 
               {/* Invoice Pad Configurations */}
-              <div className="pt-8 border-t border-border">
-                <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] mb-4">Financial Document Templates</h3>
+              <div>
+                <SectionHeader title="Financial Document Templates" section="invoice" logMessage="Invoice pad template and margins updated" onReset={() => form.reset()} />
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   <div className="space-y-8">
                     <div className="bg-muted/30 p-6 rounded-3xl border border-border/50 space-y-6">
-                      <ImageUpload label="Invoice Pad Template (A4 Background)" value={form.watch('invoice_pad_url')} onChange={v => form.setValue('invoice_pad_url', v)} disabled={!isEditing} aspect={210 / 297} />
+                      <ImageUpload label="Invoice Pad Template (A4 Background)" value={form.watch('invoice_pad_url')} onChange={v => form.setValue('invoice_pad_url', v)} disabled={editingSection !== 'invoice'} aspect={210 / 297} />
                       <div className="grid grid-cols-2 gap-6">
-                        <div className="bg-background p-3 rounded-xl border border-border"><label className="text-[9px] font-black text-muted-foreground uppercase mb-1 block">Top Safe Margin (px)</label><input type="number" {...form.register('pad_margin_top')} disabled={!isEditing} className="w-full bg-transparent border-none p-0 text-sm font-bold outline-none" /></div>
-                        <div className="bg-background p-3 rounded-xl border border-border"><label className="text-[9px] font-black text-muted-foreground uppercase mb-1 block">Bottom Safe Margin</label><input type="number" {...form.register('pad_margin_bottom')} disabled={!isEditing} className="w-full bg-transparent border-none p-0 text-sm font-bold outline-none" /></div>
+                        <div className="bg-background p-3 rounded-xl border border-border"><label className="text-[9px] font-black text-muted-foreground uppercase mb-1 block">Top Safe Margin (px)</label><input type="number" {...form.register('pad_margin_top')} disabled={editingSection !== 'invoice'} className="w-full bg-transparent border-none p-0 text-sm font-bold outline-none" /></div>
+                        <div className="bg-background p-3 rounded-xl border border-border"><label className="text-[9px] font-black text-muted-foreground uppercase mb-1 block">Bottom Safe Margin</label><input type="number" {...form.register('pad_margin_bottom')} disabled={editingSection !== 'invoice'} className="w-full bg-transparent border-none p-0 text-sm font-bold outline-none" /></div>
                       </div>
                     </div>
                     <div className="p-5 bg-blue-500/10 rounded-2xl border border-blue-500/20 flex gap-4">
@@ -294,12 +378,12 @@ export default function CmsPage() {
 
               {/* Infrastructure */}
               <div className="pt-8 border-t border-border">
-                <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] mb-4">Infrastructure Settings</h3>
+                <SectionHeader title="Infrastructure Settings" section="infrastructure" logMessage="Public site infrastructure URL updated" onReset={() => form.reset()} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-[11px] font-bold text-muted-foreground p-1">Frontend Deployment URL</label>
                     <div className="flex gap-2">
-                      <input {...form.register('public_site_url')} disabled={!isEditing} className="flex-1 bg-background border border-border rounded-xl px-4 py-3 text-sm font-mono outline-none" placeholder="https://..." />
+                      <input {...form.register('public_site_url')} disabled={editingSection !== 'infrastructure'} className="flex-1 bg-background border border-border rounded-xl px-4 py-3 text-sm font-mono outline-none" placeholder="https://..." />
                       <a href={form.watch('public_site_url')} target="_blank" className="p-3 bg-muted rounded-xl hover:bg-muted/80 transition-all border border-border flex items-center justify-center"><ExternalLink className="h-4 w-4" /></a>
                     </div>
                   </div>

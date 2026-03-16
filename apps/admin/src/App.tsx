@@ -14,6 +14,8 @@ import ProjectsPage from '@/pages/ProjectsPage';
 import ProjectDetailPage from '@/pages/ProjectDetailPage';
 import InvoicesPage from '@/pages/InvoicesPage';
 import InvoiceDetailPage from '@/pages/InvoiceDetailPage';
+import EstimatesPage from '@/pages/EstimatesPage';
+import EstimateDetailPage from '@/pages/EstimateDetailPage';
 import LeadsPage from '@/pages/LeadsPage';
 import CmsPage from '@/pages/CmsPage';
 import AboutCmsPage from '@/pages/settings/cms/AboutCmsPage';
@@ -115,6 +117,8 @@ function AppRoutes() {
         <Route path="projects/:id" element={<PermissionRoute permission="view_projects"><ProjectDetailPage /></PermissionRoute>} />
         <Route path="invoices" element={<PermissionRoute permission="manage_invoices"><InvoicesPage /></PermissionRoute>} />
         <Route path="invoices/:id" element={<PermissionRoute permission="manage_invoices"><InvoiceDetailPage /></PermissionRoute>} />
+        <Route path="estimates" element={<PermissionRoute permission="manage_invoices"><EstimatesPage /></PermissionRoute>} />
+        <Route path="estimates/:id" element={<PermissionRoute permission="manage_invoices"><EstimateDetailPage /></PermissionRoute>} />
         <Route path="leads" element={<PermissionRoute permission="view_leads"><LeadsPage /></PermissionRoute>} />
         <Route path="cms" element={<PermissionRoute permission="manage_cms"><CmsPage /></PermissionRoute>} />
         <Route path="cms/about" element={<PermissionRoute permission="manage_cms"><AboutCmsPage /></PermissionRoute>} />

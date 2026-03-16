@@ -32,6 +32,7 @@ export interface Company {
   phone?: string | null;
   email?: string | null;
   address?: string | null;
+  is_published: boolean;
   created_at: string;
 }
 
@@ -101,8 +102,10 @@ export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue';
 
 export interface Invoice {
   id: string;
-  project_id: string;
-  company_id: string;
+  project_id?: string;
+  company_id?: string;
+  other_company_name?: string | null;
+  other_project_name?: string | null;
   project?: Project;
   company?: Company;
   invoice_number: string;
@@ -151,6 +154,14 @@ export interface Lead {
   created_at: string;
 }
 
+export interface HeroSlide {
+  id: string;
+  image_url: string;
+  title?: string | null;
+  subtitle?: string | null;
+  order: number;
+}
+
 export interface SiteSettings {
   id: number; // singleton row id=1
   hero_title: string;
@@ -173,6 +184,8 @@ export interface SiteSettings {
   services_page_config?: ServicesPageConfig | null;
   contact_info: ContactInfo;
   socials: Socials;
+  hero_slider?: HeroSlide[] | null;
+  login_bg_url?: string | null;
   updated_at: string;
 }
 

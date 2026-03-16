@@ -23,6 +23,7 @@ export function CompanyForm({ onSubmit, onCancel, isPending, defaultValues }: Co
       phone: defaultValues?.phone ?? '',
       address: defaultValues?.address ?? '',
       slug: defaultValues?.slug ?? null,
+      is_published: defaultValues?.is_published ?? false,
     },
   });
 
@@ -61,6 +62,19 @@ export function CompanyForm({ onSubmit, onCancel, isPending, defaultValues }: Co
           )}
         </div>
       ))}
+
+      <div className="flex items-center gap-2 py-2">
+        <input
+          {...register('is_published')}
+          type="checkbox"
+          id="is_published"
+          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+        />
+        <label htmlFor="is_published" className="text-sm font-medium text-foreground">
+          Published (Visible on landing page slider)
+        </label>
+      </div>
+
       <div className="flex justify-end gap-3 pt-2">
         <button type="button" onClick={onCancel} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
         <button type="submit" disabled={isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60">

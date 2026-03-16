@@ -9,24 +9,26 @@ export function formatBDT(amount: number): string {
   return `৳ ${amount.toLocaleString('en-IN')}`;
 }
 
-export function formatDate(dateStr: string): string {
+export function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
   const d = new Date(dateStr);
   const day = String(d.getDate()).padStart(2, '0');
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const month = months[d.getMonth()];
-  const year = String(d.getFullYear()).slice(-2);
-  return `${day}-${month}-${year}`;
+  const year = d.getFullYear();
+  return `${day} ${month}, ${year}`;
 }
 
-export function formatDateTime(dateStr: string): string {
+export function formatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
   const d = new Date(dateStr);
   const day = String(d.getDate()).padStart(2, '0');
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const month = months[d.getMonth()];
-  const year = String(d.getFullYear()).slice(-2);
+  const year = d.getFullYear();
   const hours = String(d.getHours()).padStart(2, '0');
   const minutes = String(d.getMinutes()).padStart(2, '0');
-  return `${day}-${month}-${year} ${hours}:${minutes}`;
+  return `${day} ${month}, ${year} ${hours}:${minutes}`;
 }
 
 export function slugify(text: string): string {
@@ -60,6 +62,8 @@ export function statusColor(status: string): string {
     unpaid: 'bg-orange-100 dark:bg-orange-500/20 text-orange-800',
     income: 'bg-green-100 dark:bg-green-500/20 text-green-800',
     expense: 'bg-red-100 dark:bg-red-500/20 text-red-800',
+    published: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800',
+    partial: 'bg-orange-100 dark:bg-orange-500/20 text-orange-800',
   };
   return map[status] ?? 'bg-gray-100 text-gray-800';
 }

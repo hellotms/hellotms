@@ -8,6 +8,7 @@ export const companySchema = z.object({
   phone: z.string().max(20).optional().nullable(),
   email: z.string().email().optional().nullable(),
   address: z.string().max(300).optional().nullable(),
+  is_published: z.boolean().default(false),
 });
 
 export type CompanyInput = z.infer<typeof companySchema>;
@@ -120,6 +121,14 @@ export const serviceItemSchema = z.object({
   icon: z.string().max(50).optional().nullable(),
 });
 
+export const heroSlideSchema = z.object({
+  id: z.string(),
+  image_url: z.string().url(),
+  title: z.string().max(200).optional().nullable(),
+  subtitle: z.string().max(300).optional().nullable(),
+  order: z.number().int().nonnegative(),
+});
+
 export const siteSettingsSchema = z.object({
   hero_title: z.string().min(1).max(200),
   hero_subtitle: z.string().max(300).optional().nullable(),
@@ -182,6 +191,8 @@ export const siteSettingsSchema = z.object({
     linkedin: z.string().url().optional(),
     twitter: z.string().url().optional(),
   }).default({}),
+  hero_slider: z.array(heroSlideSchema).default([]),
+  login_bg_url: z.string().url().optional().nullable(),
 });
 
 export type SiteSettingsInput = z.infer<typeof siteSettingsSchema>;
