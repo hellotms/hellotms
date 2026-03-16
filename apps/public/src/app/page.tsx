@@ -132,7 +132,7 @@ export default function HomePage() {
 
         <div className="container relative z-10 py-20 flex justify-end">
           <div className="max-w-2xl text-right animate-fade-up">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-black tracking-widest mb-6 ml-auto">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-xs font-black tracking-widest mb-6 ml-auto">
               <Sparkles className="h-3.5 w-3.5" />
               {heroContent.motto.toUpperCase()}
             </div>
