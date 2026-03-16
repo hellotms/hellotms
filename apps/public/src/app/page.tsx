@@ -194,7 +194,7 @@ export default function HomePage() {
             {services.map((service) => (
               <div
                 key={service.title}
-                className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 card-hover group"
+                className="bg-white/10 dark:bg-white/[0.03] backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl p-6 transition-all duration-300 hover:bg-white/15 dark:hover:bg-white/10 hover:border-indigo-500/30 hover:-translate-y-1 group relative overflow-hidden shadow-xl shadow-black/5"
               >
                 <div className="text-4xl mb-4">{service.icon}</div>
                 <h3 className="font-bold text-[var(--foreground)] text-lg mb-2 group-hover:text-indigo-500 transition-colors">
