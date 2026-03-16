@@ -161,12 +161,12 @@ export default function HomePage() {
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mt-16 max-w-3xl ml-auto">
               {DEMO_STATS.map(({ icon: Icon, value, label }) => (
-                <div key={label} className="bg-white/5 backdrop-blur-md rounded-2xl p-4 text-center border border-white/10 hover:border-primary/30 transition-all">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
-                    {mounted ? <Icon className="h-5 w-5 text-primary" /> : <div className="h-5 w-5" />}
+                <div key={label} className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 text-center border border-white/20 shadow-2xl shadow-black/80 hover:border-primary/50 transition-all flex flex-col items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center mb-2 shadow-inner">
+                    {mounted ? <Icon className="h-5 w-5 text-primary drop-shadow-sm" /> : <div className="h-5 w-5" />}
                   </div>
-                  <p className="text-xl font-black text-[var(--foreground)]">{value}</p>
-                  <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-0.5">{label}</p>
+                  <p className="text-xl font-black text-white drop-shadow-md">{value}</p>
+                  <p className="text-[10px] font-bold text-white/90 uppercase tracking-widest mt-0.5 drop-shadow-sm">{label}</p>
                 </div>
               ))}
             </div>

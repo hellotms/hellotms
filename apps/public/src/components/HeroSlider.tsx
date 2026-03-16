@@ -44,14 +44,14 @@ export function HeroSlider({ slides }: HeroSliderProps) {
 
           {/* Per-slide text overlay */}
           {(slide.title || slide.subtitle) && (
-            <div className="absolute bottom-20 right-10 md:right-20 max-w-xl text-right z-10 animate-fade-up">
+            <div className="absolute bottom-16 left-10 md:left-20 max-w-lg text-left z-10 animate-fade-up">
               {slide.title && (
-                <h2 className="text-2xl md:text-4xl font-black text-white mb-2 drop-shadow-lg">
+                <h2 className="text-xl md:text-2xl font-black text-white mb-2 drop-shadow-lg">
                   {slide.title}
                 </h2>
               )}
               {slide.subtitle && (
-                <p className="text-sm md:text-lg text-white/80 font-medium drop-shadow-md">
+                <p className="text-xs md:text-base text-white/80 font-medium drop-shadow-md">
                   {slide.subtitle}
                 </p>
               )}
