@@ -25,31 +25,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
-  const isVerifyingRef = useRef(false);
+// Removed isVerifyingRef; session validation now handled via API responses.
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*, roles(*)')
-      .eq('id', userId)
-      .single();
-
-    if (error) {
-      console.error('[AuthContext] Profile fetch error:', error);
-      if (error.code === 'PGRST116') {
-        toast('No profile found for your account. Please contact an administrator.', 'error');
-      } else {
-        toast(`Failed to load profile: ${error.message}`, 'error');
-      }
+    // Skip fetching when offline to avoid network errors
+    if (!navigator.onLine) {
+      console.warn('[AuthContext] Offline: skipping profile fetch');
       return;
     }
-
-    if (data) {
-      if (!data.roles) {
-        toast('No role assigned to your account. Please contact an administrator.', 'error');
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*, roles(*)')
+        .eq('id', userId)
+        .single();
+      if (error) {
+        console.error('[AuthContext] Profile fetch error:', error);
+        // Show toast only for non-network errors
+        if (!error.message?.includes('Failed to fetch')) {
+          if (error.code === 'PGRST116') {
+            toast('No profile found for your account. Please contact an administrator.', 'error');
+          } else {
+            toast(`Failed to load profile: ${error.message}`, 'error');
+          }
+        }
+        return;
       }
-      setProfile(data as Profile);
-      setRole(data.roles as Role ?? null);
+      if (data) {
+        if (!data.roles) {
+          toast('No role assigned to your account. Please contact an administrator.', 'error');
+        }
+        setProfile(data as Profile);
+        setRole(data.roles as Role ?? null);
+      }
+    } catch (err: any) {
+      // Network or unexpected errors are silently ignored
+      console.warn('[AuthContext] Profile fetch exception (ignored):', err);
     }
   }, []);
 
@@ -65,55 +76,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRole(null);
   }, []);
 
-  const validateSession = useCallback(async () => {
-    if (!session || isVerifyingRef.current) return;
-    
-    isVerifyingRef.current = true;
-    try {
-      await staffApi.getSessions();
-    } catch (err: any) {
-      if (err.message?.includes('401') || err.message?.includes('revoked')) {
-        console.warn('[AuthContext] Session invalid, signing out...');
-        signOut();
-        window.location.href = '/login';
-      }
-    } finally {
-      isVerifyingRef.current = false;
-    }
-  }, [session, signOut]);
+// Session validation is now performed centrally in apiFetch; no background validation needed.
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('[AuthContext] Initial session error:', error);
+        // If it's a refresh token error, clear everything
+        if (error.message.includes('Refresh Token')) {
+          supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
+      }
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile(session.user.id).finally(() => setLoading(false));
-        validateSession();
       } else {
         setLoading(false);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('[AuthContext] State change:', _event);
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile(session.user.id);
-        if (_event === 'SIGNED_IN') validateSession();
-      } else { 
-        setProfile(null); 
-        setRole(null); 
+      } else {
+        setProfile(null);
+        setRole(null);
+        // If the session was revoked or lost, ensure we clear any local state and redirect
+        if (_event === 'SIGNED_OUT') {
+          window.location.href = '/login';
+        }
       }
     });
 
-    const handleFocus = () => validateSession();
-    window.addEventListener('focus', handleFocus);
-
     return () => {
       subscription.unsubscribe();
-      window.removeEventListener('focus', handleFocus);
     };
-  }, [fetchProfile, validateSession]);
+  }, [fetchProfile]);
 
   const can = useCallback((permission: string): boolean => {
     if (role?.name === 'super_admin') return true;

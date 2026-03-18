@@ -86,6 +86,8 @@ export const auditApi = {
 };
 
 // ─── Staff ───────────────────────────────────────────────────────────────────
+let _sessionsCache: { data: any[]; timestamp: number } | null = null;
+
 export const staffApi = {
   invite: (payload: unknown) => apiFetch('/staff/invite', { method: 'POST', body: JSON.stringify(payload) }),
   list: () => apiFetch<{ data: unknown[] }>('/staff'),
@@ -94,12 +96,28 @@ export const staffApi = {
   deactivate: (id: string) => apiFetch(`/staff/${id}/deactivate`, { method: 'PUT', body: '{}' }),
   activate: (id: string) => apiFetch(`/staff/${id}/activate`, { method: 'PUT', body: '{}' }),
   resetPassword: (id: string) => apiFetch<{ tempPassword: string; message: string }>(`/staff/${id}/reset-password`, { method: 'PUT', body: '{}' }),
-  getSessions: () => apiFetch<{ data: any[] }>('/staff/me/sessions'),
-  revokeSession: (sessionId: string) => apiFetch(`/staff/me/sessions/${sessionId}`, { method: 'DELETE' }),
-  revokeOtherSessions: (currentSessionId: string) => apiFetch('/staff/me/sessions', {
-    method: 'DELETE',
-    headers: { 'X-Session-Id': currentSessionId }
-  }),
+  // 2‑minute in‑memory cache to reduce Supabase DB load
+  getSessions: (): Promise<{ data: any[] }> => {
+    const now = Date.now();
+    if (_sessionsCache && now - _sessionsCache.timestamp < 2 * 60 * 1000) {
+      return Promise.resolve({ data: _sessionsCache.data });
+    }
+    return apiFetch<{ data: any[] }>('/staff/me/sessions').then(res => {
+      _sessionsCache = { data: res.data, timestamp: now };
+      return res;
+    });
+  },
+  revokeSession: (sessionId: string) => {
+    _sessionsCache = null; // Clear cache on change
+    return apiFetch(`/staff/me/sessions/${sessionId}`, { method: 'DELETE' });
+  },
+  revokeOtherSessions: (currentSessionId: string) => {
+    _sessionsCache = null; // Clear cache on change
+    return apiFetch('/staff/me/sessions', {
+      method: 'DELETE',
+      headers: { 'X-Session-Id': currentSessionId },
+    });
+  },
 };
 
 // ─── Invoices ────────────────────────────────────────────────────────────────
