@@ -16,9 +16,16 @@ async function getAuthHeader(): Promise<Record<string, string>> {
 
 async function apiFetch<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit & { silent?: boolean } = {}
 ): Promise<T> {
-  const isFormData = options.body instanceof FormData;
+  const { silent, ...fetchOptions } = options;
+  
+  // Skip if offline and silent (background check)
+  if (silent && typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('Offline');
+  }
+
+  const isFormData = fetchOptions.body instanceof FormData;
   const authHeaders = await getAuthHeader();
 
   const headers: Record<string, string> = {
@@ -31,10 +38,10 @@ async function apiFetch<T>(
 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
-      ...options,
+      ...fetchOptions,
       headers: {
         ...headers,
-        ...(options.headers as any ?? {}),
+        ...(fetchOptions.headers as any ?? {}),
       },
     });
 
@@ -42,9 +49,11 @@ async function apiFetch<T>(
     
     if (!res.ok) {
       if (res.status === 401) {
-        toast('Session expired. Please log in again.', 'error');
-        // Optional: window.location.href = '/login';
-      } else {
+        if (!silent) {
+          toast('Session expired. Please log in again.', 'error');
+          window.location.href = '/login';
+        }
+      } else if (!silent) {
         const msg = data?.error || data?.message || `Server error (${res.status})`;
         toast(msg, 'error');
       }
@@ -53,10 +62,12 @@ async function apiFetch<T>(
     return data as T;
   } catch (err: any) {
     if (err instanceof TypeError && err.message.includes('fetch')) {
-      const errorMsg = IS_DEV 
-        ? `Cannot connect to API server (${API_BASE}). Is Wrangler running?`
-        : 'Unable to connect to the API server. Please check your internet connection.';
-      toast(errorMsg, 'error');
+      if (!silent) {
+        const errorMsg = IS_DEV 
+          ? `Cannot connect to API server (${API_BASE}). Is Wrangler running?`
+          : 'Unable to connect to the API server. Please check your internet connection.';
+        toast(errorMsg, 'error');
+      }
     }
     throw err;
   }

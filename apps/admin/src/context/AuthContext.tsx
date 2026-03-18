@@ -108,15 +108,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const handleFocus = () => validateSession();
     window.addEventListener('focus', handleFocus);
-    
-    const intervalId = setInterval(() => {
-      if (document.visibilityState === 'visible') validateSession();
-    }, 30000);
 
     return () => {
       subscription.unsubscribe();
       window.removeEventListener('focus', handleFocus);
-      clearInterval(intervalId);
     };
   }, [fetchProfile, validateSession]);
 
