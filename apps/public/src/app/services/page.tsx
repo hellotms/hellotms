@@ -32,9 +32,9 @@ export default async function ServicesPage() {
     <div className="pt-16">
       {/* Hero */}
       <section className="relative py-20 sm:py-28 hero-gradient overflow-hidden">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl" />
+        <div className="absolute top-0 left-0 w-96 h-96 bg-[var(--accent)]/10 rounded-full blur-3xl" />
         <div className="container relative z-10 text-center">
-          <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">{config.hero.badge}</p>
+          <p className="text-[var(--accent)] text-xs font-bold tracking-widest uppercase mb-3">{config.hero.badge}</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[var(--foreground)] mb-5">
             {config.hero.title_primary} <span className="text-[#d6802b]">{config.hero.title_highlight}</span>
           </h1>
@@ -54,14 +54,14 @@ export default async function ServicesPage() {
                 className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 card-hover group"
               >
                 <div className="text-4xl mb-4">{service.icon}</div>
-                <h2 className="font-bold text-[var(--foreground)] text-xl mb-2 group-hover:text-indigo-500 transition-colors">
+                <h2 className="font-bold text-[var(--foreground)] text-xl mb-2 group-hover:text-[var(--accent)] transition-colors">
                   {service.title}
                 </h2>
                 <p className="text-sm text-[var(--muted)] leading-relaxed mb-5">{service.description}</p>
                 <ul className="space-y-2">
                   {service.features.map((f, fidx) => (
                     <li key={fidx} className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                      <CheckCircle className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                      <CheckCircle className="h-3.5 w-3.5 text-[var(--accent)] shrink-0" />
                       {f}
                     </li>
                   ))}
@@ -104,7 +104,7 @@ export default async function ServicesPage() {
           <p className="text-[var(--muted)] mb-8">{config.cta.description}</p>
           <Link
             href={config.cta.button_url}
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold transition-all hover:shadow-xl hover:shadow-indigo-500/25"
+            className="inline-flex items-center gap-2 bg-[var(--accent-dark)] hover:bg-[var(--accent)] text-white px-8 py-4 rounded-xl font-bold transition-all hover:shadow-xl hover:shadow-[var(--accent)]/25"
           >
             {config.cta.button_label} <ArrowRight className="h-4 w-4" />
           </Link>

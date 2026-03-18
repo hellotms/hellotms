@@ -87,15 +87,15 @@ export default function ContactPage() {
     { icon: Clock, label: 'Office Hours', value: 'Sat – Thu, 9 AM – 7 PM', href: undefined },
   ];
 
-  const inputCls = 'w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all';
+  const inputCls = 'w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 transition-all';
 
   return (
     <div className="pt-16">
       {/* Hero */}
       <section className="relative py-20 sm:py-28 hero-gradient overflow-hidden">
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[var(--accent)]/10 rounded-full blur-3xl" />
         <div className="container relative z-10 text-center">
-          <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">Reach Out</p>
+          <p className="text-[var(--accent)] text-xs font-bold tracking-widest uppercase mb-3">Reach Out</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[var(--foreground)] mb-5">
             Let's Plan Your <span className="text-[#d6802b]">Event</span>
           </h1>
@@ -114,13 +114,13 @@ export default function ContactPage() {
                 <h2 className="font-bold text-[var(--foreground)] text-lg">Contact Info</h2>
                 {CONTACT_CARDS.map(({ icon: Icon, label, value, href }) => (
                   <div key={label} className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
-                      <Icon className="h-4 w-4 text-indigo-400" />
+                    <div className="w-9 h-9 rounded-lg bg-[var(--accent)]/10 flex items-center justify-center shrink-0">
+                      <Icon className="h-4 w-4 text-[var(--accent)]" />
                     </div>
                     <div>
                       <p className="text-xs text-[var(--muted)]">{label}</p>
                       {href ? (
-                        <a href={href} className="text-sm font-medium text-[var(--foreground)] hover:text-indigo-500 transition-colors">
+                        <a href={href} className="text-sm font-medium text-[var(--foreground)] hover:text-[var(--accent)] transition-colors">
                           {value}
                         </a>
                       ) : (
@@ -131,9 +131,9 @@ export default function ContactPage() {
                 ))}
               </div>
 
-              <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-2xl p-5">
+              <div className="bg-[var(--accent)]/5 border border-[var(--accent)]/15 rounded-2xl p-5">
                 <div className="flex items-start gap-3">
-                  <MessageSquare className="h-5 w-5 text-indigo-400 mt-0.5 shrink-0" />
+                  <MessageSquare className="h-5 w-5 text-[var(--accent)] mt-0.5 shrink-0" />
                   <div>
                     <p className="font-semibold text-[var(--foreground)] text-sm">Quick Response</p>
                     <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
@@ -155,7 +155,7 @@ export default function ContactPage() {
                   </p>
                   <button
                     onClick={() => { setSubmitted(false); form.reset(); }}
-                    className="mt-8 bg-[var(--surface)] border border-[var(--border)] hover:border-indigo-500/40 px-6 py-2.5 rounded-xl text-sm font-medium text-[var(--foreground)] transition-all"
+                    className="mt-8 bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--accent)]/40 px-6 py-2.5 rounded-xl text-sm font-medium text-[var(--foreground)] transition-all"
                   >
                     Submit another inquiry
                   </button>
@@ -209,7 +209,7 @@ export default function ContactPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all hover:shadow-xl hover:shadow-indigo-500/25 disabled:opacity-60"
+                    className="w-full bg-[var(--accent-dark)] hover:bg-[var(--accent)] text-white py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all hover:shadow-xl hover:shadow-[var(--accent)]/25 disabled:opacity-60"
                   >
                     {loading ? (
                       <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Sending...</>

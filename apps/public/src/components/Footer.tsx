@@ -67,13 +67,13 @@ export function Footer() {
                   />
                 </div>
               ) : (
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg group-hover:shadow-indigo-500/40 transition-shadow">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-dark)] flex items-center justify-center shadow-lg group-hover:shadow-[var(--accent)]/40 transition-shadow">
                   {mounted ? <Zap className="h-4 w-4 text-white" /> : <div className="h-4 w-4" />}
                 </div>
               )}
               <div className="flex flex-col text-left">
                 <span className="font-bold text-sm md:text-base text-[var(--foreground)] tracking-tight leading-none">
-                  The <span className="text-indigo-500">Marketing</span> Solution
+                  The <span className="text-[var(--accent)]">Marketing</span> Solution
                 </span>
                 {settings?.site_motto && (
                   <span className="text-[10px] text-[var(--muted)] font-medium leading-tight mt-1">
@@ -93,7 +93,7 @@ export function Footer() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className="w-9 h-9 rounded-lg bg-[var(--surface-2)] hover:bg-indigo-600 text-[var(--muted)] hover:text-white flex items-center justify-center transition-all"
+                  className="w-9 h-9 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--accent-dark)] text-[var(--muted)] hover:text-white flex items-center justify-center transition-all"
                 >
                   {mounted ? <Icon className="h-4 w-4" /> : <div className="h-4 w-4" />}
                 </a>
@@ -143,8 +143,8 @@ export function Footer() {
             <ul className="space-y-3">
               {contactItems.map(({ icon: Icon, text, href }) => (
                 <li key={text} className="flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-md bg-indigo-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                    {mounted ? <Icon className="h-3.5 w-3.5 text-indigo-400" /> : <div className="h-3.5 w-3.5" />}
+                  <div className="w-7 h-7 rounded-md bg-[var(--accent)]/10 flex items-center justify-center shrink-0 mt-0.5">
+                    {mounted ? <Icon className="h-3.5 w-3.5 text-[var(--accent)]" /> : <div className="h-3.5 w-3.5" />}
                   </div>
                   {href ? (
                     <a href={href} className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">

@@ -241,7 +241,7 @@ export default function HomePage() {
           <div className="text-center mt-10">
             <Link
               href="/services"
-              className="inline-flex items-center gap-2 text-indigo-500 font-semibold hover:text-indigo-400 transition-colors"
+              className="inline-flex items-center gap-2 text-[var(--accent)] font-semibold hover:text-[var(--accent-light)] transition-colors"
             >
               Explore all services <ArrowRight className="h-4 w-4" />
             </Link>
@@ -295,7 +295,7 @@ export default function HomePage() {
                     </div>
                   </div>
                   <div className="p-4 bg-[var(--card)]">
-                    <h3 className="font-bold text-[var(--foreground)] group-hover:text-indigo-500 transition-colors line-clamp-1">
+                    <h3 className="font-bold text-[var(--foreground)] group-hover:text-[var(--accent)] transition-colors line-clamp-1">
                       {project.title}
                     </h3>
                     <p className="text-xs text-[var(--muted)] mt-1">{project.companies?.name ?? '—'}</p>
@@ -308,7 +308,7 @@ export default function HomePage() {
           <div className="text-center mt-10">
             <Link
               href="/portfolio"
-              className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-50 text-white px-6 py-3 rounded-xl font-semibold transition-all hover:shadow-lg hover:shadow-indigo-500/25"
+              className="inline-flex items-center gap-2 bg-[var(--accent-dark)] hover:bg-[var(--accent)] text-white px-6 py-3 rounded-xl font-semibold transition-all hover:shadow-lg hover:shadow-[var(--accent)]/25"
             >
               View Full Portfolio <ArrowRight className="h-4 w-4" />
             </Link>
@@ -321,7 +321,7 @@ export default function HomePage() {
         <div className="container">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">Why Choose Us</p>
+              <p className="text-[var(--accent)] text-xs font-bold tracking-widest uppercase mb-3">Why Choose Us</p>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[var(--foreground)] leading-tight mb-6">
                 Excellence in Every <span className="text-[#d6802b]">Detail</span>
               </h2>
@@ -330,7 +330,7 @@ export default function HomePage() {
               </p>
               <Link
                 href="/about"
-                className="inline-flex items-center gap-2 text-indigo-500 font-semibold hover:text-indigo-400 transition-colors"
+                className="inline-flex items-center gap-2 text-[var(--accent)] font-semibold hover:text-[var(--accent-light)] transition-colors"
               >
                 Learn more about us <ArrowRight className="h-4 w-4" />
               </Link>
@@ -339,8 +339,8 @@ export default function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {whyUsFeatures.map(({ iconStr, IconComp, title, description }, idx) => (
                 <div key={idx} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 card-hover">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-3 text-xl">
-                    {iconStr ? iconStr : (mounted && IconComp ? <IconComp className="h-5 w-5 text-indigo-400" /> : <div className="h-5 w-5" />)}
+                  <div className="w-10 h-10 rounded-xl bg-[var(--accent)]/10 flex items-center justify-center mb-3 text-xl">
+                    {iconStr ? iconStr : (mounted && IconComp ? <IconComp className="h-5 w-5 text-[var(--accent)]" /> : <div className="h-5 w-5" />)}
                   </div>
                   <h4 className="font-bold text-[var(--foreground)] text-sm mb-1.5">{title}</h4>
                   <p className="text-xs text-[var(--muted)] leading-relaxed">{description}</p>

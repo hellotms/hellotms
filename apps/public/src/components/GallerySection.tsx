@@ -14,7 +14,7 @@ export function GallerySection({ photos }: { photos: Photo[] }) {
                     <button
                         key={photo.id}
                         onClick={() => setLightboxIndex(i)}
-                        className="relative aspect-square rounded-xl overflow-hidden border border-[var(--border)] hover:border-indigo-500/40 hover:shadow-lg hover:shadow-indigo-500/10 transition-all group"
+                        className="relative aspect-square rounded-xl overflow-hidden border border-[var(--border)] hover:border-[var(--accent)]/40 hover:shadow-lg hover:shadow-[var(--accent)]/10 transition-all group"
                     >
                         <img
                             src={photo.url}

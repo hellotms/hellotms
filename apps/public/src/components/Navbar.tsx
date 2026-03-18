@@ -60,7 +60,7 @@ export function Navbar() {
                 />
               </div>
             ) : (
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg group-hover:shadow-indigo-500/40 transition-shadow">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-dark)] flex items-center justify-center shadow-lg group-hover:shadow-[var(--accent)]/40 transition-shadow">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-white">
                   <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                 </svg>
@@ -109,7 +109,7 @@ export function Navbar() {
             {/* CTA — desktop */}
             <Link
               href="/contact"
-              className="hidden md:inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:shadow-lg hover:shadow-indigo-500/25"
+              className="hidden md:inline-flex items-center gap-1.5 bg-[var(--accent-dark)] hover:bg-[var(--accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:shadow-lg hover:shadow-[var(--accent)]/25"
             >
               Get a Quote
             </Link>
@@ -143,7 +143,7 @@ export function Navbar() {
             <div className="pt-2">
               <Link
                 href="/contact"
-                className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+                className="flex items-center justify-center bg-[var(--accent-dark)] hover:bg-[var(--accent)] text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors"
               >
                 Get a Quote
               </Link>

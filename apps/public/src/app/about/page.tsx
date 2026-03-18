@@ -33,7 +33,7 @@ export default async function AboutPage() {
       <section className="relative py-20 sm:py-28 hero-gradient overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/8 rounded-full blur-3xl" />
         <div className="container relative z-10 text-center">
-          <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">Our Story</p>
+          <p className="text-[var(--accent)] text-xs font-bold tracking-widest uppercase mb-3">Our Story</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[var(--foreground)] mb-5">
             About <span className="text-[#d6802b]">The Marketing Solution</span>
           </h1>
@@ -48,14 +48,17 @@ export default async function AboutPage() {
         <div className="container">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Visual */}
-            <div className="relative">
-              <div className="aspect-[4/3] rounded-3xl bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-950 flex items-center justify-center overflow-hidden border border-indigo-500/20">
-                <div className="text-center p-8">
-                  <div className="text-7xl mb-5">🎯</div>
-                  <p className="text-white/60 text-sm max-w-xs mx-auto leading-relaxed">
-                    "Our mission is to transform ordinary moments into extraordinary memories."
+            <div className="relative group">
+              <div className="aspect-[4/3] rounded-3xl bg-gradient-to-br from-white via-slate-50 to-[#d6802b]/30 dark:from-neutral-900 dark:via-black dark:to-[#d6802b]/40 flex items-center justify-center overflow-hidden border border-[#d6802b]/30 shadow-2xl shadow-[#d6802b]/10 transition-transform duration-500 group-hover:scale-[1.02]">
+                <div className="text-center p-8 relative z-10">
+                  <div className="text-7xl mb-6 filter drop-shadow-lg transform transition-transform duration-500 group-hover:scale-110">🎯</div>
+                  <p className="text-neutral-800 dark:text-white/80 text-lg font-medium italic max-w-xs mx-auto leading-relaxed drop-shadow-sm">
+                    "Our mission is to transform <span className="text-[#d6802b] font-bold">ordinary moments</span> into <span className="text-[#d6802b] font-bold">extraordinary memories</span>."
                   </p>
                 </div>
+                {/* Decorative glow */}
+                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-[#d6802b]/20 blur-3xl rounded-full" />
+                <div className="absolute -top-10 -left-10 w-40 h-40 bg-[#d6802b]/10 blur-3xl rounded-full" />
               </div>
               {/* Floating card */}
               <div className="absolute -bottom-5 -right-5 bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 shadow-xl">
@@ -81,7 +84,7 @@ export default async function AboutPage() {
               )}
               <Link
                 href="/contact"
-                className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-semibold transition-all hover:shadow-lg hover:shadow-indigo-500/25"
+                className="inline-flex items-center gap-2 bg-[var(--accent-dark)] hover:bg-[var(--accent)] text-white px-6 py-3 rounded-xl font-semibold transition-all hover:shadow-lg hover:shadow-[var(--accent)]/25"
               >
                 Work With Us <ArrowRight className="h-4 w-4" />
               </Link>
@@ -94,7 +97,7 @@ export default async function AboutPage() {
       <section className="section bg-[var(--surface)]">
         <div className="container">
           <div className="text-center mb-12">
-            <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">Our Values</p>
+            <p className="text-[var(--accent)] text-xs font-bold tracking-widest uppercase mb-3">Our Values</p>
             <h2 className="text-3xl sm:text-4xl font-black text-[var(--foreground)]">
               What <span className="text-[#d6802b]">Drives Us</span>
             </h2>
@@ -102,8 +105,8 @@ export default async function AboutPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {TEAM_VALUES.map(({ icon: Icon, title, text }) => (
               <div key={title} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 card-hover">
-                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-4">
-                  <Icon className="h-6 w-6 text-indigo-400" />
+                <div className="w-12 h-12 rounded-xl bg-[var(--accent)]/10 flex items-center justify-center mb-4">
+                  <Icon className="h-6 w-6 text-[var(--accent)]" />
                 </div>
                 <h3 className="font-bold text-[var(--foreground)] mb-2">{title}</h3>
                 <p className="text-sm text-[var(--muted)] leading-relaxed">{text}</p>
@@ -126,7 +129,7 @@ export default async function AboutPage() {
             <div className="absolute left-8 top-0 bottom-0 w-px bg-[var(--border)] hidden sm:block" />
             {MILESTONES.map((m) => (
               <div key={m.year} className="flex gap-5 items-start">
-                <div className="shrink-0 w-16 h-16 rounded-2xl bg-indigo-600 flex items-center justify-center text-white text-xs font-black">
+                <div className="shrink-0 w-16 h-16 rounded-2xl bg-[var(--accent-dark)] flex items-center justify-center text-white text-xs font-black">
                   {m.year}
                 </div>
                 <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 flex-1 card-hover">

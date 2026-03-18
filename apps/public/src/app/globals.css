@@ -11,16 +11,16 @@
   --border: #e4e4e7;
   --border-subtle: #f0f0f0;
   --muted: #71717a;
-  --accent: #6366f1;
-  --accent-dark: #4f46e5;
-  --accent-light: #a5b4fc;
+  --accent: #d6802b;
+  --accent-dark: #b16a23;
+  --accent-light: #ecb37a;
   --gold: #f59e0b;
   --gold-light: #fcd34d;
   --card: #ffffff;
   --card-hover: #fafafa;
   --shadow: 0 1px 3px rgba(0, 0, 0, .06), 0 4px 16px rgba(0, 0, 0, .04);
   --shadow-lg: 0 8px 40px rgba(0, 0, 0, .10);
-  --glow: 0 0 32px rgba(99, 102, 241, .18);
+  --glow: 0 0 32px rgba(214, 128, 43, .18);
   --glow-gold: 0 0 24px rgba(245, 158, 11, .18);
 }
 
@@ -36,7 +36,7 @@
   --card-hover: #1c1c1e;
   --shadow: 0 1px 3px rgba(0, 0, 0, .4), 0 4px 16px rgba(0, 0, 0, .3);
   --shadow-lg: 0 8px 40px rgba(0, 0, 0, .5);
-  --glow: 0 0 40px rgba(99, 102, 241, .22);
+  --glow: 0 0 40px rgba(214, 128, 43, .22);
   --glow-gold: 0 0 30px rgba(245, 158, 11, .22);
 }
 

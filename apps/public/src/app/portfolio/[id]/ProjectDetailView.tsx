@@ -75,7 +75,7 @@ export function ProjectDetailView({ id }: { id: string }) {
             <div className="pt-16 container py-20 text-center">
                 {mounted ? <Camera className="h-16 w-16 mx-auto mb-4 text-[var(--muted)] opacity-30" /> : <div className="h-16 w-16 mx-auto mb-4" />}
                 <h1 className="text-2xl font-bold text-[var(--foreground)] mb-2">Event Not Found</h1>
-                <Link href="/portfolio" className="text-indigo-500 hover:underline">← Back to Portfolio</Link>
+                <Link href="/portfolio" className="text-[var(--accent)] hover:underline">← Back to Portfolio</Link>
             </div>
         );
     }
@@ -100,7 +100,7 @@ export function ProjectDetailView({ id }: { id: string }) {
                 <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10">
                     <div className="container">
                         {project.category && (
-                            <span className="inline-block px-2.5 py-1 rounded-full bg-indigo-600 border border-indigo-400/30 text-[10px] text-white font-bold uppercase tracking-wider shadow-lg mb-3">
+                            <span className="inline-block px-2.5 py-1 rounded-full bg-[var(--accent-dark)] border border-[var(--accent)]/30 text-[10px] text-white font-bold uppercase tracking-wider shadow-lg mb-3">
                                 {project.category}
                             </span>
                         )}
@@ -160,8 +160,8 @@ export function ProjectDetailView({ id }: { id: string }) {
                                 { icon: Tag, label: 'Year', value: String(eventYear) },
                             ].map(({ icon: Icon, label, value }) => (
                                 <div key={label} className="flex items-start gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
-                                        {mounted ? <Icon className="h-4 w-4 text-indigo-400" /> : <div className="h-4 w-4" />}
+                                    <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/10 flex items-center justify-center shrink-0">
+                                        {mounted ? <Icon className="h-4 w-4 text-[var(--accent)]" /> : <div className="h-4 w-4" />}
                                     </div>
                                     <div>
                                         <p className="text-xs text-[var(--muted)]">{label}</p>
@@ -171,12 +171,12 @@ export function ProjectDetailView({ id }: { id: string }) {
                             ))}
                         </div>
 
-                        <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border border-indigo-500/20 rounded-2xl p-6 text-center">
+                        <div className="bg-gradient-to-br from-[var(--accent-dark)]/10 to-[var(--accent)]/10 border border-[var(--accent)]/20 rounded-2xl p-6 text-center">
                             <p className="font-bold text-[var(--foreground)] mb-2">Planning a similar event?</p>
                             <p className="text-xs text-[var(--muted)] mb-4">Get a free consultation from our team.</p>
                             <Link
                                 href="/contact"
-                                className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all w-full"
+                                className="inline-flex items-center justify-center gap-1.5 bg-[var(--accent-dark)] hover:bg-[var(--accent)] text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all w-full"
                             >
                                 Get a Free Quote
                             </Link>

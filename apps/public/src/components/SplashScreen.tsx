@@ -21,9 +21,9 @@ export function SplashScreen({ onComplete }: { onComplete: () => void }) {
       setTimeout(() => setStep(3), 1200),
       setTimeout(() => setStep(4), 2500),
       setTimeout(() => setStep(5), 4000),
-      setTimeout(() => setStep(6), 6500),
-      setTimeout(() => setStep(7), 7500),
-      setTimeout(() => onComplete(), 8500)
+      setTimeout(() => setStep(6), 5500),
+      setTimeout(() => setStep(7), 6000),
+      setTimeout(() => onComplete(), 7000)
     ];
 
     return () => timers.forEach(t => clearTimeout(t));
@@ -79,8 +79,8 @@ export function SplashScreen({ onComplete }: { onComplete: () => void }) {
               className={cn(
                 "absolute top-0 bottom-0 bg-[#d6802b] z-20 transition-all cubic-bezier(0.76, 0, 0.24, 1)",
                 step < 4 && "-left-full w-full",
-                step === 4 && "left-0 w-full duration-[700ms]",
-                step >= 5 && "left-full w-full duration-[800ms]"
+                step === 4 && "left-0 w-full transition-duration-[1500ms]",
+                step >= 5 && "left-full w-full transition-duration-[2000ms]"
               )}
             />
           </div>

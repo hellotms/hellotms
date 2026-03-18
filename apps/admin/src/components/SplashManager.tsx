@@ -1,8 +1,18 @@
 import { useState, useEffect } from 'react';
 import { SplashScreen } from './SplashScreen';
 
+const STORAGE_KEY = 'tms_admin_splash_timestamp';
+const EXPIRE_TIME = 60 * 60 * 1000; // 1 hour in ms
+
 export function SplashManager({ children }: { children: React.ReactNode }) {
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => {
+    const lastShown = localStorage.getItem(STORAGE_KEY);
+    if (!lastShown) return true;
+    
+    const now = Date.now();
+    const timeDiff = now - parseInt(lastShown, 10);
+    return timeDiff > EXPIRE_TIME;
+  });
 
   useEffect(() => {
     if (showSplash) {
@@ -16,6 +26,7 @@ export function SplashManager({ children }: { children: React.ReactNode }) {
 
   const handleComplete = () => {
     setShowSplash(false);
+    localStorage.setItem(STORAGE_KEY, Date.now().toString());
   };
 
   return (

@@ -46,9 +46,6 @@ export function HeroSlider({ slides, onSlideChange }: HeroSliderProps) {
         </div>
       ))}
       
-      {/* Visual Slant/Slash Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-l from-background via-background/80 to-transparent pointer-events-none" 
-           style={{ clipPath: 'polygon(100% 0, 100% 100%, 20% 100%, 50% 0)' }} />
       
       {/* Slider Indicators */}
       {slides.length > 1 && (
