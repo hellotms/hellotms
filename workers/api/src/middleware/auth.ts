@@ -11,10 +11,27 @@ export const authMiddleware: MiddlewareHandler<{ Bindings: Env; Variables: Varia
   const token = authHeader.slice(7);
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
 
+  // Extract session ID from JWT payload
+  let sessionId: string | null = null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    sessionId = payload.session_id;
+  } catch (e) {
+    return c.json({ error: 'Unauthorized — malformed token' }, 401);
+  }
+
   // Verify JWT using Supabase
   const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) {
     return c.json({ error: 'Unauthorized — invalid token' }, 401);
+  }
+
+  // Check if session is still valid in DB (instant revocation check)
+  if (sessionId) {
+    const { data: isValid, error: sessionErr } = await supabase.rpc('validate_session', { session_id_param: sessionId });
+    if (sessionErr || !isValid) {
+      return c.json({ error: 'Unauthorized — session revoked' }, 401);
+    }
   }
 
   // Fetch profile + role + permissions

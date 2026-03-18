@@ -42,7 +42,7 @@ async function apiFetch<T>(
     
     if (!res.ok) {
       if (res.status === 401) {
-        toast('সেশন শেষ হয়ে গেছে। দয়া করে আবার লগ-ইন করুন।', 'error');
+        toast('Session expired. Please log in again.', 'error');
         // Optional: window.location.href = '/login';
       } else {
         const msg = data?.error || data?.message || `Server error (${res.status})`;
@@ -54,8 +54,8 @@ async function apiFetch<T>(
   } catch (err: any) {
     if (err instanceof TypeError && err.message.includes('fetch')) {
       const errorMsg = IS_DEV 
-        ? `API সার্ভারে কানেক্ট করা যাচ্ছে না (${API_BASE})। Wrangler কি চালু আছে?`
-        : 'API সার্ভারে সংযোগ করা যাচ্ছে না। আপনার ইন্টারনেট কানেকশন চেক করুন।';
+        ? `Cannot connect to API server (${API_BASE}). Is Wrangler running?`
+        : 'Unable to connect to the API server. Please check your internet connection.';
       toast(errorMsg, 'error');
     }
     throw err;
