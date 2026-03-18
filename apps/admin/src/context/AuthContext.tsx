@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { staffApi } from '@/lib/api';
@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isVerifying, setIsVerifying] = useState(false);
+  const isVerifyingRef = useRef(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data, error } = await supabase
@@ -66,9 +66,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const validateSession = useCallback(async () => {
-    if (!session || isVerifying) return;
+    if (!session || isVerifyingRef.current) return;
     
-    setIsVerifying(true);
+    isVerifyingRef.current = true;
     try {
       await staffApi.getSessions();
     } catch (err: any) {
@@ -78,9 +78,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         window.location.href = '/login';
       }
     } finally {
-      setIsVerifying(false);
+      isVerifyingRef.current = false;
     }
-  }, [session, isVerifying, signOut]);
+  }, [session, signOut]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {

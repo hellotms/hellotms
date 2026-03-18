@@ -62,12 +62,8 @@ async function apiFetch<T>(
     return data as T;
   } catch (err: any) {
     if (err instanceof TypeError && err.message.includes('fetch')) {
-      if (!silent) {
-        const errorMsg = IS_DEV 
-          ? `Cannot connect to API server (${API_BASE}). Is Wrangler running?`
-          : 'Unable to connect to the API server. Please check your internet connection.';
-        toast(errorMsg, 'error');
-      }
+      // Network error - Silence it to avoid spamming the user when internet is shaky.
+      // Most queries will show their own loading/error state if needed.
     }
     throw err;
   }
