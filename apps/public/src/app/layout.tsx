@@ -4,6 +4,7 @@ import './globals.css';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { ThemeProvider } from '@/components/ThemeProvider';
+import { SplashManager } from '@/components/SplashManager';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -73,9 +74,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${outfit.variable} ${lato.variable}`} suppressHydrationWarning>
       <body className={`${outfit.className} ${lato.className}`} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark">
-          <Navbar />
-          <main>{children}</main>
-          <Footer />
+          <SplashManager>
+            <Navbar />
+            <main>{children}</main>
+            <Footer />
+          </SplashManager>
         </ThemeProvider>
       </body>
     </html>

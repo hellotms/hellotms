@@ -83,7 +83,7 @@ export function Footer() {
               </div>
             </Link>
             <p className="text-sm text-[var(--muted)] leading-relaxed mb-6">
-              {settings?.hero_subtitle || "Bangladesh's premier event management and marketing agency. We turn your vision into unforgettable experiences."}
+              {settings?.hero_subtitle}
             </p>
             <div className="flex items-center gap-2">
               {socialLinks.map(({ href, icon: Icon, label }) => (

@@ -36,7 +36,7 @@ export default async function ServicesPage() {
         <div className="container relative z-10 text-center">
           <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">{config.hero.badge}</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[var(--foreground)] mb-5">
-            {config.hero.title_primary} <span className="gradient-text">{config.hero.title_highlight}</span>
+            {config.hero.title_primary} <span className="text-[#d6802b]">{config.hero.title_highlight}</span>
           </h1>
           <p className="text-[var(--muted)] text-lg max-w-2xl mx-auto">
             {config.hero.description}
@@ -78,14 +78,14 @@ export default async function ServicesPage() {
           <div className="text-center mb-14">
             <p className="text-amber-500 text-xs font-bold tracking-widest uppercase mb-3">{config.process.badge}</p>
             <h2 className="text-3xl sm:text-4xl font-black text-[var(--foreground)]">
-              {config.process.title_primary} <span className="gradient-text">{config.process.title_highlight}</span>
+              {config.process.title_primary} <span className="text-[#d6802b]">{config.process.title_highlight}</span>
             </h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {config.process.steps.map((p, idx) => (
               <div key={idx} className="relative">
                 <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 card-hover h-full">
-                  <div className="text-4xl font-black gradient-text-cool mb-4 leading-none">{p.step}</div>
+                  <div className="text-4xl font-black text-[#d6802b] mb-4 leading-none">{p.step}</div>
                   <h3 className="font-bold text-[var(--foreground)] mb-2">{p.title}</h3>
                   <p className="text-sm text-[var(--muted)] leading-relaxed">{p.text}</p>
                 </div>
@@ -99,7 +99,7 @@ export default async function ServicesPage() {
       <section className="section">
         <div className="container max-w-2xl text-center">
           <h2 className="text-3xl sm:text-4xl font-black text-[var(--foreground)] mb-4">
-            {config.cta.title_primary} <span className="gradient-text">{config.cta.title_highlight}</span>
+            {config.cta.title_primary} <span className="text-[#d6802b]">{config.cta.title_highlight}</span>
           </h2>
           <p className="text-[var(--muted)] mb-8">{config.cta.description}</p>
           <Link

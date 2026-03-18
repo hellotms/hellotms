@@ -1,4 +1,3 @@
-'use client';
 import { useState, useEffect } from 'react';
 import { HeroSlide } from '@hellotms/shared';
 import { cn } from '@/lib/utils';

@@ -121,8 +121,8 @@ export default function StaffManagementPage() {
                         </div>
                     </div>
 
-                    <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-                        <table className="w-full text-sm">
+                    <div className="rounded-2xl border border-border bg-card shadow-sm overflow-x-auto">
+                        <table className="w-full text-sm min-w-[800px]">
                             <thead className="bg-muted/40 border-b border-border text-left">
                                 <tr><th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Team Member</th><th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Strategic Role</th><th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Authorization</th><th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right tracking-[0.2em] pr-8">Actions</th></tr>
                             </thead>

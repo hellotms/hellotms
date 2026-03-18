@@ -22,7 +22,7 @@ import AboutCmsPage from '@/pages/settings/cms/AboutCmsPage';
 import ServicesCmsPage from '@/pages/settings/cms/ServicesCmsPage';
 import StaffPage from '@/pages/StaffPage';
 import StaffProfilePage from '@/pages/StaffProfilePage';
-import SettingsPage from '@/pages/SettingsPage';
+
 import NotFoundPage from '@/pages/NotFoundPage';
 import WorkLogsPage from '@/pages/WorkLogsPage';
 import NoticesPage from '@/pages/NoticesPage';
@@ -33,6 +33,8 @@ import StaffManagementPage from '@/pages/StaffManagementPage';
 import RoleManagementPage from '@/pages/RoleManagementPage';
 import { ToastContainer } from '@/components/Toast';
 import SetupPage from '@/pages/SetupPage';
+import { SplashManager } from '@/components/SplashManager';
+import WelcomePage from '@/pages/WelcomePage';
 
 function DynamicFavicon() {
   const { data: settings } = useQuery({
@@ -97,8 +99,16 @@ function AppRoutes() {
   const { user } = useAuth();
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/login" element={user ? <Navigate to="/welcome" replace /> : <LoginPage />} />
       <Route path="/setup" element={user ? <SetupPage /> : <Navigate to="/login" replace />} />
+      <Route
+        path="/welcome"
+        element={
+          <ProtectedRoute>
+            <WelcomePage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/"
         element={
@@ -126,7 +136,7 @@ function AppRoutes() {
         <Route path="staff" element={<PermissionRoute permission="view_staff"><StaffPage /></PermissionRoute>} />
         <Route path="staff/:id" element={<PermissionRoute permission="view_staff"><StaffProfilePage /></PermissionRoute>} />
         <Route path="profile" element={<ProfilePage />} />
-        <Route path="settings" element={<SettingsPage />} />
+
         <Route path="work-logs" element={<PermissionRoute permission="view_audit_logs"><WorkLogsPage /></PermissionRoute>} />
         <Route path="notices" element={<PermissionRoute permission="view_notices"><NoticesPage /></PermissionRoute>} />
         <Route path="notices/:id" element={<PermissionRoute permission="view_notices"><NoticeDetailPage /></PermissionRoute>} />
@@ -145,7 +155,9 @@ export default function App() {
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <AuthProvider>
           <DynamicFavicon />
-          <AppRoutes />
+          <SplashManager>
+            <AppRoutes />
+          </SplashManager>
           <ToastContainer />
         </AuthProvider>
       </ThemeProvider>

@@ -113,10 +113,11 @@ export default function HomePage() {
         }
 
         setHeroSlider(settingsResp.data.hero_slider || []);
+        const slides = settingsResp.data.hero_slider || [];
         setHeroContent({
-          title: settingsResp.data.hero_title || 'We Create Unforgettable Experiences',
+          title: slides[0]?.title || settingsResp.data.hero_title || 'We Create Unforgettable Experiences',
           motto: settingsResp.data.site_motto || 'Bangladesh\'s Premier Marketing Agency',
-          subtitle: settingsResp.data.hero_subtitle || 'From intimate gatherings to grand spectacles — The Marketing Solution delivers events that leave lasting impressions.'
+          subtitle: slides[0]?.subtitle || settingsResp.data.hero_subtitle || 'From intimate gatherings to grand spectacles — The Marketing Solution delivers events that leave lasting impressions.'
         });
       }
 
@@ -129,12 +130,24 @@ export default function HomePage() {
     <div className="overflow-x-hidden">
       {/* ── Hero ─────────────────────────────────────────── */}
       <section className="relative min-h-[90vh] lg:min-h-screen flex items-center pt-16 overflow-hidden">
-        <HeroSlider slides={heroSlider} />
+        <HeroSlider
+          slides={heroSlider}
+          onSlideChange={(index) => {
+            const slide = heroSlider[index];
+            if (slide) {
+              setHeroContent(prev => ({
+                ...prev,
+                title: slide.title || siteSettings?.hero_title || 'We Create Unforgettable Experiences',
+                subtitle: slide.subtitle || siteSettings?.hero_subtitle || 'From intimate gatherings to grand spectacles — The Marketing Solution delivers events that leave lasting impressions.'
+              }))
+            }
+          }}
+        />
 
         <div className="container relative z-10 py-20 flex justify-end">
           <div className="max-w-2xl text-right animate-fade-up">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-white mb-6 ml-auto">
-              <Sparkles className="h-3.5 w-3.5" />
+              {mounted ? <Sparkles className="h-3.5 w-3.5" /> : <div className="h-3.5 w-3.5" />}
               <span className="text-[11px] font-normal italic tracking-wider font-[family-name:var(--font-lato)]">
                 empowering brands by
               </span>
@@ -143,11 +156,11 @@ export default function HomePage() {
               )}
             </div>
 
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight text-white mb-6 drop-shadow-md">
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black leading-[1.1] tracking-tight text-white mb-6 drop-shadow-md min-h-[2.2em] flex items-end justify-end">
               <BrandText text={heroContent.title} />
             </h1>
 
-            <p className="text-base sm:text-lg text-white/80 max-w-xl ml-auto pl-6 leading-relaxed mb-10 font-medium drop-shadow-sm border-l-2 border-primary/30">
+            <p className="text-base sm:text-lg text-white/80 max-w-xl ml-auto pl-6 leading-relaxed mb-10 font-medium drop-shadow-sm border-l-2 border-primary/30 min-h-[100px] flex items-start justify-end">
               <BrandText text={heroContent.subtitle} />
             </p>
 
@@ -196,13 +209,13 @@ export default function HomePage() {
             <source src="https://pub-d74fef399a584bd1a3f644d818273e03.r2.dev/site/The_Marketing_Solution_BG.mp4" type="video/mp4" />
           </video>
           {/* Adaptive Overlay */}
-          <div className="absolute inset-0 bg-transparent dark:bg-black/60 z-[1]" />
+          <div className="absolute inset-0 bg-white/40 dark:bg-black/70 z-[1]" />
         </div>
 
         <div className="container relative z-10">
           <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-5xl font-black mb-4 flex items-center justify-center gap-3 text-[#cc252d]">
-              <Sparkles className="h-8 w-8 text-[#cc252d]" />
+            <h2 className="text-3xl md:text-5xl font-black mb-4 flex items-center justify-center gap-3 text-black dark:text-white">
+              {mounted ? <Sparkles className="h-8 w-8 text-black dark:text-white" /> : <div className="h-8 w-8" />}
               Our Services
             </h2>
             <p className="mt-4 text-[var(--muted)] max-w-xl mx-auto">
@@ -214,10 +227,10 @@ export default function HomePage() {
             {services.map((service) => (
               <div
                 key={service.title}
-                className="bg-white/40 dark:bg-black/40 backdrop-blur-md border border-white/40 dark:border-white/10 rounded-2xl p-6 transition-all duration-300 hover:bg-white/60 dark:hover:bg-black/60 hover:border-[#cc252d]/30 hover:-translate-y-1 group relative overflow-hidden shadow-lg dark:shadow-2xl dark:shadow-black/50"
+                className="bg-white/60 dark:bg-black/40 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-2xl p-6 transition-all duration-300 hover:bg-white/80 dark:hover:bg-black/60 hover:border-black/30 dark:hover:border-white/30 hover:-translate-y-1 group relative overflow-hidden shadow-lg dark:shadow-2xl dark:shadow-black/50"
               >
                 <div className="text-4xl mb-4">{service.icon}</div>
-                <h3 className="font-bold text-[#cc252d] text-lg mb-2 transition-colors">
+                <h3 className="font-bold text-black dark:text-white text-lg mb-2 transition-colors">
                   {service.title}
                 </h3>
                 <p className="text-sm text-[var(--muted)] leading-relaxed">{service.description}</p>
@@ -242,7 +255,7 @@ export default function HomePage() {
           <div className="text-center mb-14">
             <p className="text-amber-500 text-xs font-bold tracking-widest uppercase mb-3">Our Work</p>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[var(--foreground)]">
-              Recent <span className="gradient-text">Projects</span>
+              Recent <span className="text-[#d6802b]">Projects</span>
             </h2>
             <p className="mt-4 text-[var(--muted)] max-w-xl mx-auto">
               A glimpse into our finest events — each one a story of passion, precision, and creativity.
@@ -310,7 +323,7 @@ export default function HomePage() {
             <div>
               <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">Why Choose Us</p>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[var(--foreground)] leading-tight mb-6">
-                Excellence in Every <span className="gradient-text">Detail</span>
+                Excellence in Every <span className="text-[#d6802b]">Detail</span>
               </h2>
               <p className="text-[var(--muted)] leading-relaxed mb-8 max-w-lg">
                 <BrandText text={whyUsContent} />
@@ -341,21 +354,21 @@ export default function HomePage() {
       {/* ── CTA Banner ───────────────────────────────────── */}
       <section className="section">
         <div className="container">
-          <div className="relative rounded-3xl overflow-hidden border border-indigo-500/20 bg-gradient-to-br from-indigo-950 via-[#0f0f23] to-purple-950 p-8 sm:p-14 text-center">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-32 bg-indigo-600/20 rounded-full blur-3xl" />
+          <div className="relative rounded-3xl overflow-hidden border border-[#d6802b]/20 bg-white/40 dark:bg-neutral-900/40 backdrop-blur-xl dark:backdrop-blur-2xl p-8 sm:p-14 text-center shadow-[0_20px_50px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.3)]">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-32 bg-[#d6802b]/5 dark:bg-[#d6802b]/20 rounded-full blur-3xl" />
             <div className="relative z-10">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60 text-xs font-medium mb-5">
-                <Sparkles className="h-3 w-3" /> Limited bookings this quarter
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-[var(--muted)] dark:text-white/60 text-xs font-medium mb-5">
+                {mounted ? <Sparkles className="h-3 w-3" /> : <div className="h-3 w-3" />} Limited bookings this quarter
               </div>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mb-4 leading-tight">
-                Ready to Create Something <span className="gradient-text-cool">Extraordinary?</span>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-black dark:text-white mb-4 leading-tight">
+                Ready to Create Something <span className="text-[#d6802b]">Extraordinary?</span>
               </h2>
-              <p className="text-white/60 max-w-xl mx-auto mb-8 text-lg">
+              <p className="text-neutral-600 dark:text-white/60 max-w-xl mx-auto mb-8 text-lg">
                 Let's talk about your event. Our team is ready to make it the best day of your life.
               </p>
               <Link
                 href="/contact"
-                className="inline-flex items-center gap-2 bg-white text-indigo-900 hover:bg-indigo-50 px-8 py-4 rounded-xl font-bold text-base transition-all hover:shadow-xl hover:-translate-y-0.5"
+                className="inline-flex items-center gap-2 bg-[#d6802b] text-white hover:bg-[#d6802b]/90 px-8 py-4 rounded-xl font-bold text-base transition-all hover:shadow-xl hover:shadow-[#d6802b]/20 hover:-translate-y-0.5"
               >
                 Get a Free Consultation <ArrowRight className="h-4 w-4" />
               </Link>

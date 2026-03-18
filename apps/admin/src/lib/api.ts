@@ -1,12 +1,17 @@
 import { supabase } from './supabase';
 import { toast } from '@/components/Toast';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'https://hellotms-api.info-tms2021.workers.dev';
+const IS_DEV = import.meta.env.DEV;
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (IS_DEV ? 'http://localhost:8787' : 'https://hellotms-api.info-tms2021.workers.dev');
 
 async function getAuthHeader(): Promise<Record<string, string>> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) return {};
-  return { Authorization: `Bearer ${session.access_token}` };
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return {};
+    return { Authorization: `Bearer ${session.access_token}` };
+  } catch (e) {
+    return {};
+  }
 }
 
 async function apiFetch<T>(
@@ -34,15 +39,24 @@ async function apiFetch<T>(
     });
 
     const data = await res.json();
+    
     if (!res.ok) {
-      const msg = data?.error ?? `Server error (${res.status})`;
-      toast(msg, 'error');
-      throw new Error(msg);
+      if (res.status === 401) {
+        toast('সেশন শেষ হয়ে গেছে। দয়া করে আবার লগ-ইন করুন।', 'error');
+        // Optional: window.location.href = '/login';
+      } else {
+        const msg = data?.error || data?.message || `Server error (${res.status})`;
+        toast(msg, 'error');
+      }
+      throw new Error(data?.error || `Request failed with status ${res.status}`);
     }
     return data as T;
-  } catch (err) {
+  } catch (err: any) {
     if (err instanceof TypeError && err.message.includes('fetch')) {
-      toast('API সার্ভারে সংযোগ করা যাচ্ছে না। ইন্টারনেট এবং সার্ভার স্ট্যাটাস চেক করুন।', 'error');
+      const errorMsg = IS_DEV 
+        ? `API সার্ভারে কানেক্ট করা যাচ্ছে না (${API_BASE})। Wrangler কি চালু আছে?`
+        : 'API সার্ভারে সংযোগ করা যাচ্ছে না। আপনার ইন্টারনেট কানেকশন চেক করুন।';
+      toast(errorMsg, 'error');
     }
     throw err;
   }

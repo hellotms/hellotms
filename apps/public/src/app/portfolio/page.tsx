@@ -70,7 +70,7 @@ export default function PortfolioPage() {
         <div className="container relative z-10 text-center">
           <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">Our Work</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[var(--foreground)] mb-5">
-            Event <span className="gradient-text">Portfolio</span>
+            Event <span className="text-[#d6802b]">Portfolio</span>
           </h1>
           <p className="text-[var(--muted)] text-lg max-w-2xl mx-auto">
             Every event tells a story. Here's a collection of moments we've been proud to create, capture, and celebrate.

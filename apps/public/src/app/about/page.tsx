@@ -35,7 +35,7 @@ export default async function AboutPage() {
         <div className="container relative z-10 text-center">
           <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">Our Story</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[var(--foreground)] mb-5">
-            About <span className="gradient-text">The Marketing Solution</span>
+            About <span className="text-[#d6802b]">The Marketing Solution</span>
           </h1>
           <p className="text-[var(--muted)] text-lg max-w-2xl mx-auto leading-relaxed">
             {settings?.hero_subtitle || 'We are Bangladesh\'s premier event management and marketing agency — a team of passionate creatives, strategic planners, and relentless executors.'}
@@ -68,7 +68,7 @@ export default async function AboutPage() {
             <div>
               <p className="text-amber-500 text-xs font-bold tracking-widest uppercase mb-3">Our Mission</p>
               <h2 className="text-3xl sm:text-4xl font-black text-[var(--foreground)] mb-5 leading-tight">
-                Transforming Visions Into <span className="gradient-text">Unforgettable Experiences</span>
+                Transforming Visions Into <span className="text-[#d6802b]">Unforgettable Experiences</span>
               </h2>
               {settings?.about_content ? (
                 <div className="text-[var(--muted)] leading-relaxed mb-8 whitespace-pre-wrap">
@@ -96,7 +96,7 @@ export default async function AboutPage() {
           <div className="text-center mb-12">
             <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">Our Values</p>
             <h2 className="text-3xl sm:text-4xl font-black text-[var(--foreground)]">
-              What <span className="gradient-text">Drives Us</span>
+              What <span className="text-[#d6802b]">Drives Us</span>
             </h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -119,7 +119,7 @@ export default async function AboutPage() {
           <div className="text-center mb-12">
             <p className="text-amber-500 text-xs font-bold tracking-widest uppercase mb-3">Our Journey</p>
             <h2 className="text-3xl sm:text-4xl font-black text-[var(--foreground)]">
-              Key <span className="gradient-text">Milestones</span>
+              Key <span className="text-[#d6802b]">Milestones</span>
             </h2>
           </div>
           <div className="relative space-y-6">

@@ -6,7 +6,8 @@ import {
   Globe, UserCog, Settings, LogOut, Menu, X, Bell, ChevronRight,
   MessageSquare, ClipboardList, Megaphone, Trash2, Sun, Moon, FileText
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import IdleScreen from '@/components/IdleScreen';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from 'next-themes';
@@ -20,7 +21,7 @@ const navItems = [
   { to: '/leads', label: 'Contact Form', icon: MessageSquare, permission: 'view_leads' },
   { to: '/notices', label: 'Notice Board', icon: Megaphone, permission: 'view_notices' },
   { to: '/staff', label: 'All Staff', icon: Users, permission: 'view_staff' },
-  { to: '/settings', label: 'Profile Settings', icon: Settings },
+  { to: '/profile', label: 'My Profile', icon: UserCog },
   { to: '/recycle-bin', label: 'Recycle Bin', icon: Trash2, permission: 'manage_staff' },
   { to: '/work-logs', label: 'Activity Log', icon: ClipboardList, permission: 'view_audit_logs' },
   { to: '/cms', label: 'Core Settings', icon: Globe, permission: 'manage_cms' },
@@ -113,6 +114,37 @@ export default function AdminLayout() {
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
 
+  // --- IDLE LOGIC ---
+  const IDLE_TIMEOUT = 30000; // 30 seconds
+  const [isIdle, setIsIdle] = useState(false);
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const resetIdleTimer = () => {
+    if (isIdle) return; 
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      setIsIdle(true);
+    }, IDLE_TIMEOUT);
+  };
+
+  useEffect(() => {
+    if (!profile) return;
+    resetIdleTimer();
+    const events = ['mousemove', 'keydown', 'wheel', 'mousedown', 'touchstart', 'scroll'];
+    const handleActivity = () => resetIdleTimer();
+    events.forEach(eventName => window.addEventListener(eventName, handleActivity, { passive: true }));
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      events.forEach(eventName => window.removeEventListener(eventName, handleActivity));
+    };
+  }, [profile, isIdle]);
+
+  const handleContinueSession = () => {
+    setIsIdle(false);
+    resetIdleTimer();
+  };
+  // ------------------
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -143,7 +175,7 @@ export default function AdminLayout() {
   const { data: siteSettings } = useQuery({
     queryKey: ['site-settings-layout'],
     queryFn: async () => {
-      const { data } = await supabase.from('site_settings').select('company_logo_url, public_site_url').eq('id', 1).single();
+      const { data } = await supabase.from('site_settings').select('company_logo_url, public_site_url, site_motto, hero_slider').eq('id', 1).single();
       return data;
     }
   });
@@ -154,9 +186,17 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden relative">
+      {isIdle && (
+        <IdleScreen 
+          heroSlider={siteSettings?.hero_slider || []} 
+          onContinue={handleContinueSession} 
+          onSignOut={handleSignOut} 
+        />
+      )}
+      
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col border-r border-border shrink-0">
+      <aside className="hidden md:flex flex-col border-r border-border shrink-0 z-10 relative">
         <Sidebar
           profile={profile}
           role={role}
@@ -207,7 +247,7 @@ export default function AdminLayout() {
               <div className="flex flex-col min-w-0">
                 <span className="text-sm md:text-base font-bold text-foreground leading-none truncate">The Marketing Solution</span>
                 <span className="text-[10px] md:text-[11px] text-muted-foreground mt-0.5 truncate hidden sm:block uppercase tracking-wider font-medium">
-                  {siteSettings?.public_site_url ? new URL(siteSettings.public_site_url).hostname : 'hellotms.com.bd'}
+                  {siteSettings?.site_motto || 'Innovate . Engage . Grow'}
                 </span>
               </div>
             </div>

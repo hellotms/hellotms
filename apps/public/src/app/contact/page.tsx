@@ -97,7 +97,7 @@ export default function ContactPage() {
         <div className="container relative z-10 text-center">
           <p className="text-indigo-500 text-xs font-bold tracking-widest uppercase mb-3">Reach Out</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[var(--foreground)] mb-5">
-            Let's Plan Your <span className="gradient-text">Event</span>
+            Let's Plan Your <span className="text-[#d6802b]">Event</span>
           </h1>
           <p className="text-[var(--muted)] text-lg max-w-xl mx-auto">
             Fill in the form below and our team will get back to you within 24 hours.

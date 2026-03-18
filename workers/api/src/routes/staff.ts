@@ -245,6 +245,9 @@ staffRoute.put('/:id/reset-password', async (c) => {
 
   if (updateAuthErr) return c.json({ error: updateAuthErr.message }, 500);
 
+  // Force logout: instantly terminate all sessions for the targeted user
+  await supabase.rpc('revoke_all_sessions', { user_id_param: id });
+
   // Update profile audit and timestamp
   await supabase.from('profiles').update({
     force_password_change: true,
@@ -314,20 +317,15 @@ staffRoute.get('/me/sessions', async (c) => {
   const userId = c.get('userId');
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
 
-  // We query the auth schema directly using service role
-  const { data, error } = await (supabase as any)
-    .schema('auth')
-    .from('sessions')
-    .select('id, created_at, updated_at, user_agent, ip')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false });
+  // We use the secure RPC to fetch sessions because querying auth schema directly fails on hosted Supabase
+  const { data, error } = await supabase.rpc('get_user_sessions', { user_id_param: userId });
 
   if (error) {
     console.error('[staff/sessions] Error fetching sessions:', error);
     return c.json({ error: error.message }, 500);
   }
 
-  return c.json({ data });
+  return c.json({ data: data || [] });
 });
 
 // DELETE /staff/me/sessions/:id — revoke a specific session
@@ -336,13 +334,7 @@ staffRoute.delete('/me/sessions/:id', async (c) => {
   const userId = c.get('userId');
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
 
-  // Correct way to revoke a session via service role:
-  const { error: sessionErr } = await (supabase as any)
-    .schema('auth')
-    .from('sessions')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', userId);
+  const { error: sessionErr } = await supabase.rpc('revoke_session', { session_id_param: id, user_id_param: userId });
 
   if (sessionErr) return c.json({ error: sessionErr.message }, 500);
   return c.json({ success: true, message: 'Session revoked' });
@@ -351,20 +343,13 @@ staffRoute.delete('/me/sessions/:id', async (c) => {
 // DELETE /staff/me/sessions — revoke ALL OTHER sessions
 staffRoute.delete('/me/sessions', async (c) => {
   const userId = c.get('userId');
-  const currentSessionId = c.req.header('X-Session-Id'); // Admin should pass this if they want to keep current
+  const currentSessionId = c.req.header('X-Session-Id');
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
 
-  let query = (supabase as any)
-    .schema('auth')
-    .from('sessions')
-    .delete()
-    .eq('user_id', userId);
-
-  if (currentSessionId) {
-    query = query.neq('id', currentSessionId);
-  }
-
-  const { error: revokeErr } = await query;
+  const { error: revokeErr } = await supabase.rpc(
+    currentSessionId ? 'revoke_other_sessions' : 'revoke_all_sessions',
+    currentSessionId ? { current_session_id_param: currentSessionId, user_id_param: userId } : { user_id_param: userId }
+  );
 
   if (revokeErr) return c.json({ error: revokeErr.message }, 500);
   return c.json({ success: true, message: 'Other sessions revoked' });

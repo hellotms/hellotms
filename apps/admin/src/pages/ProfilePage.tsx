@@ -4,11 +4,12 @@ import { useForm } from 'react-hook-form';
 import { supabase } from '@/lib/supabase';
 import { mediaApi, staffApi } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
+import { Modal, ConfirmModal } from '@/components/Modal';
 import { ImageUpload } from '@/components/ImageUpload';
 import { toast } from '@/components/Toast';
 import { useAuth } from '@/context/AuthContext';
 import { ShieldCheck, Calendar, Save, Edit2, Monitor, Smartphone, Globe, LogOut, Trash2 } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import type { Profile } from '@hellotms/shared';
 
 type ProfileInput = {
@@ -23,14 +24,28 @@ export default function ProfilePage() {
     const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
     const [isEditing, setIsEditing] = useState(false);
     const [avatarUrl, setAvatarUrl] = useState<string>(profile?.avatar_url ?? '');
+    const [revokingId, setRevokingId] = useState<string | null>(null);
+    const [showRevokeOthers, setShowRevokeOthers] = useState(false);
 
-    const { register, handleSubmit, reset } = useForm<ProfileInput>({
+    const { register, handleSubmit, reset, watch: watchProfile } = useForm<ProfileInput>({
         defaultValues: {
             name: profile?.name,
             phone: profile?.phone ?? '',
             address: profile?.address ?? '',
         }
     });
+
+    const {
+        register: registerPass,
+        handleSubmit: handlePassSubmit,
+        reset: resetPass,
+        formState: { errors: passErrors }
+    } = useForm({
+        defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' }
+    });
+
+    const [pwSaved, setPwSaved] = useState(false);
+    const [pwError, setPwError] = useState('');
 
     const { data: sessionsData, isLoading: sessionsLoading } = useQuery({
         queryKey: ['my-sessions'],
@@ -74,6 +89,27 @@ export default function ProfilePage() {
     };
 
     const currentSessionId = getCurrentSessionId();
+
+    const updatePasswordMutation = useMutation({
+        mutationFn: async (values: any) => {
+            if (values.newPassword !== values.confirmPassword) throw new Error('Passwords do not match');
+            if (values.newPassword.length < 8) throw new Error('Password must be at least 8 characters');
+            
+            const { error } = await supabase.auth.updateUser({ password: values.newPassword });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            resetPass();
+            setPwSaved(true);
+            setPwError('');
+            setTimeout(() => setPwSaved(false), 3000);
+            toast('Password updated successfully', 'success');
+        },
+        onError: (e: Error) => {
+            setPwError(e.message);
+            toast(e.message, 'error');
+        },
+    });
 
     const updateMutation = useMutation({
         mutationFn: async (values: ProfileInput) => {
@@ -129,7 +165,7 @@ export default function ProfilePage() {
                     onClick={() => setActiveTab('security')}
                     className={`px-6 py-3 font-medium text-sm transition-colors relative ${activeTab === 'security' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                 >
-                    Logged Devices
+                    Security & Devices
                     {activeTab === 'security' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
                 </button>
             </div>
@@ -197,78 +233,214 @@ export default function ProfilePage() {
                     </form>
                 </div>
             ) : (
-                <div className="space-y-6">
-                    <div className="bg-card border border-border rounded-xl p-6">
-                        <div className="flex justify-between items-center mb-6">
-                            <div>
-                                <h3 className="font-semibold text-lg">Logged Devices</h3>
-                                <p className="text-sm text-muted-foreground">List of devices that have access to your account.</p>
-                            </div>
-                            <button
-                                onClick={() => revokeOthersMutation.mutate()}
-                                disabled={revokeOthersMutation.isPending}
-                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-red-50 dark:bg-red-500/10 text-red-600 border border-red-200 dark:border-red-500/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
-                            >
-                                <LogOut className="h-4 w-4" /> Logout from other devices
-                            </button>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {/* Change Password Section */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-card border border-border rounded-xl p-6 h-full shadow-sm">
+                            <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
+                                <ShieldCheck className="h-5 w-5 text-primary" />
+                                Security Settings
+                            </h3>
+                            <form onSubmit={handlePassSubmit((v) => updatePasswordMutation.mutate(v))} className="space-y-5">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground ml-1">Current Password</label>
+                                    <input 
+                                        type="password" 
+                                        {...registerPass('currentPassword', { required: true })}
+                                        placeholder="••••••••"
+                                        className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all shadow-inner" 
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground ml-1">New Password</label>
+                                    <input 
+                                        type="password" 
+                                        {...registerPass('newPassword', { required: true, minLength: 8 })}
+                                        placeholder="Min 8 characters"
+                                        className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all shadow-inner" 
+                                    />
+                                    {passErrors.newPassword && <p className="text-[10px] text-red-500 font-bold ml-1">Minimum 8 characters required</p>}
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground ml-1">Confirm Password</label>
+                                    <input 
+                                        type="password" 
+                                        {...registerPass('confirmPassword', { required: true })}
+                                        placeholder="Repeat new password"
+                                        className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all shadow-inner" 
+                                    />
+                                </div>
+                                
+                                {pwError && (
+                                    <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-bold animate-shake">
+                                        {pwError}
+                                    </div>
+                                )}
+                                
+                                {pwSaved && (
+                                    <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-green-600 text-xs font-bold flex items-center gap-2">
+                                        <ShieldCheck className="h-4 w-4" /> Password updated!
+                                    </div>
+                                )}
+                                
+                                <button
+                                    type="submit"
+                                    disabled={updatePasswordMutation.isPending}
+                                    className="w-full py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 disabled:opacity-60 transition-all shadow-lg active:scale-[0.98]"
+                                >
+                                    {updatePasswordMutation.isPending ? 'Updating...' : 'Change Password'}
+                                </button>
+                            </form>
                         </div>
-
-                        {sessionsLoading ? (
-                            <div className="py-12 text-center text-muted-foreground">Loading sessions...</div>
-                        ) : (
-                            <div className="divide-y divide-border">
-                                {sessionsData?.data?.map((sess) => {
-                                    const isCurrent = sess.id === currentSessionId;
-                                    const ua = sess.user_agent || '';
-                                    const isMobile = /Mobile|Android|iPhone/i.test(ua);
-
-                                    return (
-                                        <div key={sess.id} className="py-4 flex items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                                                    {isMobile ? <Smartphone className="h-5 w-5 text-muted-foreground" /> : <Monitor className="h-5 w-5 text-muted-foreground" />}
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-medium text-sm">
-                                                            {ua.split(')')[0]?.split('(')[1] || 'Unknown Device'}
-                                                        </span>
-                                                        {isCurrent && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-600 text-[10px] font-bold uppercase tracking-wider">Current Session</span>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                                        {ua.includes('Chrome') ? 'Google Chrome' : ua.includes('Firefox') ? 'Firefox' : ua.includes('Safari') ? 'Safari' : 'Browser'} · {sess.ip}
-                                                    </p>
-                                                    <p className="text-[10px] text-muted-foreground/60 mt-1 uppercase">
-                                                        Last active: {formatDate(sess.updated_at)}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            {!isCurrent && (
-                                                <button
-                                                    onClick={() => revokeMutation.mutate(sess.id)}
-                                                    className="p-2 text-muted-foreground hover:text-red-600 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/10 transition-colors"
-                                                    title="Revoke session"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </button>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
                     </div>
 
-                    <div className="bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-xl p-5 flex items-start gap-4">
-                        <Globe className="h-5 w-5 text-blue-600 mt-1" />
-                        <div>
-                            <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300">Security Tip</h4>
-                            <p className="text-sm text-blue-800/70 dark:text-blue-400/70 mt-1">
-                                If you see any device or location you don't recognize, we recommend revoking that session and changing your password immediately.
-                            </p>
+                    {/* Logged Devices Section */}
+                    <div className="lg:col-span-2 space-y-6">
+                        <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                                <div>
+                                    <h3 className="font-bold text-lg flex items-center gap-2">
+                                        <Monitor className="h-5 w-5 text-primary" />
+                                        Logged Devices
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground font-medium">Active sessions across your devices.</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => queryClient.invalidateQueries({ queryKey: ['my-sessions'] })}
+                                        className="px-4 py-2 text-xs font-bold border border-border rounded-xl hover:bg-muted transition-all active:scale-95"
+                                    >
+                                        Refresh
+                                    </button>
+                                    <button
+                                        onClick={() => setShowRevokeOthers(true)}
+                                        disabled={revokeOthersMutation.isPending}
+                                        className="flex items-center gap-2 px-5 py-2 text-xs font-black uppercase tracking-widest bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-50 active:scale-95 shadow-lg shadow-red-500/20"
+                                    >
+                                        <LogOut className="h-4 w-4" /> Logout Others
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Revoke Others Confirmation Modal */}
+                            <ConfirmModal
+                                isOpen={showRevokeOthers}
+                                onClose={() => setShowRevokeOthers(false)}
+                                onConfirm={() => {
+                                    revokeOthersMutation.mutate();
+                                    setShowRevokeOthers(false);
+                                }}
+                                title="Logout from other devices?"
+                                message="This will immediately revoke access for all other devices presently logged into your account. You will remain logged into this current device."
+                                confirmLabel="Logout Others"
+                                danger={true}
+                                loading={revokeOthersMutation.isPending}
+                            />
+
+                            {/* Individual Revoke Confirmation Modal */}
+                            <ConfirmModal
+                                isOpen={!!revokingId}
+                                onClose={() => setRevokingId(null)}
+                                onConfirm={() => {
+                                    if (revokingId) revokeMutation.mutate(revokingId);
+                                    setRevokingId(null);
+                                }}
+                                title="Revoke Device Access?"
+                                message="Are you sure you want to log out this specific device? It will lose all access until you log in again on that device."
+                                confirmLabel="Revoke Access"
+                                danger={true}
+                                loading={revokeMutation.isPending}
+                            />
+
+                            {sessionsLoading ? (
+                                <div className="py-16 flex flex-col items-center gap-3 text-muted-foreground bg-muted/20 rounded-2xl border border-dashed border-border">
+                                    <div className="h-6 w-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                                    <span className="text-xs font-black uppercase tracking-wider">Retrieving sessions...</span>
+                                </div>
+                            ) : !sessionsData?.data || sessionsData.data.length === 0 ? (
+                                <div className="py-16 text-center bg-muted/20 rounded-2xl border border-dashed border-border">
+                                    <p className="text-sm text-muted-foreground font-medium">No active sessions found.</p>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-border bg-muted/5 rounded-2xl border border-border px-5 py-2">
+                                    {sessionsData?.data?.map((sess) => {
+                                        const isCurrent = sess.id === currentSessionId;
+                                        const ua = sess.user_agent || '';
+                                        
+                                        // Better Device Detection
+                                        let deviceName = 'Unknown Device';
+                                        if (ua.includes('iPhone')) deviceName = 'iPhone';
+                                        else if (ua.includes('iPad')) deviceName = 'iPad';
+                                        else if (ua.includes('Android')) deviceName = 'Android Device';
+                                        else if (ua.includes('Windows')) deviceName = 'Windows PC';
+                                        else if (ua.includes('Macintosh')) deviceName = 'MacBook';
+                                        else if (ua.includes('Linux')) deviceName = 'Linux PC';
+
+                                        // Better Browser Detection
+                                        let browser = 'Unknown Browser';
+                                        if (ua.includes('Edg/')) browser = 'Edge';
+                                        else if (ua.includes('Chrome/')) browser = 'Chrome';
+                                        else if (ua.includes('Firefox/')) browser = 'Firefox';
+                                        else if (ua.includes('Safari/') && !ua.includes('Chrome/')) browser = 'Safari';
+
+                                        const isMobile = /Mobile|Android|iPhone|iPad/i.test(ua);
+
+                                        return (
+                                            <div key={sess.id} className="py-6 flex items-center justify-between group">
+                                                <div className="flex items-center gap-5">
+                                                    <div className={cn(
+                                                        "w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-md transform group-hover:scale-110",
+                                                        isCurrent ? "bg-primary text-white shadow-primary/20" : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+                                                    )}>
+                                                        {isMobile ? <Smartphone className="h-7 w-7" /> : <Monitor className="h-7 w-7" />}
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="font-black text-sm tracking-tight text-foreground uppercase">
+                                                                {deviceName}
+                                                            </span>
+                                                            {isCurrent && (
+                                                                <span className="px-2.5 py-1 rounded-lg bg-green-500/10 text-green-600 text-[9px] font-black uppercase tracking-[0.15em] border border-green-500/20 shadow-sm shadow-green-500/5">Current</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-3 text-xs text-muted-foreground font-bold italic">
+                                                            <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-0.5 rounded-md border border-border/50">
+                                                                <Globe className="h-3 w-3" />
+                                                                {browser}
+                                                            </div>
+                                                            <span className="font-mono text-[10px] bg-primary/5 text-primary px-2 py-0.5 rounded-md border border-primary/10">{sess.ip}</span>
+                                                        </div>
+                                                        <p className="text-[10px] text-muted-foreground/50 font-black uppercase tracking-widest flex items-center gap-1.5">
+                                                            <Calendar className="h-3 w-3" />
+                                                            Updated {formatDate(sess.updated_at)}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {!isCurrent && (
+                                                    <button
+                                                        onClick={() => setRevokingId(sess.id)}
+                                                        className="p-3 text-muted-foreground hover:text-white hover:bg-red-500 rounded-2xl transition-all active:scale-90 shadow-sm hover:shadow-red-500/40"
+                                                        title="Revoke access"
+                                                    >
+                                                        <Trash2 className="h-5 w-5" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="bg-gradient-to-br from-blue-500/5 to-transparent border border-blue-500/20 rounded-2xl p-6 flex items-start gap-5 shadow-sm">
+                            <ShieldCheck className="h-6 w-6 text-blue-500 mt-1" />
+                            <div className="space-y-1">
+                                <h4 className="text-sm font-black uppercase tracking-widest text-blue-600">Security Recommendation</h4>
+                                <p className="text-sm text-blue-800/70 dark:text-blue-200/50 leading-relaxed font-medium">
+                                    Regularly review your active sessions. If you notice any suspicious activity, immediately revoke the session and update your password to maintain account integrity.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
