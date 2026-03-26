@@ -107,15 +107,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setProfile(null);
         setRole(null);
-        // If the session was revoked or lost, ensure we clear any local state and redirect
         if (_event === 'SIGNED_OUT') {
           window.location.href = '/login';
         }
       }
     });
 
+    // ── Session Guard via Realtime Broadcast (zero extra HTTP cost) ───
+    // Subscribe to a per-user broadcast channel. When another device
+    // revokes this session, it broadcasts an event and we sign out instantly.
+    let broadcastChannel: ReturnType<typeof supabase.channel> | null = null;
+
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (!s?.user) return;
+      const userId = s.user.id;
+
+      broadcastChannel = supabase.channel(`session-guard:${userId}`)
+        .on('broadcast', { event: 'session_revoked' }, (payload) => {
+          // Extract our session_id from JWT
+          try {
+            const jwt = JSON.parse(atob(s.access_token.split('.')[1]));
+            const mySessionId = jwt.session_id;
+            const msg = payload.payload as { revokedIds?: string[]; exceptId?: string };
+
+            const isRevoked =
+              (msg.revokedIds && msg.revokedIds.includes(mySessionId)) ||
+              (msg.exceptId && msg.exceptId !== mySessionId);
+
+            if (isRevoked) {
+              toast('Your session was terminated from another device.', 'error');
+              supabase.auth.signOut().then(() => { window.location.href = '/login'; });
+            }
+          } catch { /* ignore parse errors */ }
+        })
+        .subscribe();
+    });
+
+    // ── Fallback: validate on tab focus (handles offline edge case) ───
+    let lastValidation = Date.now();
+    const VALIDATION_COOLDOWN = 5 * 60 * 1000; // 5 minutes
+
+    const onVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastValidation < VALIDATION_COOLDOWN) return;
+      lastValidation = Date.now();
+
+      try {
+        const { data: { session: s } } = await supabase.auth.getSession();
+        if (!s?.access_token) return;
+        const jwt = JSON.parse(atob(s.access_token.split('.')[1]));
+        if (!jwt.session_id) return;
+
+        const { data: isValid } = await supabase.rpc('validate_session', { session_id_param: jwt.session_id });
+        if (isValid === false) {
+          toast('Your session was terminated from another device.', 'error');
+          await supabase.auth.signOut();
+          window.location.href = '/login';
+        }
+      } catch { /* ignore errors */ }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
       subscription.unsubscribe();
+      broadcastChannel?.unsubscribe();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [fetchProfile]);
 

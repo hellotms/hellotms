@@ -55,9 +55,14 @@ export default function ProfilePage() {
 
     const revokeMutation = useMutation({
         mutationFn: (id: string) => staffApi.revokeSession(id),
-        onSuccess: () => {
+        onSuccess: (_, revokedId) => {
             queryClient.invalidateQueries({ queryKey: ['my-sessions'] });
             toast('Session revoked successfully', 'success');
+            // Broadcast to force the revoked device to sign out instantly
+            if (profile?.id) {
+                supabase.channel(`session-guard:${profile.id}`)
+                    .send({ type: 'broadcast', event: 'session_revoked', payload: { revokedIds: [revokedId] } });
+            }
         }
     });
 
@@ -76,6 +81,11 @@ export default function ProfilePage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['my-sessions'] });
             toast('Other sessions revoked', 'success');
+            // Broadcast to force all OTHER devices to sign out instantly
+            if (profile?.id && currentSessionId) {
+                supabase.channel(`session-guard:${profile.id}`)
+                    .send({ type: 'broadcast', event: 'session_revoked', payload: { exceptId: currentSessionId } });
+            }
         }
     });
 
