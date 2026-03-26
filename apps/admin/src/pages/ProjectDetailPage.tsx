@@ -668,43 +668,42 @@ export default function ProjectDetailPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-wrap items-center gap-2 w-full md:w-auto">
-          <div className="flex items-center justify-center md:block">
-            <StatusBadge status={project.status} className="w-full md:w-auto h-8 flex items-center justify-center text-xs" />
+        <div className="flex items-center justify-between gap-1 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 custom-scrollbar-hide">
+          <div className="flex-shrink-0">
+            <StatusBadge status={project.status} className="h-7 text-[10px] px-2 flex items-center justify-center" />
           </div>
           <button
             onClick={() => {
               setIsEditOpen(true);
             }}
-            className="flex items-center justify-center gap-1.5 text-xs border border-border px-3 h-8 rounded-lg hover:bg-muted transition-colors text-muted-foreground w-full md:w-auto"
+            className="flex flex-1 items-center justify-center gap-1 text-[10px] border border-border px-1.5 h-7 rounded-lg hover:bg-muted transition-colors text-muted-foreground whitespace-nowrap min-w-0"
           >
-            <Pencil className="h-3.5 w-3.5" /> Edit
+            <Pencil className="h-3 w-3 flex-shrink-0" /> Edit
           </button>
           <button
             onClick={() => isPaid ? markAsUnpaidMutation.mutate() : markAsPaidMutation.mutate()}
-            className={`flex items-center justify-center gap-1.5 text-xs px-3 h-8 rounded-lg border transition-colors w-full md:w-auto ${isPaid
-              ? 'border-emerald-300 text-emerald-800 bg-emerald-100 hover:bg-emerald-200 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300'
+            className={`flex flex-1 items-center justify-center gap-1 text-[10px] px-1.5 h-7 rounded-lg border transition-colors whitespace-nowrap min-w-0 ${isPaid
+              ? 'border-emerald-300 text-emerald-800 bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300'
               : 'border-border text-foreground bg-background hover:bg-muted'
               }`}
             disabled={markAsPaidMutation.isPending || markAsUnpaidMutation.isPending}
           >
-            {isPaid ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
-            {isPaid ? 'Payment Received' : 'Mark as Paid'}
+            {isPaid ? <CheckCircle2 className="h-3 w-3 flex-shrink-0" /> : null}
+            {isPaid ? 'Paid' : 'Unpaid'}
           </button>
           <button
             onClick={togglePublished}
-            className={`flex items-center justify-center px-3 h-8 text-xs font-medium rounded-full border transition-colors w-full md:w-auto ${project.is_published ? 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400' : 'border-border text-muted-foreground hover:text-foreground'
+            className={`flex flex-1 items-center justify-center px-1.5 h-7 text-[10px] font-medium rounded-full border transition-colors whitespace-nowrap min-w-0 ${project.is_published ? 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400' : 'border-border text-muted-foreground hover:text-foreground'
               }`}
           >
-            {project.is_published ? '● Published' : '○ Unpublished'}
+            {project.is_published ? 'Published' : 'Draft'}
           </button>
           <button
             onClick={() => setDeleteProjectTarget(project.id)}
-            className="flex items-center justify-center h-8 w-full md:w-10 rounded-lg hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-500 border border-border md:border-0"
+            className="flex items-center justify-center h-7 w-8 flex-shrink-0 rounded-lg hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-500 border border-border md:border-0"
             title="Delete Project"
           >
-            <Trash2 className="h-4 w-4" />
-            <span className="md:hidden ml-2 text-xs">Delete Project</span>
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>

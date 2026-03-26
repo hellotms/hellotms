@@ -328,20 +328,20 @@ export default function CompanyDetailPage() {
           <PageHeader title={company.name} description="Company Details & History" />
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-wrap items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center justify-between gap-1 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 custom-scrollbar-hide">
           {publicUrl && (
             <a
               href={publicUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 px-3 h-9 border border-border rounded-lg text-xs font-medium hover:bg-muted transition-colors text-muted-foreground w-full md:w-auto"
+              className="flex-1 flex items-center justify-center gap-1 px-1.5 h-8 border border-border rounded-lg text-[10px] font-medium hover:bg-muted transition-colors text-muted-foreground whitespace-nowrap min-w-0"
             >
-              <ExternalLink className="h-4 w-4" /> <span>Public Site</span>
+              <ExternalLink className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Site</span>
             </a>
           )}
           <button
             className={cn(
-              "flex items-center justify-center gap-1.5 px-3 h-9 rounded-lg text-xs font-medium transition-colors border w-full md:w-auto",
+              "flex-1 flex items-center justify-center gap-1 px-1.5 h-8 rounded-lg text-[10px] font-medium transition-colors border whitespace-nowrap min-w-0",
               company.is_published
                 ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
                 : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
@@ -350,33 +350,31 @@ export default function CompanyDetailPage() {
             disabled={togglePublishMutation.isPending}
           >
             {togglePublishMutation.isPending ? (
-              <CircleDashed className="h-4 w-4 animate-spin" />
+              <CircleDashed className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              company.is_published ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />
+              company.is_published ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />
             )}
-            <span>{company.is_published ? 'Published' : 'Draft'}</span>
+            <span>{company.is_published ? 'Pub' : 'Draft'}</span>
           </button>
           <button
             onClick={() => setIsProjectModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 bg-primary text-white px-3 h-9 rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors w-full md:w-auto"
+            className="flex-1 flex items-center justify-center gap-1 bg-primary text-white px-1.5 h-8 rounded-lg text-[10px] font-medium hover:bg-primary/90 transition-colors whitespace-nowrap min-w-0"
           >
-            <Plus className="h-4 w-4" /> <span>New Project</span>
+            <Plus className="h-3.5 w-3.5" /> <span>Project</span>
           </button>
           <button
             onClick={() => setIsEditModalOpen(true)}
-            className="flex items-center justify-center h-9 w-full md:w-10 border border-border rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+            className="flex items-center justify-center h-8 w-8 flex-shrink-0 border border-border rounded-lg hover:bg-muted transition-colors text-muted-foreground"
             title="Edit Company"
           >
-            <Pencil className="h-4 w-4" />
-            <span className="md:hidden ml-2 text-xs">Edit</span>
+            <Pencil className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => setDeleteTarget(company)}
-            className="flex items-center justify-center h-9 w-full md:w-10 border border-border rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors text-muted-foreground hover:text-red-500"
+            className="flex items-center justify-center h-8 w-8 flex-shrink-0 border border-border rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors text-muted-foreground hover:text-red-500"
             title="Delete Company"
           >
-            <Trash2 className="h-4 w-4" />
-            <span className="md:hidden ml-2 text-xs">Delete</span>
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
