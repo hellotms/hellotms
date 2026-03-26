@@ -149,13 +149,6 @@ export default function LoginPage() {
                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-white/60">
                     Secure Password
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => { setError(null); setViewMode('forgot_password'); }}
-                    className="text-[10px] font-bold text-white/50 hover:text-white transition-colors uppercase tracking-[0.1em]"
-                  >
-                    Forgot Password?
-                  </button>
                 </div>
                
                 <div className="relative group/field">
@@ -196,6 +189,16 @@ export default function LoginPage() {
                 )}
                 {loading ? 'Authenticating...' : 'Sign in'}
               </button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => { setError(null); setViewMode('forgot_password'); }}
+                  className="text-[11px] font-bold text-white/40 hover:text-white/70 transition-colors tracking-wide"
+                >
+                  Forgot your password?
+                </button>
+              </div>
             </form>
           )}
 

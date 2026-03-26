@@ -731,8 +731,8 @@ export default function InvoicesPage() {
             {/* Discount */}
             <div className="bg-muted/40 rounded-xl p-4 space-y-3">
               <h4 className="text-sm font-medium">Discount</h4>
-              <div className="flex gap-3 items-center">
-                <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                <div className="flex gap-2 shrink-0">
                   <label className="flex items-center gap-1.5 text-sm cursor-pointer">
                     <input type="radio" name="discountType" checked={discountType === 'flat'} onChange={() => setDiscountType('flat')} />
                     <span>৳ Flat</span>
@@ -748,7 +748,7 @@ export default function InvoicesPage() {
                   onChange={e => setDiscountValue(Number(e.target.value))}
                   placeholder="0"
                   min={0}
-                  className="flex-1 border border-border rounded-lg px-3 py-1.5 text-sm"
+                  className="w-full sm:flex-1 min-w-0 border border-border rounded-lg px-3 py-1.5 text-sm"
                 />
               </div>
               {discountAmt > 0 && (

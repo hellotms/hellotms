@@ -307,7 +307,7 @@ export default function ProfilePage() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button
-                                        onClick={() => queryClient.invalidateQueries({ queryKey: ['my-sessions'] })}
+                                        onClick={() => { staffApi.clearSessionsCache(); queryClient.invalidateQueries({ queryKey: ['my-sessions'] }); }}
                                         className="px-4 py-2 text-xs font-bold border border-border rounded-xl hover:bg-muted transition-all active:scale-95"
                                     >
                                         Refresh

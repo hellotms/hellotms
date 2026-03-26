@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { SplashScreen } from './SplashScreen';
 
 const STORAGE_KEY = 'tms_admin_splash_timestamp';
-const EXPIRE_TIME = 60 * 60 * 1000; // 1 hour in ms
+const EXPIRE_TIME = 10 * 60 * 1000; // 10 minutes in ms
 
 export function SplashManager({ children }: { children: React.ReactNode }) {
   const [showSplash, setShowSplash] = useState(() => {

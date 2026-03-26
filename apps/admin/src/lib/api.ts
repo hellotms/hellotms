@@ -107,6 +107,7 @@ export const staffApi = {
       return res;
     });
   },
+  clearSessionsCache: () => { _sessionsCache = null; },
   revokeSession: (sessionId: string) => {
     _sessionsCache = null; // Clear cache on change
     return apiFetch(`/staff/me/sessions/${sessionId}`, { method: 'DELETE' });

@@ -2,25 +2,12 @@
 import { useState, useEffect } from 'react';
 import { SplashScreen } from './SplashScreen';
 
-const STORAGE_KEY = 'tms_public_splash_timestamp';
-const EXPIRE_TIME = 60 * 60 * 1000; // 1 hour in ms
-
 export function SplashManager({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
-  const [showSplash, setShowSplash] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     setMounted(true);
-    const lastShown = localStorage.getItem(STORAGE_KEY);
-    if (!lastShown) {
-      setShowSplash(true);
-    } else {
-      const now = Date.now();
-      const timeDiff = now - parseInt(lastShown, 10);
-      if (timeDiff > EXPIRE_TIME) {
-        setShowSplash(true);
-      }
-    }
   }, []);
 
   useEffect(() => {
@@ -35,7 +22,6 @@ export function SplashManager({ children }: { children: React.ReactNode }) {
 
   const handleComplete = () => {
     setShowSplash(false);
-    localStorage.setItem(STORAGE_KEY, Date.now().toString());
   };
 
   // Wait for mounting to avoid hydration mismatch
