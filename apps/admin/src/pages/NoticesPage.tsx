@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -35,6 +35,14 @@ export default function NoticesPage() {
     const [coverUrl, setCoverUrl] = useState<string | File>('');
     const [attachments, setAttachments] = useState<{ type: string; url: string; name: string; file?: File }[]>([]);
     const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+
+    // Clear unread badge when entering this page
+    useEffect(() => {
+        if (profile?.id) {
+            localStorage.setItem(`last_seen_notices_${profile.id}`, new Date().toISOString());
+            queryClient.invalidateQueries({ queryKey: ['unread-notices'] });
+        }
+    }, [profile?.id, queryClient]);
 
     const { data: notices = [], isLoading } = useQuery<Notice[]>({
         queryKey: ['notices'],

@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/utils';
 import { ArrowLeft, Calendar, User, FileText, Pin, ExternalLink } from 'lucide-react';
 import type { Notice } from '@hellotms/shared';
 import { useState } from 'react';
-import { Modal } from '@/components/Modal';
+import { PhotoLightbox } from '@/components/PhotoLightbox';
 
 export default function NoticeDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -117,11 +117,13 @@ export default function NoticeDetailPage() {
                 </div>
             </div>
 
-            <Modal isOpen={!!previewUrl} onClose={() => setPreviewUrl(null)} title="Image Preview" size="xl">
-                <div className="flex items-center justify-center p-2">
-                    <img src={previewUrl || ''} alt="Full size preview" className="max-w-full max-h-[70vh] rounded-lg shadow-2xl" />
-                </div>
-            </Modal>
+            {previewUrl && (
+                <PhotoLightbox
+                    photos={[{ id: 'notice-cover', url: previewUrl }]}
+                    initialIndex={0}
+                    onClose={() => setPreviewUrl(null)}
+                />
+            )}
         </div>
     );
 }

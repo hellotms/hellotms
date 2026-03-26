@@ -10,8 +10,9 @@ import { Modal, ConfirmModal, CascadeConfirmModal } from '@/components/Modal';
 import { ImageUpload } from '@/components/ImageUpload';
 import { formatBDT, formatDate, formatDateTime } from '@/lib/utils';
 import { computeProjectDurations } from '@hellotms/shared';
-import { ArrowLeft, Plus, Pencil, Trash2, Calendar, Clock, DollarSign, Upload, X, ImageIcon, Download, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Calendar, Clock, DollarSign, Upload, X, ImageIcon, Download, CheckCircle2, MoreVertical, RefreshCw } from 'lucide-react';
 import type { Project, LedgerEntry, Collection, Invoice } from '@hellotms/shared';
+import { PhotoLightbox } from '@/components/PhotoLightbox';
 import { useForm } from 'react-hook-form';
 import { toast } from '@/components/Toast';
 import type { LedgerEntryInput } from '@hellotms/shared';
@@ -45,6 +46,17 @@ export default function ProjectDetailPage() {
   const [deletePhotoTarget, setDeletePhotoTarget] = useState<{ id: string; path: string } | null>(null);
   const [deleteProjectTarget, setDeleteProjectTarget] = useState<string | null>(null);
 
+  // Gallery viewer & menu state
+  const [viewerIndex, setViewerIndex] = useState(-1);
+  const [openPhotoMenuId, setOpenPhotoMenuId] = useState<string | null>(null);
+  const replacePhotoRef = useRef<HTMLInputElement>(null);
+  const [replaceTarget, setReplaceTarget] = useState<{ id: string; path: string } | null>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = () => setOpenPhotoMenuId(null);
+    if (openPhotoMenuId) window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, [openPhotoMenuId]);
 
   const { data: project, isLoading } = useQuery<Project & { companies: { name: string; phone?: string; email?: string } | null }>({
     queryKey: ['project', id],
@@ -601,6 +613,40 @@ export default function ProjectDetailPage() {
     }
   };
 
+  const handleReplacePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !replaceTarget || !id) return;
+    setIsUploading(true);
+    try {
+      // Upload new replacing the old
+      const res = await mediaApi.uploadAndCleanMedia(
+        file,
+        replaceTarget.path,
+        'projects/gallery',
+        'photo',
+        project?.title || 'project'
+      );
+      if (!res) throw new Error('Upload failed');
+      
+      // Update DB
+      const { error } = await supabase.from('project_media')
+        .update({ path: res, url: res }) // mediaApi.uploadAndCleanMedia returns the URL
+        .eq('id', replaceTarget.id);
+      
+      if (error) throw error;
+      
+      refetchGallery();
+      toast('Photo replaced successfully', 'success');
+    } catch (err: any) {
+      console.error(err);
+      toast(`Failed to replace photo: ${err.message}`, 'error');
+    } finally {
+      setIsUploading(false);
+      setReplaceTarget(null);
+      if (replacePhotoRef.current) replacePhotoRef.current.value = '';
+    }
+  };
+
   if (isLoading) return <div className="py-20 text-center text-muted-foreground">Loading...</div>;
   if (!project) return <div className="py-20 text-center text-muted-foreground">Project not found</div>;
 
@@ -1114,27 +1160,75 @@ export default function ProjectDetailPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {gallery.map((photo) => (
+              {gallery.map((photo, idx) => (
                 <div key={photo.id} className="relative group aspect-square rounded-lg overflow-hidden border border-border">
-                  <img src={photo.url} alt="" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <img src={photo.url} alt="" className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105" onClick={() => setViewerIndex(idx)} />
+                  
+                  {/* Dropdown Menu Toggle */}
+                  <div className="absolute top-2 right-2">
                     <button
-                      onClick={() => handleDownloadPhoto(photo.url, `photo_${project?.title || 'project'}_${photo.id.slice(0, 8)}.jpg`)}
-                      className="p-1.5 rounded-full bg-white dark:bg-[#1c1c1c]/20 text-white hover:bg-white dark:bg-[#1c1c1c]/40 transition-colors"
-                      title="Download"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenPhotoMenuId(openPhotoMenuId === photo.id ? null : photo.id);
+                      }}
+                      className="p-1 rounded-md bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60 shadow-sm"
                     >
-                      <Download className="h-4 w-4" />
+                      <MoreVertical className="h-4 w-4" />
                     </button>
-                    <button
-                      onClick={() => setDeletePhotoTarget(photo)}
-                      className="p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
-                      title="Delete"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+                    
+                    {/* Menu Dropdown */}
+                    {openPhotoMenuId === photo.id && (
+                      <div className="absolute top-full right-0 mt-1 w-36 bg-popover border border-border rounded-md shadow-md py-1 z-10 flex flex-col text-sm text-popover-foreground">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setOpenPhotoMenuId(null); setViewerIndex(idx); }}
+                          className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left"
+                        >
+                          <ImageIcon className="h-3.5 w-3.5" /> View Full Size
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setOpenPhotoMenuId(null); handleDownloadPhoto(photo.url, `photo_${project?.title || 'project'}_${photo.id.slice(0, 8)}.jpg`); }}
+                          className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left"
+                        >
+                          <Download className="h-3.5 w-3.5" /> Download
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenPhotoMenuId(null);
+                            setReplaceTarget(photo);
+                            replacePhotoRef.current?.click();
+                          }}
+                          className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors text-left"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" /> Replace
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setOpenPhotoMenuId(null); setDeletePhotoTarget(photo); }}
+                          className="flex items-center gap-2 px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 text-red-500 transition-colors text-left"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Delete
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
+              
+              <input
+                type="file"
+                accept="image/*"
+                ref={replacePhotoRef}
+                className="hidden"
+                onChange={handleReplacePhotoUpload}
+              />
+              
+              {viewerIndex >= 0 && (
+                <PhotoLightbox
+                  photos={gallery}
+                  initialIndex={viewerIndex}
+                  onClose={() => setViewerIndex(-1)}
+                />
+              )}
             </div>
           )}
         </div>

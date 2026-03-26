@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
-// Removed isVerifyingRef; session validation now handled via API responses.
+  // Removed isVerifyingRef; session validation now handled via API responses.
 
   const fetchProfile = useCallback(async (userId: string) => {
     // Skip fetching when offline to avoid network errors
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRole(null);
   }, []);
 
-// Session validation is now performed centrally in apiFetch; no background validation needed.
+  // Session validation is now performed centrally in apiFetch; no background validation needed.
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {

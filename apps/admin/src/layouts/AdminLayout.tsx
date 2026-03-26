@@ -14,9 +14,9 @@ import { useTheme } from 'next-themes';
 
 const navItems = [
   { to: '/dashboard', label: 'My Dashboard', icon: LayoutDashboard },
+  { to: '/projects', label: 'Business Portfolio', icon: FolderOpen, permission: 'view_projects' },
   { to: '/companies', label: 'Companies', icon: Building2, permission: 'manage_companies' },
   { to: '/estimates', label: 'Estimates', icon: FileText, permission: 'manage_invoices' },
-  { to: '/projects', label: 'Business Portfolio', icon: FolderOpen, permission: 'view_projects' },
   { to: '/invoices', label: 'Invoices', icon: Receipt, permission: 'manage_invoices' },
   { to: '/leads', label: 'Contact Form', icon: MessageSquare, permission: 'view_leads' },
   { to: '/notices', label: 'Notice Board', icon: Megaphone, permission: 'view_notices' },
