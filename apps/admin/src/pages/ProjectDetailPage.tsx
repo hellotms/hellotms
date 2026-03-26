@@ -668,40 +668,43 @@ export default function ProjectDetailPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
-          <StatusBadge status={project.status} className="text-[10px] px-2 py-0.5" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-wrap items-center gap-2 w-full md:w-auto">
+          <div className="flex items-center justify-center md:block">
+            <StatusBadge status={project.status} className="w-full md:w-auto h-8 flex items-center justify-center text-xs" />
+          </div>
           <button
             onClick={() => {
               setIsEditOpen(true);
             }}
-            className="flex items-center gap-1 text-[10px] border border-border px-2 py-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+            className="flex items-center justify-center gap-1.5 text-xs border border-border px-3 h-8 rounded-lg hover:bg-muted transition-colors text-muted-foreground w-full md:w-auto"
           >
-            <Pencil className="h-3 w-3" /> Edit
+            <Pencil className="h-3.5 w-3.5" /> Edit
           </button>
           <button
             onClick={() => isPaid ? markAsUnpaidMutation.mutate() : markAsPaidMutation.mutate()}
-            className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg border transition-colors ${isPaid
+            className={`flex items-center justify-center gap-1.5 text-xs px-3 h-8 rounded-lg border transition-colors w-full md:w-auto ${isPaid
               ? 'border-emerald-300 text-emerald-800 bg-emerald-100 hover:bg-emerald-200 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300'
               : 'border-border text-foreground bg-background hover:bg-muted'
               }`}
             disabled={markAsPaidMutation.isPending || markAsUnpaidMutation.isPending}
           >
-            {isPaid ? <CheckCircle2 className="h-3 w-3" /> : null}
-            {isPaid ? 'Paid' : 'Mark Paid'}
+            {isPaid ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+            {isPaid ? 'Payment Received' : 'Mark as Paid'}
           </button>
           <button
             onClick={togglePublished}
-            className={`px-2 py-1 text-[10px] font-medium rounded-full border transition-colors ${project.is_published ? 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400' : 'border-border text-muted-foreground hover:text-foreground'
+            className={`flex items-center justify-center px-3 h-8 text-xs font-medium rounded-full border transition-colors w-full md:w-auto ${project.is_published ? 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400' : 'border-border text-muted-foreground hover:text-foreground'
               }`}
           >
-            {project.is_published ? 'Published' : 'Draft'}
+            {project.is_published ? '● Published' : '○ Unpublished'}
           </button>
           <button
             onClick={() => setDeleteProjectTarget(project.id)}
-            className="p-1.5 rounded-md hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-500"
+            className="flex items-center justify-center h-8 w-full md:w-10 rounded-lg hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-500 border border-border md:border-0"
             title="Delete Project"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-4 w-4" />
+            <span className="md:hidden ml-2 text-xs">Delete Project</span>
           </button>
         </div>
       </div>
