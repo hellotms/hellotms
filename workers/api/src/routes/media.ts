@@ -31,7 +31,8 @@ mediaRoute.post('/upload', async (c) => {
         console.log(`[Media] Uploading to R2: ${fileName} (${file.size} bytes, ${contentType})`);
 
         // Upload to R2 Bucket
-        await c.env.MEDIA_BUCKET.put(fileName, await file.arrayBuffer(), {
+        // Pass the file (Blob) directly to avoid loading entire file into memory (ArrayBuffer)
+        await c.env.MEDIA_BUCKET.put(fileName, file as any, {
             httpMetadata: { contentType },
         });
 

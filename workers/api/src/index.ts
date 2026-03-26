@@ -11,6 +11,7 @@ import { contactRoute } from './routes/contact.js';
 import { mediaRoute } from './routes/media.js';
 import { auditRoute } from './routes/audit.js';
 import { authRoute } from './routes/auth.js';
+import { appsRoute } from './routes/apps.js';
 import { scheduledHandler } from './cron.js';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -25,10 +26,12 @@ app.use('*', cors({
       ...allowedRaw.split(',').map((o: string) => o.trim()).filter(Boolean),
       'http://localhost:3000',
       'http://localhost:5173',
+      'tauri://localhost',
+      'http://tauri.localhost',
     ];
     return allowed.includes(origin) ? origin : allowed[0];
   },
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   maxAge: 86400,
 }));
@@ -45,6 +48,7 @@ app.route('/contact', contactRoute);
 app.route('/media', mediaRoute);
 app.route('/audit', auditRoute);
 app.route('/auth', authRoute);
+app.route('/apps', appsRoute);
 
 // ─── 404 handler ─────────────────────────────────────────────────────────────
 app.notFound((c) => c.json({ error: 'Not Found' }, 404));

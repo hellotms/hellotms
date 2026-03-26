@@ -8,6 +8,7 @@ Production-ready Events Management System for [hellotms.com.bd](https://hellotms
 hellotms.com.bd/              ← pnpm workspace root
 ├── apps/
 │   ├── admin/                ← Vite + React 18 SPA  (admin.hellotms.com.bd)
+│   ├── admin/src-tauri/      ← Tauri (Rust) for Windows Desktop App
 │   └── public/               ← Next.js 14 App Router (hellotms.com.bd)
 ├── workers/
 │   └── api/                  ← Cloudflare Worker + Hono (api.hellotms.com.bd)
@@ -16,6 +17,14 @@ hellotms.com.bd/              ← pnpm workspace root
 └── supabase/
     └── migrations/           ← SQL migrations for Supabase Postgres
 ```
+
+## Desktop & Mobile Apps
+
+| Platform | Format | Distribution |
+|---|---|---|
+| **Windows** | `.msi`, `.exe` | Direct download from Admin Panel (R2) |
+| **Android** | `.apk` | Direct download from Admin Panel (R2) |
+
 
 ## Tech Stack
 
@@ -192,6 +201,25 @@ wrangler deploy
 
 # Custom domain: hellotms.com.bd
 ```
+
+### Desktop App (Windows) — Tauri
+
+1.  **Prerequisites**: Install [Rust](https://www.rust-lang.org/tools/install) and [WebView2](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+2.  **Build**:
+    ```bash
+    pnpm --filter @hellotms/admin run tauri build
+    ```
+3.  **Output**: Found in `apps/admin/src-tauri/target/release/bundle/msi/` or `nsis/`.
+4.  **Distribution**: Upload the `.msi` or `.exe` via **Core Settings > Admin Setting** to make it available for download.
+
+### Mobile App (Android)
+
+1.  **Build**: (Requires Android Studio/SDK)
+    ```bash
+    # (Future step: Add capacitor/react-native build instructions)
+    ```
+2.  **Distribution**: Upload the `.apk` via the Admin Panel.
+
 
 ### DNS Configuration
 

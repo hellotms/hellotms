@@ -33,6 +33,7 @@ import StaffManagementPage from '@/pages/StaffManagementPage';
 import RoleManagementPage from '@/pages/RoleManagementPage';
 import { ToastContainer } from '@/components/Toast';
 import SetupPage from '@/pages/SetupPage';
+import DownloadAppPage from '@/pages/DownloadAppPage';
 import { SplashManager } from '@/components/SplashManager';
 import WelcomePage from '@/pages/WelcomePage';
 
@@ -143,6 +144,7 @@ function AppRoutes() {
         <Route path="staff-management" element={<PermissionRoute permission="manage_staff"><StaffManagementPage /></PermissionRoute>} />
         <Route path="role-management" element={<PermissionRoute permission="manage_roles"><RoleManagementPage /></PermissionRoute>} />
         <Route path="recycle-bin" element={<RecycleBinPage />} />
+        <Route path="download-app" element={<DownloadAppPage />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

@@ -200,3 +200,11 @@ export const mediaApi = {
     return finalUrl;
   }
 };
+
+// ─── Apps ───────────────────────────────────────────────────────────────────
+export const appsApi = {
+  list: (platform: string) => apiFetch<{ data: any[] }>(`/apps/${platform}`),
+  add: (payload: any) => apiFetch<{ data: any }>('/apps', { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id: string, payload: any) => apiFetch<{ data: any }>(`/apps/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  remove: (id: string) => apiFetch<{ success: boolean }>(`/apps/${id}`, { method: 'DELETE' }),
+};

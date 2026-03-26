@@ -9,10 +9,11 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { cn } from '@/lib/utils';
 import {
   Save, Globe, Phone, LayoutDashboard, Sliders, Database,
-  Pencil, Users, ShieldCheck, ExternalLink, Check, Trash2, Plus, ArrowRight, Info, CircleDashed, Sparkles, Image as ImageIcon
+  Pencil, Users, ShieldCheck, ExternalLink, Check, Trash2, Plus, ArrowRight, Info, CircleDashed, Sparkles, Image as ImageIcon, Monitor, Smartphone, Download
 } from 'lucide-react';
 import type { SiteSettings, HeroSlide } from '@hellotms/shared';
 import { HeroSliderManager } from '@/components/HeroSliderManager';
+import { AppVersionManager } from '@/components/AppVersionManager';
 import { Link, useSearchParams } from 'react-router-dom';
 
 export default function CmsPage() {
@@ -61,6 +62,8 @@ export default function CmsPage() {
         pad_margin_bottom: settings.pad_margin_bottom ?? 100,
         hero_slider: settings.hero_slider || [],
         login_bg_url: settings.login_bg_url ?? '',
+        windows_app_url: settings.windows_app_url ?? '',
+        android_app_url: settings.android_app_url ?? '',
         services: (settings.services ?? []).map((s: any) => ({
           title: s.title ?? s.name ?? '',
           description: s.description ?? '',
@@ -83,6 +86,12 @@ export default function CmsPage() {
       }
       if (values.login_bg_url && values.login_bg_url !== settings?.login_bg_url) {
         payload.login_bg_url = await mediaApi.uploadAndCleanMedia(values.login_bg_url, settings?.login_bg_url, 'cms', 'bg', 'login_bg');
+      }
+      if (values.windows_app_url && values.windows_app_url !== settings?.windows_app_url) {
+        payload.windows_app_url = await mediaApi.uploadAndCleanMedia(values.windows_app_url, settings?.windows_app_url, 'apps', 'windows', 'tms-admin');
+      }
+      if (values.android_app_url && values.android_app_url !== settings?.android_app_url) {
+        payload.android_app_url = await mediaApi.uploadAndCleanMedia(values.android_app_url, settings?.android_app_url, 'apps', 'android', 'tms-admin');
       }
 
       // Handle slider images
@@ -397,6 +406,14 @@ export default function CmsPage() {
                 </div>
               </div>
 
+              {/* App Management */}
+              <div className="pt-8 border-t border-border">
+                <SectionHeader title="Application Distribution" section="apps" logMessage="Application versioning settings accessed" onReset={() => form.reset()} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                  <AppVersionManager platform="windows" disabled={editingSection !== 'apps'} />
+                  <AppVersionManager platform="android" disabled={editingSection !== 'apps'} />
+                </div>
+              </div>
             </div>
           )}
         </div>

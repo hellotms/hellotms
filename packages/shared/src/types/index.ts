@@ -186,6 +186,8 @@ export interface SiteSettings {
   socials: Socials;
   hero_slider?: HeroSlide[] | null;
   login_bg_url?: string | null;
+  windows_app_url?: string | null;
+  android_app_url?: string | null;
   updated_at: string;
 }
 
@@ -371,3 +373,18 @@ export interface PaginatedResponse<T = unknown> {
   page: number;
   pageSize: number;
 }
+
+export type AppPlatform = 'windows' | 'android';
+
+export interface AppVersion {
+  id: string;
+  platform: AppPlatform;
+  version: string;
+  url: string;
+  size?: number | null;
+  changelog?: string | null;
+  is_latest: boolean;
+  created_at: string;
+  created_by?: string | null;
+}
+

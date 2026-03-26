@@ -4,7 +4,7 @@ import { cn, getInitials } from '@/lib/utils';
 import {
   LayoutDashboard, Building2, FolderOpen, Receipt, Users,
   Globe, UserCog, Settings, LogOut, Menu, X, Bell, ChevronRight,
-  MessageSquare, ClipboardList, Megaphone, Trash2, Sun, Moon, FileText
+  MessageSquare, ClipboardList, Megaphone, Trash2, Sun, Moon, FileText, Download
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import IdleScreen from '@/components/IdleScreen';
@@ -25,6 +25,7 @@ const navItems = [
   { to: '/recycle-bin', label: 'Recycle Bin', icon: Trash2, permission: 'manage_staff' },
   { to: '/work-logs', label: 'Activity Log', icon: ClipboardList, permission: 'view_audit_logs' },
   { to: '/cms', label: 'Core Settings', icon: Globe, permission: 'manage_cms' },
+  { to: '/download-app', label: 'Download App', icon: Download },
 ];
 
 interface SidebarProps {

@@ -193,6 +193,8 @@ export const siteSettingsSchema = z.object({
   }).default({}),
   hero_slider: z.array(heroSlideSchema).default([]),
   login_bg_url: z.string().url().optional().nullable(),
+  windows_app_url: z.string().url().optional().nullable(),
+  android_app_url: z.string().url().optional().nullable(),
 });
 
 export type SiteSettingsInput = z.infer<typeof siteSettingsSchema>;
