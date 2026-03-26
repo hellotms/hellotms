@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
@@ -27,7 +27,12 @@ export default function CompanyDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>('Projects');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get('tab') as Tab) || 'Projects';
+
+  const setActiveTab = (tab: Tab) => {
+    setSearchParams({ tab }, { replace: true });
+  };
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -314,40 +319,35 @@ export default function CompanyDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/companies')} className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground">
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <div className="flex-1 flex items-center gap-4">
-          {company.logo_url ? (
-            <img src={company.logo_url} alt={company.name} className="h-12 w-12 rounded-xl object-cover bg-white dark:bg-[#1c1c1c] shadow-sm border border-border" />
-          ) : (
-            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Building2 className="h-6 w-6 text-primary" />
-            </div>
-          )}
-          <PageHeader title={company.name} description={company.address ?? company.email ?? ''} />
+      {/* Header */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/companies')} className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground mr-1">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <PageHeader title={company.name} description="Company Details & History" />
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           {publicUrl && (
             <a
               href={publicUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden md:flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-muted-foreground"
+              className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors text-muted-foreground"
             >
-              <ExternalLink className="h-4 w-4" /> View on Public Site
+              <ExternalLink className="h-4 w-4" /> <span className="hidden sm:inline">View on Public Site</span>
             </a>
           )}
           <button
+            className={cn(
+              "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors border",
+              company.is_published
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+                : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
+            )}
             onClick={() => togglePublishMutation.mutate(!company.is_published)}
             disabled={togglePublishMutation.isPending}
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all shadow-sm",
-              company.is_published 
-                ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20" 
-                : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
-            )}
           >
             {togglePublishMutation.isPending ? (
               <CircleDashed className="h-4 w-4 animate-spin" />
@@ -397,7 +397,7 @@ export default function CompanyDetailPage() {
 
       {/* Tabs */}
       <div className="border-b border-border">
-        <div className="flex gap-6">
+        <div className="flex gap-6 overflow-x-auto">
           {TABS.map(tab => (
             <button
               key={tab}

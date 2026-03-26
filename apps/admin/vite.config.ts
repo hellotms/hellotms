@@ -4,6 +4,8 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  clearScreen: false,
+  envPrefix: ['VITE_', 'TAURI_ENV_'],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -11,6 +13,10 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    strictPort: true,
+    watch: {
+      ignored: ["**/src-tauri/**"],
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8787',

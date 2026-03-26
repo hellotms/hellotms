@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -31,7 +31,12 @@ export default function ProjectDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { profile: authProfile } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>('Overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get('tab') as Tab) || 'Overview';
+
+  const setActiveTab = (tab: Tab) => {
+    setSearchParams({ tab }, { replace: true });
+  };
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
   const [isCollectionOpen, setIsCollectionOpen] = useState(false);
@@ -653,47 +658,52 @@ export default function ProjectDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/projects')} className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground">
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <div className="flex-1">
-          <PageHeader title={project.title} description={project.companies?.name ?? ''} />
+      <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+        <div className="flex items-center gap-3 flex-1 w-full">
+          <button onClick={() => navigate('/projects')} className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground mr-1">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <PageHeader title={project.title} description={project.companies?.name ?? ''} />
+          </div>
         </div>
-        <StatusBadge status={project.status} />
-        <button
-          onClick={() => {
-            setIsEditOpen(true);
-          }}
-          className="flex items-center gap-1.5 text-xs border border-border px-3 py-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
-        >
-          <Pencil className="h-3.5 w-3.5" /> Edit
-        </button>
-        <button
-          onClick={() => isPaid ? markAsUnpaidMutation.mutate() : markAsPaidMutation.mutate()}
-          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${isPaid
-            ? 'border-emerald-300 text-emerald-800 bg-emerald-100 hover:bg-emerald-200 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300'
-            : 'border-border text-foreground bg-background hover:bg-muted'
-            }`}
-          disabled={markAsPaidMutation.isPending || markAsUnpaidMutation.isPending}
-        >
-          {isPaid ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
-          {isPaid ? 'Payment Received' : 'Mark as Paid'}
-        </button>
-        <button
-          onClick={togglePublished}
-          className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${project.is_published ? 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400' : 'border-border text-muted-foreground hover:text-foreground'
-            }`}
-        >
-          {project.is_published ? '● Published' : '○ Unpublished'}
-        </button>
-        <button
-          onClick={() => setDeleteProjectTarget(project.id)}
-          className="p-2 rounded-md hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-500"
-          title="Delete Project"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <StatusBadge status={project.status} />
+          <button
+            onClick={() => {
+              setIsEditOpen(true);
+            }}
+            className="flex items-center gap-1.5 text-xs border border-border px-3 py-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+          >
+            <Pencil className="h-3.5 w-3.5" /> Edit
+          </button>
+          <button
+            onClick={() => isPaid ? markAsUnpaidMutation.mutate() : markAsPaidMutation.mutate()}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${isPaid
+              ? 'border-emerald-300 text-emerald-800 bg-emerald-100 hover:bg-emerald-200 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300'
+              : 'border-border text-foreground bg-background hover:bg-muted'
+              }`}
+            disabled={markAsPaidMutation.isPending || markAsUnpaidMutation.isPending}
+          >
+            {isPaid ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+            {isPaid ? 'Payment Received' : 'Mark as Paid'}
+          </button>
+          <button
+            onClick={togglePublished}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${project.is_published ? 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400' : 'border-border text-muted-foreground hover:text-foreground'
+              }`}
+          >
+            {project.is_published ? '● Published' : '○ Unpublished'}
+          </button>
+          <button
+            onClick={() => setDeleteProjectTarget(project.id)}
+            className="p-2 rounded-md hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-500"
+            title="Delete Project"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Finance summary bar */}
@@ -1161,9 +1171,16 @@ export default function ProjectDetailPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {gallery.map((photo, idx) => (
-                <div key={photo.id} className="relative group aspect-square rounded-lg overflow-hidden border border-border">
-                  <img src={photo.url} alt="" className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105" onClick={() => setViewerIndex(idx)} />
-                  
+                <div key={photo.id} className="relative group aspect-square rounded-lg border border-border">
+                  <div className="w-full h-full overflow-hidden rounded-lg">
+                    <img
+                      src={photo.url}
+                      alt=""
+                      className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                      onClick={() => setViewerIndex(idx)}
+                    />
+                  </div>
+
                   {/* Dropdown Menu Toggle */}
                   <div className="absolute top-2 right-2">
                     <button
