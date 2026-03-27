@@ -26,6 +26,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "The Marketing Solution",
+    "copyright": "Copyright © 2024 The Marketing Solution. All rights reserved.",
+    "shortDescription": "TMS Admin App",
+    "longDescription": "Official administrative desktop interface for The Marketing Solution (TMS).",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

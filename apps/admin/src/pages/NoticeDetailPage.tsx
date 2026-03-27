@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { formatDate } from '@/lib/utils';
-import { ArrowLeft, Calendar, User, FileText, Pin, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Calendar, User, FileText, Pin, Maximize2 } from 'lucide-react';
 import type { Notice } from '@hellotms/shared';
 import { useState } from 'react';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
@@ -44,10 +44,10 @@ export default function NoticeDetailPage() {
                         className="h-64 w-full relative cursor-pointer group"
                         onClick={() => setPreviewUrl(notice.cover_url as string | null)}
                     >
-                        <img src={notice.cover_url} alt="" className="w-full h-full object-cover group-hover:opacity-90 transition-opacity" />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10">
-                            <div className="bg-white/90 p-2 rounded-full shadow-lg">
-                                <ExternalLink className="h-5 w-5 text-primary" />
+                        <img src={notice.cover_url} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" />
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-start justify-end p-4">
+                            <div className="bg-white/20 backdrop-blur-md p-2 rounded-lg border border-white/30 shadow-xl transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                                <Maximize2 className="h-5 w-5 text-white" />
                             </div>
                         </div>
                         {notice.is_pinned && (

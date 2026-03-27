@@ -10,7 +10,7 @@ import { Modal, ConfirmModal, CascadeConfirmModal } from '@/components/Modal';
 import { ImageUpload } from '@/components/ImageUpload';
 import { formatBDT, formatDate, formatDateTime } from '@/lib/utils';
 import { computeProjectDurations } from '@hellotms/shared';
-import { ArrowLeft, Plus, Pencil, Trash2, Calendar, Clock, DollarSign, Upload, X, ImageIcon, Download, CheckCircle2, MoreVertical, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Calendar, Clock, DollarSign, Upload, X, ImageIcon, Download, CheckCircle2, MoreVertical, RefreshCw, Maximize2 } from 'lucide-react';
 import type { Project, LedgerEntry, Collection, Invoice } from '@hellotms/shared';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
 import { useForm } from 'react-hook-form';
@@ -1174,13 +1174,17 @@ export default function ProjectDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {gallery.map((photo, idx) => (
                 <div key={photo.id} className="relative group aspect-square rounded-lg border border-border">
-                  <div className="w-full h-full overflow-hidden rounded-lg">
+                  <div className="w-full h-full overflow-hidden rounded-lg relative cursor-pointer" onClick={() => setViewerIndex(idx)}>
                     <img
                       src={photo.url}
                       alt=""
-                      className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
-                      onClick={() => setViewerIndex(idx)}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-start justify-end p-2 px-2.5">
+                      <div className="bg-white/20 backdrop-blur-md p-1.5 rounded-lg border border-white/30 shadow-lg transform translate-y-1 group-hover:translate-y-0 transition-transform duration-300">
+                        <Maximize2 className="h-4 w-4 text-white" />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Dropdown Menu Toggle */}
