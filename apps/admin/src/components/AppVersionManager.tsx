@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { appsApi, mediaApi, auditApi } from '@/lib/api';
 import { toast } from '@/components/Toast';
 import { 
   Monitor, Smartphone, Download, Plus, Trash2, CheckCircle2, 
-  CircleDashed, History, Calendar, HardDrive, Tag, MessageSquare
+  CircleDashed, History, Calendar, HardDrive, Tag, MessageSquare,
+  Edit2, X
 } from 'lucide-react';
 import { cn, formatBytes } from '@/lib/utils';
 import type { AppVersion, AppPlatform } from '@hellotms/shared';
@@ -17,6 +18,7 @@ interface AppVersionManagerProps {
 export function AppVersionManager({ platform, disabled }: AppVersionManagerProps) {
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingVersion, setEditingVersion] = useState<AppVersion | null>(null);
   const [newVersion, setNewVersion] = useState('');
   const [newSignature, setNewSignature] = useState('');
   const [newExtension, setNewExtension] = useState<'.msi' | '.exe' | '.apk'>(platform === 'windows' ? '.msi' : '.apk');
@@ -29,48 +31,88 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
     queryFn: () => appsApi.list(platform).then(res => res.data as AppVersion[]),
   });
 
-  const addMutation = useMutation({
+  // Sync form when editing
+  useEffect(() => {
+    if (editingVersion) {
+      setNewVersion(editingVersion.version);
+      setNewSignature(editingVersion.signature || '');
+      setNewExtension(editingVersion.file_extension as any);
+      setNewChangelog(editingVersion.changelog || '');
+      setShowAddForm(true);
+    }
+  }, [editingVersion]);
+
+  const clearForm = () => {
+    setEditingVersion(null);
+    setShowAddForm(false);
+    setNewVersion('');
+    setNewSignature('');
+    setNewChangelog('');
+    setSelectedFile(null);
+  };
+
+  const upsertMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedFile || !newVersion) throw new Error('Version and File are required');
+      if (!newVersion) throw new Error('Version is required');
+      if (!editingVersion && !selectedFile) throw new Error('File is required for new versions');
+      
       setIsUploading(true);
       try {
-        // 1. Upload to R2
-        const uploadRes = await mediaApi.upload(
-          selectedFile, 
-          'apps', 
-          platform, 
-          `tms-admin-${newVersion.replace(/\./g, '-')}`
-        );
-        if (!uploadRes.success) throw new Error('Upload failed');
+        let finalUrl = editingVersion?.url || '';
+        let finalSize = editingVersion?.size || 0;
+
+        // 1. Handle File (Replace if new one selected, or upload new)
+        if (selectedFile) {
+          const res = await mediaApi.uploadAndCleanMedia(
+            selectedFile,
+            editingVersion?.url, // Old URL to cleanup if replacing
+            'apps',
+            platform,
+            `tms-admin-${newVersion.replace(/\./g, '-')}-${Date.now()}`
+          );
+          if (res) {
+            finalUrl = res;
+            finalSize = selectedFile.size;
+          }
+        }
 
         // 2. Save to Database
-        await appsApi.add({
-          platform,
-          version: newVersion,
-          file_extension: newExtension,
-          url: uploadRes.url,
-          size: selectedFile.size,
-          changelog: newChangelog,
-          signature: newSignature,
-          is_latest: !versions.some(v => v.file_extension === newExtension)
-        });
+        if (editingVersion) {
+          await appsApi.update(editingVersion.id, {
+            version: newVersion,
+            file_extension: newExtension,
+            url: finalUrl,
+            size: finalSize,
+            changelog: newChangelog,
+            signature: newSignature,
+          });
+        } else {
+          await appsApi.add({
+            platform,
+            version: newVersion,
+            file_extension: newExtension,
+            url: finalUrl,
+            size: finalSize,
+            changelog: newChangelog,
+            signature: newSignature,
+            is_latest: !versions.some(v => v.file_extension === newExtension)
+          });
+        }
       } finally {
         setIsUploading(false);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['app-versions', platform] });
-      toast('New version added!', 'success');
-      setShowAddForm(false);
-      setNewVersion('');
-      setNewSignature('');
-      setNewChangelog('');
-      setSelectedFile(null);
+      toast(editingVersion ? 'Version updated!' : 'New version added!', 'success');
+      
       auditApi.log({ 
-        action: 'app_version_added', 
+        action: editingVersion ? 'app_version_updated' : 'app_version_added', 
         entity_type: 'app_version', 
         after: { platform, version: newVersion } 
       });
+
+      clearForm();
     },
     onError: (e: any) => toast(e.message, 'error'),
   });
@@ -96,7 +138,7 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
   const latestVersion = versions.find(v => v.is_latest);
 
   // Form validation state
-  const isFormDisabled = isUploading || !newVersion || !selectedFile || (platform === 'windows' && !newSignature);
+  const isFormDisabled = isUploading || !newVersion || (!editingVersion && !selectedFile) || (platform === 'windows' && !newSignature);
 
   return (
     <div className="space-y-6">
@@ -124,9 +166,17 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
         )}
       </div>
 
-      {/* Add New Version Form */}
+      {/* Add/Edit Version Form */}
       {showAddForm && (
         <div className="bg-muted/30 border border-primary/20 rounded-2xl p-6 space-y-4 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center justify-between mb-2">
+             <h4 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
+               {editingVersion ? <Edit2 className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+               {editingVersion ? `Edit v${editingVersion.version}` : 'Publish New Version'}
+             </h4>
+             <button onClick={clearForm} className="p-1 hover:bg-muted rounded-lg transition-all"><X className="h-4 w-4" /></button>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Version Number <span className="text-red-500">*</span></label>
@@ -141,13 +191,19 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Binary File ({platform === 'windows' ? '.msi/.exe' : '.apk'}) <span className="text-red-500">*</span></label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                {editingVersion ? 'Replace Binary (Optional)' : `Binary File (${platform === 'windows' ? '.msi/.exe' : '.apk'})`} 
+                {!editingVersion && <span className="text-red-500"> *</span>}
+              </label>
               <input 
                 type="file"
                 accept={platform === 'windows' ? (newExtension === '.msi' ? '.msi' : '.exe') : '.apk'}
                 onChange={e => setSelectedFile(e.target.files?.[0] || null)}
                 className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
               />
+              {editingVersion && !selectedFile && (
+                <p className="text-[9px] text-muted-foreground mt-1">Keep empty to maintain current file: <span className="font-mono">{editingVersion.url.split('/').pop()}</span></p>
+              )}
             </div>
 
             {platform === 'windows' && (
@@ -203,23 +259,23 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button 
-              onClick={() => setShowAddForm(false)}
+              onClick={clearForm}
               className="px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-muted rounded-xl transition-all"
             >
               Cancel
             </button>
             <button 
               disabled={isFormDisabled}
-              onClick={() => addMutation.mutate()}
+              onClick={() => upsertMutation.mutate()}
               className={cn(
                 "flex items-center gap-2 px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg",
                 isFormDisabled 
                   ? "bg-muted text-muted-foreground opacity-50 cursor-not-allowed" 
-                  : "bg-green-500 text-white hover:bg-green-600 shadow-green-500/20 shadow-lg"
+                  : "bg-green-500 text-white hover:bg-green-600 shadow-green-500/20"
               )}
             >
-              {isUploading ? <CircleDashed className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} 
-              {isUploading ? 'Uploading...' : 'Publish Release'}
+              {isUploading ? <CircleDashed className="h-3.5 w-3.5 animate-spin" /> : (editingVersion ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />)} 
+              {isUploading ? 'Processing...' : (editingVersion ? 'Update Version' : 'Publish Release')}
             </button>
           </div>
         </div>
@@ -244,13 +300,21 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
               </p>
             </div>
           </div>
-          <a 
-            href={latestVersion.url} 
-            target="_blank"
-            className="p-3 bg-background border border-border rounded-xl hover:bg-muted transition-all"
-          >
-            <Download className="h-4 w-4 text-muted-foreground" />
-          </a>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setEditingVersion(latestVersion)}
+              className="p-3 bg-background border border-border rounded-xl hover:bg-primary/5 hover:text-primary transition-all text-muted-foreground"
+            >
+              <Edit2 className="h-4 w-4" />
+            </button>
+            <a 
+              href={latestVersion.url} 
+              target="_blank"
+              className="p-3 bg-background border border-border rounded-xl hover:bg-muted transition-all"
+            >
+              <Download className="h-4 w-4 text-muted-foreground" />
+            </a>
+          </div>
         </div>
       ) : !isLoading && (
         <div className="bg-muted/20 border border-border border-dashed rounded-2xl p-8 text-center">
@@ -281,6 +345,12 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
               </div>
               
               <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={() => setEditingVersion(v)}
+                  className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                >
+                  <Edit2 className="h-3.5 w-3.5" />
+                </button>
                 {!v.is_latest && (
                   <button 
                     onClick={() => setLatestMutation.mutate(v.id)}
