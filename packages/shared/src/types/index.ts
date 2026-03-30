@@ -386,8 +386,10 @@ export interface AppVersion {
   url: string;
   size?: number | null;
   changelog?: string | null;
+  signature?: string | null;
   is_latest: boolean;
   created_at: string;
   created_by?: string | null;
+  deleted_at?: string | null;
 }
 
