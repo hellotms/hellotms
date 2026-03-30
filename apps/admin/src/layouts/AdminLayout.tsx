@@ -156,7 +156,7 @@ export default function AdminLayout() {
   const [hasUpdate, setHasUpdate] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<any>(null);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [appVersion, setAppVersion] = useState<string>('0.1.2');
+  const [appVersion, setAppVersion] = useState<string>('0.1.3');
 
   // Check for updates (PC Apps only - Native Updater)
   useEffect(() => {
