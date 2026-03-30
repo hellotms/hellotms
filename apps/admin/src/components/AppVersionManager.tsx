@@ -95,6 +95,9 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
 
   const latestVersion = versions.find(v => v.is_latest);
 
+  // Form validation state
+  const isFormDisabled = isUploading || !newVersion || !selectedFile || (platform === 'windows' && !newSignature);
+
   return (
     <div className="space-y-6">
       {/* Platform Header */}
@@ -126,7 +129,7 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
         <div className="bg-muted/30 border border-primary/20 rounded-2xl p-6 space-y-4 animate-in fade-in slide-in-from-top-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Version Number</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Version Number <span className="text-red-500">*</span></label>
               <div className="relative">
                 <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input 
@@ -138,7 +141,7 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Binary File ({platform === 'windows' ? '.msi/.exe' : '.apk'})</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Binary File ({platform === 'windows' ? '.msi/.exe' : '.apk'}) <span className="text-red-500">*</span></label>
               <input 
                 type="file"
                 accept={platform === 'windows' ? (newExtension === '.msi' ? '.msi' : '.exe') : '.apk'}
@@ -152,7 +155,7 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
                 <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Windows Installer Type</label>
                 <div className="flex gap-2">
                   <button 
-                    onClick={() => { setNewExtension('.msi'); setSelectedFile(null); }}
+                    onClick={() => setNewExtension('.msi')}
                     className={cn(
                       "flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
                       newExtension === '.msi' ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" : "bg-background text-muted-foreground border-border hover:bg-muted"
@@ -161,7 +164,7 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
                     MSI (Standard)
                   </button>
                   <button 
-                    onClick={() => { setNewExtension('.exe'); setSelectedFile(null); }}
+                    onClick={() => setNewExtension('.exe')}
                     className={cn(
                       "flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
                       newExtension === '.exe' ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" : "bg-background text-muted-foreground border-border hover:bg-muted"
@@ -185,16 +188,18 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
                 />
               </div>
             </div>
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Update Signature (Required for Auto-Update)</label>
-              <textarea 
-                value={newSignature}
-                onChange={e => setNewSignature(e.target.value)}
-                placeholder="PASTE .sig FILE CONTENT HERE"
-                rows={2}
-                className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20 resize-none font-mono"
-              />
-            </div>
+            {platform === 'windows' && (
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Update Signature (Required for Auto-Update) <span className="text-red-500">*</span></label>
+                <textarea 
+                  value={newSignature}
+                  onChange={e => setNewSignature(e.target.value)}
+                  placeholder="PASTE .sig FILE CONTENT HERE"
+                  rows={2}
+                  className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20 resize-none font-mono"
+                />
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button 
@@ -204,9 +209,14 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
               Cancel
             </button>
             <button 
-              disabled={isUploading || !newVersion || !selectedFile}
+              disabled={isFormDisabled}
               onClick={() => addMutation.mutate()}
-              className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest rounded-xl hover:opacity-90 disabled:opacity-50 transition-all shadow-lg shadow-primary/20"
+              className={cn(
+                "flex items-center gap-2 px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg",
+                isFormDisabled 
+                  ? "bg-muted text-muted-foreground opacity-50 cursor-not-allowed" 
+                  : "bg-green-500 text-white hover:bg-green-600 shadow-green-500/20 shadow-lg"
+              )}
             >
               {isUploading ? <CircleDashed className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} 
               {isUploading ? 'Uploading...' : 'Publish Release'}
