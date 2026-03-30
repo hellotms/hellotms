@@ -18,6 +18,7 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
   const [newVersion, setNewVersion] = useState('');
+  const [newSignature, setNewSignature] = useState('');
   const [newExtension, setNewExtension] = useState<'.msi' | '.exe' | '.apk'>(platform === 'windows' ? '.msi' : '.apk');
   const [newChangelog, setNewChangelog] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -50,6 +51,7 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
           url: uploadRes.url,
           size: selectedFile.size,
           changelog: newChangelog,
+          signature: newSignature,
           is_latest: !versions.some(v => v.file_extension === newExtension)
         });
       } finally {
@@ -61,6 +63,7 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
       toast('New version added!', 'success');
       setShowAddForm(false);
       setNewVersion('');
+      setNewSignature('');
       setNewChangelog('');
       setSelectedFile(null);
       auditApi.log({ 
@@ -181,6 +184,16 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
                   className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20 resize-none"
                 />
               </div>
+            </div>
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Update Signature (Required for Auto-Update)</label>
+              <textarea 
+                value={newSignature}
+                onChange={e => setNewSignature(e.target.value)}
+                placeholder="PASTE .sig FILE CONTENT HERE"
+                rows={2}
+                className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20 resize-none font-mono"
+              />
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">

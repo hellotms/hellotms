@@ -8,6 +8,40 @@ export const appsRoute = new Hono<{ Bindings: Env; Variables: Variables }>();
 // All app management requires auth
 appsRoute.use('*', authMiddleware);
 
+// Get latest update metadata for Tauri v2 Native Updater
+appsRoute.get('/latest/update.json', async (c) => {
+    const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+    
+    // Fetch latest windows version with a signature
+    const { data: version, error } = await supabase
+        .from('app_versions')
+        .select('*')
+        .eq('platform', 'windows')
+        .is('deleted_at', null)
+        .eq('is_latest', true)
+        .not('signature', 'is', null) // Must have signature for auto-updater
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (error || !version) {
+        return c.json({ error: 'No signed update found' }, 404);
+    }
+
+    // Format for Tauri v2
+    return c.json({
+        version: version.version.startsWith('v') ? version.version : `v${version.version}`,
+        notes: version.changelog || 'Latest performance and security updates.',
+        pub_date: version.created_at,
+        platforms: {
+            'windows-x86_64': {
+                signature: version.signature,
+                url: version.url
+            }
+        }
+    });
+});
+
 // List app versions for a platform (excluding deleted)
 appsRoute.get('/:platform', async (c) => {
     const platform = c.req.param('platform');
@@ -26,7 +60,7 @@ appsRoute.get('/:platform', async (c) => {
 // Add a new app version
 appsRoute.post('/', requirePermission('manage_cms'), async (c) => {
     const body = await c.req.json();
-    const { platform, version, file_extension, url, size, changelog, is_latest } = body;
+    const { platform, version, file_extension, url, size, changelog, is_latest, signature } = body;
 
     if (!platform || !version || !url || !file_extension) {
         return c.json({ error: 'Platform, version, extension, and URL are required' }, 400);
@@ -42,6 +76,7 @@ appsRoute.post('/', requirePermission('manage_cms'), async (c) => {
             url,
             size,
             changelog,
+            signature, // Save signature
             is_latest: !!is_latest,
             created_by: c.get('userId')
         }])

@@ -22,6 +22,14 @@
     ],
     "security": {
       "csp": null
+    },
+    "plugins": {
+      "updater": {
+        "pubkey": "RWSRF/+NoH8Q1iRMRDi26SZW2LhBssWWoLbTQaFUNONSUzasHInsUv0q",
+        "endpoints": [
+          "https://hellotms-api.info-tms2021.workers.dev/apps/latest/update.json"
+        ]
+      }
     }
   },
   "bundle": {

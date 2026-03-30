@@ -11,19 +11,22 @@ import IdleScreen from '@/components/IdleScreen';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from 'next-themes';
+import { toast } from '../components/Toast';
 
 // Add Tauri open capability if running in desktop app
 let openExternal: ((url: string) => Promise<void>) | null = null;
 let getAppVersion: (() => Promise<string>) | null = null;
+let checkAppUpdate: (() => Promise<any>) | null = null;
+
 if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
   import('@tauri-apps/api/app').then(m => {
     getAppVersion = m.getVersion;
   });
   import('@tauri-apps/plugin-opener').then(m => {
     openExternal = m.openUrl;
-  }).catch(() => {
-    // Fallback if plugin-opener is not available
-    console.warn('Tauri plugin-opener not found');
+  });
+  import('@tauri-apps/plugin-updater').then(m => {
+    checkAppUpdate = m.check;
   });
 }
 
@@ -134,38 +137,41 @@ export default function AdminLayout() {
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
   const [hasUpdate, setHasUpdate] = useState(false);
-  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<any>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  // Check for updates (PC Apps only)
+  // Check for updates (PC Apps only - Native Updater)
   useEffect(() => {
-    if (!getAppVersion) return;
+    if (!checkAppUpdate) return;
 
-    const checkUpdate = async () => {
+    const runUpdater = async () => {
       try {
-        const localV = await getAppVersion!();
-        setCurrentVersion(localV);
-        
-        // Fetch latest version from DB
-        const { data } = await supabase
-          .from('app_versions')
-          .select('version')
-          .eq('platform', 'windows')
-          .is('deleted_at', null)
-          .eq('is_latest', true)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-
-        if (data && data.version !== localV) {
+        const update = await checkAppUpdate!();
+        if (update) {
           setHasUpdate(true);
+          setUpdateInfo(update);
         }
       } catch (err) {
-        console.warn('[UpdateCheck] Failed:', err);
+        console.warn('[NativeUpdater] Check failed:', err);
       }
     };
 
-    checkUpdate();
+    runUpdater();
   }, []);
+
+  const handleApplyUpdate = async () => {
+    if (!updateInfo) return;
+    try {
+      setIsUpdating(true);
+      toast('Downloading update...', 'info');
+      await updateInfo.downloadAndInstall();
+      toast('Update installed! Restarting...', 'success');
+      // The app will usually restart automatically or can be manually relaunched.
+    } catch (err: any) {
+      toast(`Update failed: ${err.message}`, 'error');
+      setIsUpdating(false);
+    }
+  };
 
   // --- IDLE LOGIC ---
   const IDLE_TIMEOUT = 30000; // 30 seconds
@@ -288,6 +294,20 @@ export default function AdminLayout() {
               onClick={() => setSidebarOpen(true)}
               className="md:hidden p-2 rounded-md hover:bg-muted transition-colors -ml-2"
             >
+              <div className="flex items-center gap-2">
+                <LayoutDashboard className="h-5 w-5 text-primary" />
+                <h1 className="text-lg font-black tracking-tight text-foreground hidden sm:block">HelloTMS Admin</h1>
+                
+                {hasUpdate && (
+                  <button
+                    onClick={handleApplyUpdate}
+                    disabled={isUpdating}
+                    className="ml-4 px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full flex items-center gap-2 animate-bounce shadow-lg shadow-red-500/20 disabled:opacity-50 disabled:animate-none"
+                  >
+                    {isUpdating ? 'Installing...' : 'New Update! Install Now'}
+                  </button>
+                )}
+              </div>
               <Menu className="h-5 w-5" />
             </button>
             <div className="flex items-center gap-2.5 md:gap-3">
