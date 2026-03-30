@@ -64,6 +64,8 @@ export default function CmsPage() {
         login_bg_url: settings.login_bg_url ?? '',
         windows_app_url: settings.windows_app_url ?? '',
         android_app_url: settings.android_app_url ?? '',
+        show_windows_msi: settings.show_windows_msi ?? true,
+        show_windows_exe: settings.show_windows_exe ?? false,
         services: (settings.services ?? []).map((s: any) => ({
           title: s.title ?? s.name ?? '',
           description: s.description ?? '',
@@ -408,7 +410,41 @@ export default function CmsPage() {
 
               {/* App Management */}
               <div className="pt-8 border-t border-border">
-                <SectionHeader title="Application Distribution" section="apps" logMessage="Application versioning settings accessed" onReset={() => form.reset()} />
+                <SectionHeader title="Application Distribution" section="apps" logMessage="Application versioning and visibility settings updated" onReset={() => form.reset()} />
+                
+                {/* Visibility Toggles */}
+                <div className="bg-muted/30 p-6 rounded-2xl border border-border/50 mb-8">
+                  <h4 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-4 flex items-center gap-2">
+                    <Monitor className="h-3 w-3" /> Download Visibility Control
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                    <div className="flex items-center justify-between p-4 bg-background rounded-xl border border-border">
+                      <div className="space-y-0.5">
+                        <label className="text-sm font-bold">Show MSI Download</label>
+                        <p className="text-[10px] text-muted-foreground font-medium">Standard Windows Installer package</p>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        {...form.register('show_windows_msi')} 
+                        disabled={editingSection !== 'apps'} 
+                        className="h-5 w-5 rounded border-border text-primary focus:ring-primary/20 accent-primary" 
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-background rounded-xl border border-border">
+                      <div className="space-y-0.5">
+                        <label className="text-sm font-bold">Show EXE Download</label>
+                        <p className="text-[10px] text-muted-foreground font-medium">Standalone executable installer</p>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        {...form.register('show_windows_exe')} 
+                        disabled={editingSection !== 'apps'} 
+                        className="h-5 w-5 rounded border-border text-primary focus:ring-primary/20 accent-primary" 
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   <AppVersionManager platform="windows" disabled={editingSection !== 'apps'} />
                   <AppVersionManager platform="android" disabled={editingSection !== 'apps'} />

@@ -195,6 +195,8 @@ export const siteSettingsSchema = z.object({
   login_bg_url: z.string().url().optional().nullable(),
   windows_app_url: z.string().url().optional().nullable(),
   android_app_url: z.string().url().optional().nullable(),
+  show_windows_msi: z.boolean().default(true),
+  show_windows_exe: z.boolean().default(false),
 });
 
 export type SiteSettingsInput = z.infer<typeof siteSettingsSchema>;

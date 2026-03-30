@@ -8,7 +8,7 @@ export const appsRoute = new Hono<{ Bindings: Env; Variables: Variables }>();
 // All app management requires auth
 appsRoute.use('*', authMiddleware);
 
-// List app versions for a platform
+// List app versions for a platform (excluding deleted)
 appsRoute.get('/:platform', async (c) => {
     const platform = c.req.param('platform');
     const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
@@ -16,19 +16,20 @@ appsRoute.get('/:platform', async (c) => {
         .from('app_versions')
         .select('*')
         .eq('platform', platform)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
     if (error) return c.json({ error: error.message }, 500);
     return c.json({ data });
 });
 
-// Add a new app version (Requires manage_cms or similar)
+// Add a new app version
 appsRoute.post('/', requirePermission('manage_cms'), async (c) => {
     const body = await c.req.json();
-    const { platform, version, url, size, changelog, is_latest } = body;
+    const { platform, version, file_extension, url, size, changelog, is_latest } = body;
 
-    if (!platform || !version || !url) {
-        return c.json({ error: 'Platform, version, and URL are required' }, 400);
+    if (!platform || !version || !url || !file_extension) {
+        return c.json({ error: 'Platform, version, extension, and URL are required' }, 400);
     }
 
     const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
@@ -37,6 +38,7 @@ appsRoute.post('/', requirePermission('manage_cms'), async (c) => {
         .insert([{
             platform,
             version,
+            file_extension,
             url,
             size,
             changelog,
@@ -47,6 +49,16 @@ appsRoute.post('/', requirePermission('manage_cms'), async (c) => {
         .single();
 
     if (error) return c.json({ error: error.message }, 500);
+
+    // Activity Log
+    await supabase.from('audit_logs').insert({
+        user_id: c.get('userId'),
+        action: 'app_version_added',
+        entity_type: 'app_version',
+        entity_id: data.id,
+        after: data
+    });
+
     return c.json({ data });
 });
 
@@ -56,6 +68,9 @@ appsRoute.put('/:id', requirePermission('manage_cms'), async (c) => {
     const body = await c.req.json();
     const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
 
+    // Fetch before for audit
+    const { data: before } = await supabase.from('app_versions').select('*').eq('id', id).single();
+
     const { data, error } = await supabase
         .from('app_versions')
         .update(body)
@@ -64,18 +79,61 @@ appsRoute.put('/:id', requirePermission('manage_cms'), async (c) => {
         .single();
 
     if (error) return c.json({ error: error.message }, 500);
+
+    // Activity Log
+    await supabase.from('audit_logs').insert({
+        user_id: c.get('userId'),
+        action: 'app_version_updated',
+        entity_type: 'app_version',
+        entity_id: id,
+        before,
+        after: data
+    });
+
     return c.json({ data });
 });
 
-// Delete a version
+// Soft Delete a version (Move to Recycle Bin)
 appsRoute.delete('/:id', requirePermission('manage_cms'), async (c) => {
     const id = c.req.param('id');
     const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
-    const { error } = await supabase
+
+    // 1. Fetch version data
+    const { data: version, error: fetchError } = await supabase
         .from('app_versions')
-        .delete()
+        .select('*')
+        .eq('id', id)
+        .single();
+    
+    if (fetchError || !version) return c.json({ error: 'Version not found' }, 404);
+
+    // 2. Insert into trash_bin
+    const { error: trashError } = await supabase.from('trash_bin').insert({
+        entity_type: 'app_version',
+        entity_id: id,
+        entity_name: `${version.platform} v${version.version} (${version.file_extension})`,
+        entity_data: version,
+        deleted_by: c.get('userId'),
+    });
+
+    if (trashError) return c.json({ error: `Trash error: ${trashError.message}` }, 500);
+
+    // 3. Mark as deleted
+    const { error: updateError } = await supabase
+        .from('app_versions')
+        .update({ deleted_at: new Date().toISOString(), is_latest: false })
         .eq('id', id);
 
-    if (error) return c.json({ error: error.message }, 500);
+    if (updateError) return c.json({ error: updateError.message }, 500);
+
+    // 4. Activity Log
+    await supabase.from('audit_logs').insert({
+        user_id: c.get('userId'),
+        action: 'app_version_deleted',
+        entity_type: 'app_version',
+        entity_id: id,
+        before: version
+    });
+
     return c.json({ success: true });
 });

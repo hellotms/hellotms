@@ -1,6 +1,6 @@
 {
   "name": "@hellotms/admin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Admin Panel - The Marketing Solution (admin.hellotms.com.bd)",
   "type": "module",
@@ -32,6 +32,7 @@
     "@tanstack/react-query": "^5.18.1",
     "@tanstack/react-table": "^8.13.2",
     "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-opener": "^2.5.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "cmdk": "^0.2.1",

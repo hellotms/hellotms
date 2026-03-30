@@ -50,20 +50,20 @@ export function getInitials(name: string): string {
 
 export function statusColor(status: string): string {
   const map: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-800',
-    active: 'bg-blue-100 dark:bg-blue-500/20 text-blue-800',
-    completed: 'bg-green-100 dark:bg-green-500/20 text-green-800',
-    new: 'bg-purple-100 dark:bg-purple-500/20 text-purple-800',
-    contacted: 'bg-yellow-100 text-yellow-800',
-    closed: 'bg-green-100 dark:bg-green-500/20 text-green-800',
-    sent: 'bg-blue-100 dark:bg-blue-500/20 text-blue-800',
-    paid: 'bg-green-100 dark:bg-green-500/20 text-green-800',
-    overdue: 'bg-red-100 dark:bg-red-500/20 text-red-800',
-    unpaid: 'bg-orange-100 dark:bg-orange-500/20 text-orange-800',
-    income: 'bg-green-100 dark:bg-green-500/20 text-green-800',
-    expense: 'bg-red-100 dark:bg-red-500/20 text-red-800',
-    published: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800',
-    partial: 'bg-orange-100 dark:bg-orange-500/20 text-orange-800',
+    draft: 'bg-gray-100 dark:bg-gray-800/50 text-gray-800 dark:text-gray-300',
+    active: 'bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300',
+    completed: 'bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-green-300',
+    new: 'bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-300',
+    contacted: 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-800 dark:text-yellow-300',
+    closed: 'bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-green-300',
+    sent: 'bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300',
+    paid: 'bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-green-300',
+    overdue: 'bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-red-300',
+    unpaid: 'bg-orange-100 dark:bg-orange-500/20 text-orange-800 dark:text-orange-300',
+    income: 'bg-green-100 dark:bg-green-500/20 text-green-800 dark:text-green-300',
+    expense: 'bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-red-300',
+    published: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300',
+    partial: 'bg-orange-100 dark:bg-orange-500/20 text-orange-800 dark:text-orange-300',
   };
   return map[status] ?? 'bg-gray-100 text-gray-800';
 }

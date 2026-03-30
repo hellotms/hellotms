@@ -2,8 +2,20 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { Monitor, Smartphone, Download, CheckCircle2, Info } from 'lucide-react';
+import { toast } from '@/components/Toast';
 import type { AppVersion } from '@hellotms/shared';
 import { cn } from '@/lib/utils';
+import type { SiteSettings } from '@hellotms/shared';
+
+// Add Tauri open capability if running in desktop app
+let openExternal: ((url: string) => Promise<void>) | null = null;
+if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+  import('@tauri-apps/plugin-opener').then(m => {
+    openExternal = m.openUrl;
+  }).catch(() => {
+    console.warn('Tauri plugin-opener not found');
+  });
+}
 
 export default function DownloadAppPage() {
   const { data: versions = [], isLoading } = useQuery<AppVersion[]>({
@@ -15,6 +27,15 @@ export default function DownloadAppPage() {
         .eq('is_latest', true);
       if (error) throw error;
       return data as AppVersion[];
+    }
+  });
+
+  const { data: settings } = useQuery<SiteSettings>({
+    queryKey: ['site-settings-downloads'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('site_settings').select('*').eq('id', 1).single();
+      if (error) throw error;
+      return data as SiteSettings;
     }
   });
 
@@ -100,19 +121,83 @@ export default function DownloadAppPage() {
               </ul>
             </div>
 
-            <a
-              href={p.url || '#'}
-              className={cn(
-                "w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-xs font-black uppercase tracking-widest transition-all shadow-lg",
-                p.url 
-                  ? (p.color === 'blue' ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20" : "bg-green-600 text-white hover:bg-green-700 shadow-green-500/20")
-                  : "bg-muted text-muted-foreground cursor-not-allowed"
-              )}
-              onClick={(e) => !p.url && e.preventDefault()}
-            >
-              <Download className="h-4 w-4" />
-              {p.url ? `Download ${p.id === 'windows' ? 'Installer' : 'APK'}` : 'Coming Soon'}
-            </a>
+            {p.id === 'windows' ? (
+              <div className="space-y-3">
+                {(() => {
+                  const msiVersion = versions.find(v => v.platform === 'windows' && v.file_extension === '.msi' && v.is_latest);
+                  const exeVersion = versions.find(v => v.platform === 'windows' && v.file_extension === '.exe' && v.is_latest);
+                  
+                  return (
+                    <>
+                      {settings?.show_windows_msi !== false && (
+                        <a
+                          href={msiVersion?.url || '#'}
+                          onClick={async (e) => {
+                            if (!msiVersion?.url) { e.preventDefault(); return; }
+                            toast('Starting MSI download...', 'info');
+                            if (openExternal) {
+                              e.preventDefault();
+                              await openExternal(msiVersion.url);
+                            }
+                          }}
+                          className={cn(
+                            "w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-xs font-black uppercase tracking-widest transition-all shadow-lg",
+                            msiVersion?.url 
+                              ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20"
+                              : "bg-muted text-muted-foreground cursor-not-allowed"
+                          )}
+                        >
+                          <Download className="h-4 w-4" />
+                          {msiVersion?.url ? 'Download MSI Installer' : 'Coming Soon'}
+                        </a>
+                      )}
+                      
+                      {settings?.show_windows_exe && (
+                        <a
+                          href={exeVersion?.url || '#'}
+                          onClick={async (e) => {
+                            if (!exeVersion?.url) { e.preventDefault(); return; }
+                            toast('Starting EXE download...', 'info');
+                            if (openExternal) {
+                              e.preventDefault();
+                              await openExternal(exeVersion.url);
+                            }
+                          }}
+                          className={cn(
+                            "w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-xs font-black uppercase tracking-widest transition-all border-2 border-blue-600/20 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10",
+                            !exeVersion?.url && "opacity-50 cursor-not-allowed"
+                          )}
+                        >
+                          <Download className="h-4 w-4" />
+                          {exeVersion?.url ? 'Download EXE Installer' : 'Coming Soon'}
+                        </a>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            ) : (
+              <a
+                href={p.url || '#'}
+                onClick={async (e) => {
+                  if (!p.url) { e.preventDefault(); return; }
+                  toast(`Starting ${p.id} download...`, 'info');
+                  if (openExternal) {
+                    e.preventDefault();
+                    await openExternal(p.url);
+                  }
+                }}
+                className={cn(
+                  "w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-xs font-black uppercase tracking-widest transition-all shadow-lg",
+                  p.url 
+                    ? "bg-green-600 text-white hover:bg-green-700 shadow-green-500/20"
+                    : "bg-muted text-muted-foreground cursor-not-allowed"
+                )}
+              >
+                <Download className="h-4 w-4" />
+                {p.url ? 'Download APK' : 'Coming Soon'}
+              </a>
+            )}
           </div>
         ))}
       </div>

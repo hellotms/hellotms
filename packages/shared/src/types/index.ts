@@ -188,6 +188,8 @@ export interface SiteSettings {
   login_bg_url?: string | null;
   windows_app_url?: string | null;
   android_app_url?: string | null;
+  show_windows_msi?: boolean;
+  show_windows_exe?: boolean;
   updated_at: string;
 }
 
@@ -380,6 +382,7 @@ export interface AppVersion {
   id: string;
   platform: AppPlatform;
   version: string;
+  file_extension: string;
   url: string;
   size?: number | null;
   changelog?: string | null;

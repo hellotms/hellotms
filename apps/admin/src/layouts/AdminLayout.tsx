@@ -12,6 +12,21 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from 'next-themes';
 
+// Add Tauri open capability if running in desktop app
+let openExternal: ((url: string) => Promise<void>) | null = null;
+let getAppVersion: (() => Promise<string>) | null = null;
+if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+  import('@tauri-apps/api/app').then(m => {
+    getAppVersion = m.getVersion;
+  });
+  import('@tauri-apps/plugin-opener').then(m => {
+    openExternal = m.openUrl;
+  }).catch(() => {
+    // Fallback if plugin-opener is not available
+    console.warn('Tauri plugin-opener not found');
+  });
+}
+
 const navItems = [
   { to: '/dashboard', label: 'My Dashboard', icon: LayoutDashboard },
   { to: '/projects', label: 'Business Portfolio', icon: FolderOpen, permission: 'view_projects' },
@@ -36,9 +51,10 @@ interface SidebarProps {
   navigate: (path: string) => void;
   handleSignOut: () => void;
   can: (permission: string) => boolean;
+  hasUpdate?: boolean;
 }
 
-const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, handleSignOut, can }: SidebarProps) => (
+const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, handleSignOut, can, hasUpdate }: SidebarProps) => (
   <div className={cn(
     'flex flex-col h-full bg-sidebar text-sidebar-foreground',
     mobile ? 'w-72' : 'w-64'
@@ -78,9 +94,9 @@ const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, hand
           to={to}
           onClick={() => setSidebarOpen(false)}
           className={({ isActive }) => cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors group',
+            'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative',
             isActive
-              ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+              ? 'bg-primary/10 text-primary border border-primary/20 backdrop-blur-md shadow-[0_0_15px_rgba(var(--primary),0.05)]'
               : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
           )}
         >
@@ -88,6 +104,9 @@ const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, hand
             <>
               <Icon className="h-4 w-4 shrink-0" />
               <span className="flex-1">{label}</span>
+              {label === 'Download App' && hasUpdate && (
+                <span className="flex h-2 w-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse" />
+              )}
               {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-60" />}
             </>
           )}
@@ -114,6 +133,39 @@ export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
+  const [hasUpdate, setHasUpdate] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+
+  // Check for updates (PC Apps only)
+  useEffect(() => {
+    if (!getAppVersion) return;
+
+    const checkUpdate = async () => {
+      try {
+        const localV = await getAppVersion!();
+        setCurrentVersion(localV);
+        
+        // Fetch latest version from DB
+        const { data } = await supabase
+          .from('app_versions')
+          .select('version')
+          .eq('platform', 'windows')
+          .is('deleted_at', null)
+          .eq('is_latest', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (data && data.version !== localV) {
+          setHasUpdate(true);
+        }
+      } catch (err) {
+        console.warn('[UpdateCheck] Failed:', err);
+      }
+    };
+
+    checkUpdate();
+  }, []);
 
   // --- IDLE LOGIC ---
   const IDLE_TIMEOUT = 30000; // 30 seconds
@@ -221,6 +273,7 @@ export default function AdminLayout() {
               navigate={navigate}
               handleSignOut={handleSignOut}
               can={can}
+              hasUpdate={hasUpdate}
             />
           </div>
         </div>
@@ -257,6 +310,12 @@ export default function AdminLayout() {
             {siteSettings?.public_site_url && (
               <a
                 href={siteSettings.public_site_url}
+                onClick={async (e) => {
+                  if (openExternal) {
+                    e.preventDefault();
+                    await openExternal(siteSettings.public_site_url);
+                  }
+                }}
                 target="_blank"
                 rel="noreferrer"
                 title="View Public Website"

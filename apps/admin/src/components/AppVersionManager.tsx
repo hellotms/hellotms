@@ -18,6 +18,7 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
   const [newVersion, setNewVersion] = useState('');
+  const [newExtension, setNewExtension] = useState<'.msi' | '.exe' | '.apk'>(platform === 'windows' ? '.msi' : '.apk');
   const [newChangelog, setNewChangelog] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -45,10 +46,11 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
         await appsApi.add({
           platform,
           version: newVersion,
+          file_extension: newExtension,
           url: uploadRes.url,
           size: selectedFile.size,
           changelog: newChangelog,
-          is_latest: versions.length === 0 // Make latest if it's the first one
+          is_latest: !versions.some(v => v.file_extension === newExtension)
         });
       } finally {
         setIsUploading(false);
@@ -136,11 +138,37 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
               <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Binary File ({platform === 'windows' ? '.msi/.exe' : '.apk'})</label>
               <input 
                 type="file"
-                accept={platform === 'windows' ? '.msi,.exe' : '.apk'}
+                accept={platform === 'windows' ? (newExtension === '.msi' ? '.msi' : '.exe') : '.apk'}
                 onChange={e => setSelectedFile(e.target.files?.[0] || null)}
                 className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
               />
             </div>
+
+            {platform === 'windows' && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Windows Installer Type</label>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => { setNewExtension('.msi'); setSelectedFile(null); }}
+                    className={cn(
+                      "flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                      newExtension === '.msi' ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" : "bg-background text-muted-foreground border-border hover:bg-muted"
+                    )}
+                  >
+                    MSI (Standard)
+                  </button>
+                  <button 
+                    onClick={() => { setNewExtension('.exe'); setSelectedFile(null); }}
+                    className={cn(
+                      "flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                      newExtension === '.exe' ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" : "bg-background text-muted-foreground border-border hover:bg-muted"
+                    )}
+                  >
+                    EXE (Portable)
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="md:col-span-2 space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">What's New (Changelog)</label>
               <div className="relative">
@@ -184,6 +212,7 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-black text-foreground">v{latestVersion.version}</span>
+                <span className="px-1.5 py-0.5 bg-muted text-muted-foreground text-[8px] font-black uppercase tracking-widest rounded-lg">{latestVersion.file_extension}</span>
                 <span className="px-2 py-0.5 bg-primary text-primary-foreground text-[8px] font-black uppercase tracking-widest rounded-full">Active</span>
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-3">
@@ -222,6 +251,7 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-bold text-foreground">v{v.version}</span>
+                  <span className="px-1 py-0.5 bg-muted text-muted-foreground text-[8px] font-black uppercase tracking-widest rounded">{v.file_extension}</span>
                   <span className="text-[9px] text-muted-foreground font-medium">{new Date(v.created_at).toLocaleDateString()}</span>
                 </div>
                 {v.changelog && <p className="text-[10px] text-muted-foreground truncate mt-0.5 pr-8">{v.changelog}</p>}
