@@ -14,3 +14,11 @@ out/
 coverage/
 *.log
 pnpm-debug.log*
+
+# Tauri Signing Keys
+*.key
+*.sig
+
+# Tauri Build Artifacts
+src-tauri/target/
+src-tauri/binaries/

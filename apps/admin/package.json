@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build-win": "cross-env TAURI_SIGNING_PRIVATE_KEY=./admin_tauri.key TAURI_SIGNING_PRIVATE_KEY_PASSWORD=TMS2024 tauri build"
   },
   "dependencies": {
     "@hellotms/shared": "workspace:*",
