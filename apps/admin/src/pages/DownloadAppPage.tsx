@@ -76,7 +76,7 @@ export default function DownloadAppPage() {
   return (
     <div className="space-y-8 max-w-[1200px] mx-auto pb-20 px-4">
       <PageHeader 
-        title="Download tms Portal" 
+        title="Download tms INSIDE" 
         description="Experience the full power of tms INSIDE with our native desktop and mobile applications."
       />
 
