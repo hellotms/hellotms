@@ -1,6 +1,6 @@
 {
   "name": "@hellotms/admin",
-  "version": "1.0.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Admin Panel - The Marketing Solution (admin.hellotms.com.bd)",
   "type": "module",
@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "tauri": "tauri",
-    "build-win": "cross-env TAURI_SIGNING_PRIVATE_KEY=g:\\hellotms.com.bd\\apps\\admin\\admin_tauri.key TAURI_SIGNING_PRIVATE_KEY_PASSWORD=TMS2024 tauri build"
+    "build-win": "tauri build",
+    "sign-win": "tauri signer sign ./src-tauri/target/release/bundle/nsis/tms-Portal_0.1.2_x64-setup.exe"
   },
   "dependencies": {
     "@hellotms/shared": "workspace:*",
@@ -34,6 +35,7 @@
     "@tanstack/react-table": "^8.13.2",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-opener": "^2.5.3",
+    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.10.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",

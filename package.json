@@ -12,7 +12,7 @@
     "build:all": "pnpm run --parallel build",
     "build:shared": "pnpm --filter @hellotms/shared build",
     "build:admin": "pnpm --filter @hellotms/admin build",
-    "build:admin:win": "pnpm --filter @hellotms/admin run build-win",
+    "build:admin:win": "powershell -ExecutionPolicy Bypass -File apps/admin/build-signed.ps1",
     "build:public": "pnpm --filter @hellotms/public build",
     "build:api": "pnpm --filter @hellotms/api build",
     "typecheck": "pnpm run --parallel typecheck",

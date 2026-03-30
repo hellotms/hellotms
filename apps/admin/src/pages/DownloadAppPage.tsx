@@ -50,7 +50,6 @@ export default function DownloadAppPage() {
       icon: Monitor,
       url: getUrl('windows'),
       version: getVersion('windows'),
-      color: 'blue',
       steps: [
         'Download the .msi or .exe installer',
         'Run the installer on your Windows PC',
@@ -64,7 +63,6 @@ export default function DownloadAppPage() {
       icon: Smartphone,
       url: getUrl('android'),
       version: getVersion('android'),
-      color: 'green',
       steps: [
         'Download the APK file to your phone',
         'Enable "Install from Unknown Sources" if prompted',
@@ -85,16 +83,10 @@ export default function DownloadAppPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {platforms.map((p) => (
           <div key={p.id} className="bg-card border border-border rounded-3xl p-8 flex flex-col relative overflow-hidden group">
-            <div className={cn(
-              "absolute top-0 right-0 w-32 h-32 rounded-bl-full -z-10 opacity-5 transition-transform group-hover:scale-110",
-              p.color === 'blue' ? "bg-blue-500" : "bg-green-500"
-            )} />
+            <div className="absolute top-0 right-0 w-32 h-32 rounded-bl-full -z-10 opacity-5 transition-transform group-hover:scale-110 bg-primary" />
 
             <div className="flex items-center gap-4 mb-6">
-              <div className={cn(
-                "h-14 w-14 rounded-2xl flex items-center justify-center",
-                p.color === 'blue' ? "bg-blue-500/10 text-blue-600" : "bg-green-500/10 text-green-600"
-              )}>
+              <div className="h-14 w-14 rounded-2xl flex items-center justify-center bg-primary/10 text-primary">
                 <p.icon className="h-7 w-7" />
               </div>
               <div>
@@ -114,7 +106,7 @@ export default function DownloadAppPage() {
               <ul className="space-y-2">
                 {p.steps.map((step, i) => (
                   <li key={i} className="flex items-start gap-3 text-xs font-medium text-foreground/80">
-                    <CheckCircle2 className={cn("h-4 w-4 shrink-0 mt-0.5", p.color === 'blue' ? "text-blue-500" : "text-green-500")} />
+                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
                     {step}
                   </li>
                 ))}
@@ -143,7 +135,7 @@ export default function DownloadAppPage() {
                           className={cn(
                             "w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-xs font-black uppercase tracking-widest transition-all shadow-lg",
                             msiVersion?.url 
-                              ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20"
+                              ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
                               : "bg-muted text-muted-foreground cursor-not-allowed"
                           )}
                         >
@@ -164,7 +156,7 @@ export default function DownloadAppPage() {
                             }
                           }}
                           className={cn(
-                            "w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-xs font-black uppercase tracking-widest transition-all border-2 border-blue-600/20 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10",
+                            "w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-xs font-black uppercase tracking-widest transition-all border-2 border-primary/20 text-primary hover:bg-primary/5 shadow-sm",
                             !exeVersion?.url && "opacity-50 cursor-not-allowed"
                           )}
                         >
@@ -190,7 +182,7 @@ export default function DownloadAppPage() {
                 className={cn(
                   "w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-xs font-black uppercase tracking-widest transition-all shadow-lg",
                   p.url 
-                    ? "bg-green-600 text-white hover:bg-green-700 shadow-green-500/20"
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
                     : "bg-muted text-muted-foreground cursor-not-allowed"
                 )}
               >
@@ -207,7 +199,7 @@ export default function DownloadAppPage() {
           <Info className="h-5 w-5" />
         </div>
         <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-          The desktop app provides a more stable experience with native system notifications. 
+          The native app provides a more stable experience with full system notifications. 
           Make sure to keep your app updated to receive the latest features and security improvements.
         </p>
       </div>

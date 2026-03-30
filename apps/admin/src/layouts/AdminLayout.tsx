@@ -166,7 +166,10 @@ export default function AdminLayout() {
       toast('Downloading update...', 'info');
       await updateInfo.downloadAndInstall();
       toast('Update installed! Restarting...', 'success');
-      // The app will usually restart automatically or can be manually relaunched.
+      
+      // Request relaunch to apply update immediately
+      const { relaunch } = await import('@tauri-apps/plugin-process');
+      await relaunch();
     } catch (err: any) {
       toast(`Update failed: ${err.message}`, 'error');
       setIsUpdating(false);
@@ -292,23 +295,17 @@ export default function AdminLayout() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 rounded-md hover:bg-muted transition-colors -ml-2"
+              className="md:hidden p-2 rounded-md hover:bg-muted transition-colors -ml-2 flex items-center gap-2"
             >
-              <div className="flex items-center gap-2">
-                <LayoutDashboard className="h-5 w-5 text-primary" />
-                <h1 className="text-lg font-black tracking-tight text-foreground hidden sm:block">HelloTMS Admin</h1>
-                
-                {hasUpdate && (
-                  <button
-                    onClick={handleApplyUpdate}
-                    disabled={isUpdating}
-                    className="ml-4 px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full flex items-center gap-2 animate-bounce shadow-lg shadow-red-500/20 disabled:opacity-50 disabled:animate-none"
-                  >
-                    {isUpdating ? 'Installing...' : 'New Update! Install Now'}
-                  </button>
-                )}
-              </div>
               <Menu className="h-5 w-5" />
+              {hasUpdate && (
+                <div
+                  onClick={(e) => { e.stopPropagation(); handleApplyUpdate(); }}
+                  className="px-2 py-0.5 bg-red-500 text-white text-[8px] font-black uppercase tracking-widest rounded-full animate-bounce shadow-lg shadow-red-500/20"
+                >
+                  Update
+                </div>
+              )}
             </button>
             <div className="flex items-center gap-2.5 md:gap-3">
               {siteSettings?.company_logo_url ? (
@@ -318,9 +315,9 @@ export default function AdminLayout() {
                   <span className="text-primary font-bold text-[10px]">MS</span>
                 </div>
               )}
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm md:text-base font-bold text-foreground leading-none truncate">The Marketing Solution</span>
-                <span className="text-[10px] md:text-[11px] text-muted-foreground mt-0.5 truncate hidden sm:block uppercase tracking-wider font-medium">
+              <div className="flex flex-col min-w-0 max-w-[120px] xs:max-w-none">
+                <span className="text-xs sm:text-sm md:text-base font-bold text-foreground leading-none truncate">The Marketing Solution</span>
+                <span className="text-[9px] md:text-[11px] text-muted-foreground mt-0.5 truncate hidden sm:block uppercase tracking-wider font-medium">
                   {siteSettings?.site_motto || 'Innovate . Engage . Grow'}
                 </span>
               </div>
