@@ -348,7 +348,7 @@ export default function AdminLayout() {
               </div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm md:text-lg font-black text-foreground leading-none tracking-tight">The Marketing Solution</span>
+                  <span className="font-['Lato'] text-[15px] md:text-[17px] font-bold text-foreground leading-none truncate">The Marketing Solution</span>
                   <span className="hidden xs:inline-block px-2 py-0.5 bg-primary/5 text-primary text-[8px] font-bold uppercase tracking-widest rounded-md border border-primary/10">Inside</span>
                 </div>
                 <span className="text-[9px] md:text-[10px] text-muted-foreground mt-1 truncate hidden sm:block uppercase tracking-[0.2em] font-black opacity-60">
