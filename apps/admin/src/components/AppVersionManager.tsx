@@ -68,7 +68,7 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
             editingVersion?.url, // Old URL to cleanup if replacing
             'apps',
             platform,
-            `tms-admin-${newVersion.replace(/\./g, '-')}-${Date.now()}`
+            `tms-admin-${newVersion.replace(/\./g, '-')}`
           );
           if (res) {
             finalUrl = res;

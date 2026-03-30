@@ -53,18 +53,17 @@ mediaRoute.post('/upload', async (c) => {
 });
 
 // Delete endpoint requires manage_cms permission
-mediaRoute.delete('/*', requirePermission('manage_cms'), async (c) => {
-    // Get the key from the remainder of the path
-    const key = c.req.path.split('/media/')[1];
+mediaRoute.delete('/:key{.+}', requirePermission('manage_cms'), async (c) => {
+    const key = c.req.param('key');
     
     if (!key) return c.json({ error: 'No key provided' }, 400);
 
     try {
         console.log(`[Media] Deleting from R2: ${key}`);
         await c.env.MEDIA_BUCKET.delete(key);
-        return c.json({ success: true, message: 'Deleted' });
+        return c.json({ success: true, message: `Deleted ${key}` });
     } catch (err) {
         console.error('[R2 Delete Error]', err);
-        return c.json({ error: 'Failed to delete' }, 500);
+        return c.json({ error: 'Failed to delete from storage' }, 500);
     }
 });

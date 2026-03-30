@@ -57,9 +57,10 @@ interface SidebarProps {
   hasUpdate?: boolean;
   onApplyUpdate?: () => void;
   isUpdating?: boolean;
+  appVersion?: string;
 }
 
-const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, handleSignOut, can, hasUpdate, onApplyUpdate, isUpdating }: SidebarProps) => (
+const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, handleSignOut, can, hasUpdate, onApplyUpdate, isUpdating, appVersion }: SidebarProps) => (
   <div className={cn(
     'flex flex-col h-full bg-sidebar text-sidebar-foreground',
     mobile ? 'w-72' : 'w-64'
@@ -133,7 +134,7 @@ const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, hand
       )}
       <div className="px-3 py-2 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-sidebar-foreground/40">
         <span>App Version</span>
-        <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full border border-primary/20">v0.1.2</span>
+        <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full border border-primary/20">v{appVersion || '0.1.3'}</span>
       </div>
       <button
         onClick={handleSignOut}
@@ -162,7 +163,7 @@ export default function AdminLayout() {
     if (getAppVersion) {
       getAppVersion().then(v => setAppVersion(v));
     }
-    
+
     if (!checkAppUpdate) return;
 
     const runUpdater = async () => {
@@ -187,7 +188,7 @@ export default function AdminLayout() {
       toast('Downloading update...', 'info');
       await updateInfo.downloadAndInstall();
       toast('Update installed! Restarting...', 'success');
-      
+
       // Request relaunch to apply update immediately
       const { relaunch } = await import('@tauri-apps/plugin-process');
       await relaunch();
@@ -203,7 +204,7 @@ export default function AdminLayout() {
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const resetIdleTimer = () => {
-    if (isIdle) return; 
+    if (isIdle) return;
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
       setIsIdle(true);
@@ -271,13 +272,13 @@ export default function AdminLayout() {
   return (
     <div className="flex h-screen bg-background overflow-hidden relative">
       {isIdle && (
-        <IdleScreen 
-          heroSlider={siteSettings?.hero_slider || []} 
-          onContinue={handleContinueSession} 
-          onSignOut={handleSignOut} 
+        <IdleScreen
+          heroSlider={siteSettings?.hero_slider || []}
+          onContinue={handleContinueSession}
+          onSignOut={handleSignOut}
         />
       )}
-      
+
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col border-r border-border/60 shrink-0 z-10 relative">
         <Sidebar
@@ -290,6 +291,7 @@ export default function AdminLayout() {
           hasUpdate={hasUpdate}
           onApplyUpdate={handleApplyUpdate}
           isUpdating={isUpdating}
+          appVersion={appVersion}
         />
       </aside>
 
@@ -309,6 +311,7 @@ export default function AdminLayout() {
               hasUpdate={hasUpdate}
               onApplyUpdate={handleApplyUpdate}
               isUpdating={isUpdating}
+              appVersion={appVersion}
             />
           </div>
         </div>

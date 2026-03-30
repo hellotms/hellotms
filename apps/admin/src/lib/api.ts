@@ -148,7 +148,7 @@ export const mediaApi = {
       body: formData,
     });
   },
-  delete: (key: string) => apiFetch('/media/' + encodeURIComponent(key), { method: 'DELETE' }),
+  delete: (key: string) => apiFetch('/media/' + key, { method: 'DELETE' }),
 
   /**
    * Uploads a new file (if a File is provided) and cleans up the old media from R2 (if oldUrl is provided).
@@ -162,20 +162,18 @@ export const mediaApi = {
     name: string = 'unnamed'
   ): Promise<string | null> => {
     let finalUrl: string | null = null;
-    let didUploadNew = false;
 
     // 1. If it's a File, upload it
     if (newFileOrUrl instanceof File) {
       const res = await mediaApi.upload(newFileOrUrl, folder, type, name);
-      if (!res.success) throw new Error("Failed to upload image");
+      if (!res.success) throw new Error("Failed to upload file");
       finalUrl = res.url;
-      didUploadNew = true;
     }
-    // 2. If it's still a string, it means the user didn't change the image
+    // 2. If it's still a string, it means the user didn't change the file
     else if (typeof newFileOrUrl === 'string') {
       finalUrl = newFileOrUrl;
     }
-    // 3. Otherwise, it's null (user cleared the image)
+    // 3. Otherwise, it's null (user cleared the file)
     else {
       finalUrl = null;
     }
@@ -183,13 +181,12 @@ export const mediaApi = {
     // Process old media cleanup
     if (oldUrl && oldUrl !== finalUrl) {
       try {
-        // Extract the key from URL. R2_PUBLIC_URL ends before the key.
-        // URLs look like: https://pub-xxx.r2.dev/folder/type_name_ts.ext
-        // We can find the key by taking everything after the domain.
+        // Extract the key from URL.
         const url = new URL(oldUrl);
+        // pathname will be like "/folder/file.ext". We want "folder/file.ext"
         const key = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
 
-        if (key && !key.startsWith('http')) {
+        if (key && key.length > 0 && !key.startsWith('http')) {
           await mediaApi.delete(key);
         }
       } catch (err) {
