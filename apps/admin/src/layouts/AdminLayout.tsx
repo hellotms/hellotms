@@ -55,9 +55,11 @@ interface SidebarProps {
   handleSignOut: () => void;
   can: (permission: string) => boolean;
   hasUpdate?: boolean;
+  onApplyUpdate?: () => void;
+  isUpdating?: boolean;
 }
 
-const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, handleSignOut, can, hasUpdate }: SidebarProps) => (
+const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, handleSignOut, can, hasUpdate, onApplyUpdate, isUpdating }: SidebarProps) => (
   <div className={cn(
     'flex flex-col h-full bg-sidebar text-sidebar-foreground',
     mobile ? 'w-72' : 'w-64'
@@ -86,7 +88,7 @@ const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, hand
     </div>
 
     {/* Nav */}
-    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1 custom-scrollbar">
       {navItems.filter(item => {
         if (!item.permission) return true;
         if (role?.name === 'super_admin') return true;
@@ -97,33 +99,47 @@ const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, hand
           to={to}
           onClick={() => setSidebarOpen(false)}
           className={({ isActive }) => cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors group relative',
+            'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all group relative',
             isActive
-              ? 'bg-primary/10 text-primary border border-primary/20 backdrop-blur-md shadow-[0_0_15px_rgba(var(--primary),0.05)]'
-              : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+              ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
+              : 'text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
           )}
         >
           {({ isActive }) => (
             <>
-              <Icon className="h-4 w-4 shrink-0" />
+              <Icon className={cn("h-4 w-4 shrink-0 transition-transform group-hover:scale-110", isActive ? "scale-110" : "opacity-70")} />
               <span className="flex-1">{label}</span>
               {label === 'Download App' && hasUpdate && (
-                <span className="flex h-2 w-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse" />
+                <span className="flex h-2 w-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.6)] animate-pulse" />
               )}
-              {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-60" />}
+              {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-80" />}
             </>
           )}
         </NavLink>
       ))}
     </nav>
 
-    {/* Sign Out */}
-    <div className="px-3 py-4 border-t border-sidebar-border mt-auto">
+    {/* Update Banner + Version & Sign Out */}
+    <div className="px-3 py-4 border-t border-sidebar-border mt-auto space-y-2">
+      {hasUpdate && onApplyUpdate && (
+        <button
+          onClick={onApplyUpdate}
+          disabled={isUpdating}
+          className="w-full px-3 py-3 rounded-xl text-sm font-black uppercase tracking-widest bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg shadow-green-500/30 hover:shadow-green-500/50 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2 animate-pulse"
+        >
+          <Download className="h-4 w-4" />
+          {isUpdating ? 'Updating...' : 'Update Available!'}
+        </button>
+      )}
+      <div className="px-3 py-2 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-sidebar-foreground/40">
+        <span>App Version</span>
+        <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full border border-primary/20">v0.1.2</span>
+      </div>
       <button
         onClick={handleSignOut}
-        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-destructive transition-colors group"
+        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-sidebar-foreground/60 hover:bg-destructive/10 hover:text-destructive transition-all group"
       >
-        <LogOut className="h-4 w-4 shrink-0 opacity-60 group-hover:opacity-100" />
+        <LogOut className="h-4 w-4 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity" />
         <span>Sign out</span>
       </button>
     </div>
@@ -139,9 +155,14 @@ export default function AdminLayout() {
   const [hasUpdate, setHasUpdate] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<any>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [appVersion, setAppVersion] = useState<string>('0.1.2');
 
   // Check for updates (PC Apps only - Native Updater)
   useEffect(() => {
+    if (getAppVersion) {
+      getAppVersion().then(v => setAppVersion(v));
+    }
+    
     if (!checkAppUpdate) return;
 
     const runUpdater = async () => {
@@ -258,7 +279,7 @@ export default function AdminLayout() {
       )}
       
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col border-r border-border shrink-0 z-10 relative">
+      <aside className="hidden md:flex flex-col border-r border-border/60 shrink-0 z-10 relative">
         <Sidebar
           profile={profile}
           role={role}
@@ -266,14 +287,17 @@ export default function AdminLayout() {
           navigate={navigate}
           handleSignOut={handleSignOut}
           can={can}
+          hasUpdate={hasUpdate}
+          onApplyUpdate={handleApplyUpdate}
+          isUpdating={isUpdating}
         />
       </aside>
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <div className="absolute left-0 top-0 h-full shadow-xl">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+          <div className="absolute left-0 top-0 h-full shadow-2xl animate-in slide-in-from-left duration-300">
             <Sidebar
               mobile
               profile={profile}
@@ -283,6 +307,8 @@ export default function AdminLayout() {
               handleSignOut={handleSignOut}
               can={can}
               hasUpdate={hasUpdate}
+              onApplyUpdate={handleApplyUpdate}
+              isUpdating={isUpdating}
             />
           </div>
         </div>
@@ -291,33 +317,38 @@ export default function AdminLayout() {
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Topbar */}
-        <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 md:px-6 shrink-0 z-10">
-          <div className="flex items-center gap-3">
+        <header className="h-16 border-b border-border/60 bg-background/80 backdrop-blur-md flex items-center justify-between px-4 md:px-8 shrink-0 z-10 sticky top-0">
+          <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 rounded-md hover:bg-muted transition-colors -ml-2 flex items-center gap-2"
+              className="md:hidden p-2 rounded-xl hover:bg-muted transition-all active:scale-95 flex items-center gap-2 border border-border/40"
             >
               <Menu className="h-5 w-5" />
               {hasUpdate && (
                 <div
                   onClick={(e) => { e.stopPropagation(); handleApplyUpdate(); }}
-                  className="px-2 py-0.5 bg-red-500 text-white text-[8px] font-black uppercase tracking-widest rounded-full animate-bounce shadow-lg shadow-red-500/20"
+                  className="px-2 py-0.5 bg-red-500 text-white text-[8px] font-black uppercase tracking-widest rounded-full animate-bounce shadow-lg shadow-red-500/30"
                 >
-                  Update
+                  Update Available
                 </div>
               )}
             </button>
-            <div className="flex items-center gap-2.5 md:gap-3">
-              {siteSettings?.company_logo_url ? (
-                <img src={siteSettings.company_logo_url} alt="Logo" className="h-8 w-8 rounded-lg object-cover bg-muted/20" />
-              ) : (
-                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <span className="text-primary font-bold text-[10px]">MS</span>
+            <div className="flex items-center gap-3.5">
+              <div className="relative group">
+                {siteSettings?.company_logo_url ? (
+                  <img src={siteSettings.company_logo_url} alt="Logo" className="h-9 w-9 rounded-xl object-cover bg-muted/20 shadow-sm group-hover:scale-105 transition-transform" />
+                ) : (
+                  <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 shadow-inner group-hover:scale-105 transition-transform">
+                    <span className="text-primary font-black text-[10px] tracking-tighter">TMS</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm md:text-lg font-black text-foreground leading-none tracking-tight">tms Portal</span>
+                  <span className="hidden xs:inline-block px-2 py-0.5 bg-primary/5 text-primary text-[8px] font-bold uppercase tracking-widest rounded-md border border-primary/10">Inside</span>
                 </div>
-              )}
-              <div className="flex flex-col min-w-0 max-w-[120px] xs:max-w-none">
-                <span className="text-xs sm:text-sm md:text-base font-bold text-foreground leading-none truncate">The Marketing Solution</span>
-                <span className="text-[9px] md:text-[11px] text-muted-foreground mt-0.5 truncate hidden sm:block uppercase tracking-wider font-medium">
+                <span className="text-[9px] md:text-[10px] text-muted-foreground mt-1 truncate hidden sm:block uppercase tracking-[0.2em] font-black opacity-60">
                   {siteSettings?.site_motto || 'Innovate . Engage . Grow'}
                 </span>
               </div>

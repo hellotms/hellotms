@@ -5,10 +5,7 @@ import type { Env, Variables } from '../types.js';
 
 export const appsRoute = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// All app management requires auth
-appsRoute.use('*', authMiddleware);
-
-// Get latest update metadata for Tauri v2 Native Updater
+// Get latest update metadata for Tauri v2 Native Updater - PUBLIC ROUTE
 appsRoute.get('/latest/update.json', async (c) => {
     const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
     
@@ -41,6 +38,9 @@ appsRoute.get('/latest/update.json', async (c) => {
         }
     });
 });
+
+// All app management requires auth
+appsRoute.use('*', authMiddleware);
 
 // List app versions for a platform (excluding deleted)
 appsRoute.get('/:platform', async (c) => {

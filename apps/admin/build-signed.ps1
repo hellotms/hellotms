@@ -18,29 +18,38 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Step 2: Sign the NSIS installer
-$exeFile = Get-ChildItem "$PSScriptRoot\src-tauri\target\release\bundle\nsis\*.exe" | Select-Object -First 1
-if ($exeFile) {
-    Write-Host "`n[2/2] Signing $($exeFile.Name)..." -ForegroundColor Yellow
-    pnpm tauri signer sign $exeFile.FullName
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "`nSigned successfully!" -ForegroundColor Green
-        Write-Host "  EXE: $($exeFile.FullName)" -ForegroundColor Gray
-        Write-Host "  SIG: $($exeFile.FullName).sig" -ForegroundColor Gray
-    } else {
-        Write-Host "Signing failed!" -ForegroundColor Red
-        exit 1
+# Helper function to sign and verify
+function Sign-TauriFile($filePath) {
+    if (Test-Path $filePath) {
+        $fileName = Split-Path $filePath -Leaf
+        Write-Host "`nSigning: $fileName..." -ForegroundColor Yellow
+        pnpm tauri signer sign "$filePath"
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Signed successfully: $fileName" -ForegroundColor Green
+            # Print signature content for convenience
+            if (Test-Path "$filePath.sig") {
+                $sig = Get-Content "$filePath.sig" -Raw
+                Write-Host "Signature for your update server:" -ForegroundColor Gray
+                Write-Host $sig -ForegroundColor White
+            }
+        } else {
+            Write-Host "FAILED TO SIGN: $fileName" -ForegroundColor Red
+            exit 1
+        }
     }
-} else {
-    Write-Host "No .exe found in nsis folder!" -ForegroundColor Red
-    exit 1
 }
 
-# Also sign MSI if exists
-$msiFile = Get-ChildItem "$PSScriptRoot\src-tauri\target\release\bundle\msi\*.msi" | Select-Object -First 1
-if ($msiFile) {
-    Write-Host "`nSigning MSI: $($msiFile.Name)..." -ForegroundColor Yellow
-    pnpm tauri signer sign $msiFile.FullName
+# Step 2: Sign all installers
+Write-Host "`n[2/2] Signing Installers..." -ForegroundColor Yellow
+
+# Sign EXE files (NSIS)
+Get-ChildItem "$PSScriptRoot\src-tauri\target\release\bundle\nsis\*.exe" | ForEach-Object {
+    Sign-TauriFile $_.FullName
 }
 
-Write-Host "`n=== Build Complete! ===" -ForegroundColor Green
+# Sign MSI files
+Get-ChildItem "$PSScriptRoot\src-tauri\target\release\bundle\msi\*.msi" | ForEach-Object {
+    Sign-TauriFile $_.FullName
+}
+
+Write-Host "`n=== Build & Signing Complete! ===" -ForegroundColor Green

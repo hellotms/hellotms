@@ -76,45 +76,50 @@ export default function DownloadAppPage() {
   return (
     <div className="space-y-8 max-w-[1200px] mx-auto pb-20 px-4">
       <PageHeader 
-        title="Download TMS Admin" 
-        description="Get the native application for your desktop and mobile devices for a better experience."
+        title="Download tms Portal" 
+        description="Experience the full power of tms INSIDE with our native desktop and mobile applications."
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {platforms.map((p) => (
-          <div key={p.id} className="bg-card border border-border rounded-3xl p-8 flex flex-col relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 rounded-bl-full -z-10 opacity-5 transition-transform group-hover:scale-110 bg-primary" />
+          <div key={p.id} className="bg-card border border-border/60 rounded-[2rem] p-8 flex flex-col relative overflow-hidden group hover:border-primary/30 transition-all duration-500 shadow-sm hover:shadow-xl hover:shadow-primary/5">
+            <div className="absolute top-0 right-0 w-48 h-48 rounded-bl-full -z-10 opacity-[0.03] transition-transform duration-700 group-hover:scale-110 group-hover:opacity-[0.07] bg-primary" />
 
-            <div className="flex items-center gap-4 mb-6">
-              <div className="h-14 w-14 rounded-2xl flex items-center justify-center bg-primary/10 text-primary">
-                <p.icon className="h-7 w-7" />
+            <div className="flex items-center gap-5 mb-8">
+              <div className="h-16 w-16 rounded-2xl flex items-center justify-center bg-primary/10 text-primary shadow-inner">
+                <p.icon className="h-8 w-8" />
               </div>
-              <div>
-                <h3 className="text-xl font-black text-foreground">{p.name}</h3>
-                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Version {p.version} (Latest)</p>
+              <div className="space-y-1">
+                <h3 className="text-2xl font-black text-foreground tracking-tight">{p.name}</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">Version {p.version}</span>
+                  <span className="px-2 py-0.5 bg-green-500/10 text-green-600 text-[8px] font-black uppercase tracking-[0.2em] rounded-full border border-green-500/20">Latest</span>
+                </div>
               </div>
             </div>
 
-            <p className="text-sm text-muted-foreground leading-relaxed mb-8 flex-grow">
+            <p className="text-sm text-muted-foreground leading-relaxed mb-10 flex-grow font-medium">
               {p.description}
             </p>
 
-            <div className="space-y-4 mb-8">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <Info className="h-3 w-3" /> Installation Steps
+            <div className="space-y-5 mb-10 bg-muted/20 p-6 rounded-2xl border border-border/40">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                <Info className="h-3.5 w-3.5" /> Installation Steps
               </h4>
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {p.steps.map((step, i) => (
-                  <li key={i} className="flex items-start gap-3 text-xs font-medium text-foreground/80">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
-                    {step}
+                  <li key={i} className="flex items-start gap-3 text-xs font-bold text-foreground/70">
+                    <div className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                      <CheckCircle2 className="h-3 w-3" />
+                    </div>
+                    {step.replace('TMS Admin app', 'tms Portal')}
                   </li>
                 ))}
               </ul>
             </div>
 
             {p.id === 'windows' ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {(() => {
                   const msiVersion = versions.find(v => v.platform === 'windows' && v.file_extension === '.msi' && v.is_latest);
                   const exeVersion = versions.find(v => v.platform === 'windows' && v.file_extension === '.exe' && v.is_latest);
@@ -133,13 +138,13 @@ export default function DownloadAppPage() {
                             }
                           }}
                           className={cn(
-                            "w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-xs font-black uppercase tracking-widest transition-all shadow-lg",
+                            "w-full py-5.5 rounded-2xl flex items-center justify-center gap-3 text-sm font-black uppercase tracking-widest transition-all shadow-xl",
                             msiVersion?.url 
-                              ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
+                              ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/30 hover:-translate-y-1 active:translate-y-0"
                               : "bg-muted text-muted-foreground cursor-not-allowed"
                           )}
                         >
-                          <Download className="h-4 w-4" />
+                          <Download className="h-5 w-5" />
                           {msiVersion?.url ? 'Download MSI Installer' : 'Coming Soon'}
                         </a>
                       )}
@@ -156,11 +161,11 @@ export default function DownloadAppPage() {
                             }
                           }}
                           className={cn(
-                            "w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-xs font-black uppercase tracking-widest transition-all border-2 border-primary/20 text-primary hover:bg-primary/5 shadow-sm",
+                            "w-full py-5.5 rounded-2xl flex items-center justify-center gap-3 text-sm font-black uppercase tracking-widest transition-all border-2 border-primary/20 text-primary hover:bg-primary/5 shadow-sm hover:-translate-y-1 active:translate-y-0",
                             !exeVersion?.url && "opacity-50 cursor-not-allowed"
                           )}
                         >
-                          <Download className="h-4 w-4" />
+                          <Download className="h-5 w-5" />
                           {exeVersion?.url ? 'Download EXE Installer' : 'Coming Soon'}
                         </a>
                       )}
@@ -180,13 +185,13 @@ export default function DownloadAppPage() {
                   }
                 }}
                 className={cn(
-                  "w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-xs font-black uppercase tracking-widest transition-all shadow-lg",
+                  "w-full py-5.5 rounded-2xl flex items-center justify-center gap-3 text-sm font-black uppercase tracking-widest transition-all shadow-xl",
                   p.url 
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/30 hover:-translate-y-1 active:translate-y-0"
                     : "bg-muted text-muted-foreground cursor-not-allowed"
                 )}
               >
-                <Download className="h-4 w-4" />
+                <Download className="h-5 w-5" />
                 {p.url ? 'Download APK' : 'Coming Soon'}
               </a>
             )}
@@ -194,14 +199,17 @@ export default function DownloadAppPage() {
         ))}
       </div>
 
-      <div className="bg-muted/30 border border-border rounded-2xl p-6 flex gap-4 items-center">
-        <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-          <Info className="h-5 w-5" />
+      <div className="bg-gradient-to-br from-muted/50 to-muted/20 border border-border/60 rounded-3xl p-8 flex gap-6 items-center shadow-inner mt-12">
+        <div className="h-14 w-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-sm">
+          <Info className="h-7 w-7" />
         </div>
-        <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-          The native app provides a more stable experience with full system notifications. 
-          Make sure to keep your app updated to receive the latest features and security improvements.
-        </p>
+        <div className="space-y-1">
+          <h4 className="text-sm font-black text-foreground uppercase tracking-widest">Stable Native Experience</h4>
+          <p className="text-xs text-muted-foreground font-medium leading-relaxed max-w-2xl">
+            The native tms Portal provides a more stable experience with hardware acceleration and professional system notifications. 
+            Keep your app updated for the latest enterprise-grade features and security enhancements.
+          </p>
+        </div>
       </div>
     </div>
   );
