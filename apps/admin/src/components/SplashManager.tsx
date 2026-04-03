@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { SplashScreen } from './SplashScreen';
+import { invoke } from '@tauri-apps/api/core';
 
 const STORAGE_KEY = 'tms_admin_splash_timestamp';
 const EXPIRE_TIME = 10 * 60 * 1000; // 10 minutes in ms
@@ -20,11 +21,9 @@ export function SplashManager({ children }: { children: React.ReactNode }) {
 
     // If running in Tauri PC App, show the window smoothly only after React mounts it
     if ((window as any).__TAURI_INTERNALS__) {
-      import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
-        setTimeout(() => {
-          getCurrentWindow().show().catch(console.error);
-        }, 150);
-      }).catch(console.error);
+      setTimeout(() => {
+        invoke('show_main_window').catch(console.error);
+      }, 300);
     }
 
     if (showSplash) {
