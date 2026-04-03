@@ -133,17 +133,24 @@ export default function DashboardPage() {
 
       const map: Record<string, { date: string; invoiced: number; expense: number; profit: number }> = {};
 
+      // Fill all months in range with zeros first
+      const start = new Date(fromISO);
+      const end = new Date(toISO);
+      let current = new Date(start.getFullYear(), start.getMonth(), 1);
+      while (current <= end) {
+        const m = current.toISOString().slice(0, 7);
+        map[m] = { date: m, invoiced: 0, expense: 0, profit: 0 };
+        current.setMonth(current.getMonth() + 1);
+      }
+
       ledger?.forEach((row) => {
         const month = row.entry_date.slice(0, 7); // YYYY-MM
-        if (!map[month]) map[month] = { date: month, invoiced: 0, expense: 0, profit: 0 };
-        map[month].expense += Number(row.amount);
+        if (map[month]) map[month].expense += Number(row.amount);
       });
 
       advances?.forEach((row) => {
-        // Use invoice_amount for revenue trend as requested ("Invoiced Amount")
         const month = row.created_at.slice(0, 7); // YYYY-MM
-        if (!map[month]) map[month] = { date: month, invoiced: 0, expense: 0, profit: 0 };
-        map[month].invoiced += Number(row.invoice_amount || 0);
+        if (map[month]) map[month].invoiced += Number(row.invoice_amount || 0);
       });
 
       return Object.values(map)
@@ -336,15 +343,42 @@ export default function DashboardPage() {
           <h3 className="text-base font-semibold text-foreground mb-4">Revenue Trend</h3>
           {trendData && trendData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis tickFormatter={(v) => `৳${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(v: number) => formatBDT(v)} />
-                <Legend />
-                <Line type="monotone" dataKey="invoiced" stroke="#10b981" strokeWidth={2} dot={false} name="Revenue" />
-                <Line type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={2} dot={false} name="Net Expenses" />
-                <Line type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={2} dot={false} name="Net Profit" strokeDasharray="4 2" />
+              <LineChart data={trendData} margin={{ left: -20, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted/30" />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 10, fontWeight: 600 }}
+                  axisLine={false}
+                  tickLine={false}
+                  minTickGap={15}
+                  tickFormatter={(str) => {
+                    const [y, m] = str.split('-');
+                    const date = new Date(Number(y), Number(m) - 1);
+                    return date.toLocaleString('default', { month: 'short' });
+                  }}
+                />
+                <YAxis 
+                  tickFormatter={(v) => `৳${(v / 1000).toFixed(0)}k`} 
+                  tick={{ fontSize: 10, fontWeight: 600 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    borderRadius: '12px', 
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'rgba(var(--background), 0.8)',
+                    backdropFilter: 'blur(8px)',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                  }}
+                  itemStyle={{ fontSize: '12px' }}
+                  labelStyle={{ fontWeight: 'bold', marginBottom: '4px' }}
+                  formatter={(v: number) => [formatBDT(v), '']} 
+                />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
+                <Line type="monotone" dataKey="invoiced" stroke="#10b981" strokeWidth={3} dot={false} name="Revenue" animationDuration={1500} />
+                <Line type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={3} dot={false} name="Net Expenses" animationDuration={1500} />
+                <Line type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} strokeDasharray="5 5" name="Net Profit" animationDuration={1500} />
               </LineChart>
             </ResponsiveContainer>
           ) : (

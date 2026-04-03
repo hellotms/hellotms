@@ -320,44 +320,44 @@ export default function AdminLayout() {
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Topbar */}
-        <header className="h-16 border-b border-border/60 bg-background/80 backdrop-blur-md flex items-center justify-between px-4 md:px-8 shrink-0 z-10 sticky top-0">
-          <div className="flex items-center gap-4">
+        <header className="h-16 border-b border-border/60 bg-background/80 backdrop-blur-md flex items-center justify-between px-2 sm:px-4 md:px-8 shrink-0 z-10 sticky top-0">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 rounded-xl hover:bg-muted transition-all active:scale-95 flex items-center gap-2 border border-border/40"
+              className="md:hidden p-2 rounded-xl hover:bg-muted transition-all active:scale-95 flex items-center shrink-0 border border-border/40"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-5 w-5 font-bold" />
               {hasUpdate && (
                 <div
                   onClick={(e) => { e.stopPropagation(); handleApplyUpdate(); }}
-                  className="px-2 py-0.5 bg-red-500 text-white text-[8px] font-black uppercase tracking-widest rounded-full animate-bounce shadow-lg shadow-red-500/30"
+                  className="px-2 py-0.5 bg-red-500 text-white text-[8px] font-black uppercase tracking-widest rounded-full animate-bounce shadow-lg shadow-red-500/30 ml-2"
                 >
-                  Update Available
+                  UP
                 </div>
               )}
             </button>
-            <div className="flex items-center gap-3.5">
-              <div className="relative group">
+            <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
+              <div className="relative group shrink-0">
                 {siteSettings?.company_logo_url ? (
-                  <img src={siteSettings.company_logo_url} alt="Logo" className="h-9 w-9 rounded-xl object-cover bg-muted/20 shadow-sm group-hover:scale-105 transition-transform" />
+                  <img src={siteSettings.company_logo_url} alt="Logo" className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl object-cover bg-muted/20 shadow-sm" />
                 ) : (
-                  <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 shadow-inner group-hover:scale-105 transition-transform">
+                  <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 shadow-inner group-hover:scale-105 transition-transform">
                     <span className="text-primary font-black text-[10px] tracking-tighter">TMS</span>
                   </div>
                 )}
               </div>
               <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-['Lato'] text-[15px] md:text-[17px] font-bold text-foreground leading-none truncate">The Marketing Solution</span>
-                  <span className="hidden xs:inline-block px-2 py-0.5 bg-primary/5 text-primary text-[8px] font-bold uppercase tracking-widest rounded-md border border-primary/10">Inside</span>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className="font-['Lato'] text-[13px] sm:text-base font-bold text-foreground leading-none truncate grow">The Marketing Solution</span>
+                  <span className="hidden xs:inline-block px-1.5 py-0.5 bg-primary/5 text-primary text-[7px] font-bold uppercase tracking-widest rounded-md border border-primary/10 shrink-0">Inside</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground mt-1 truncate uppercase tracking-widest font-bold">
+                <span className="text-[8px] sm:text-[10px] text-muted-foreground mt-0.5 truncate uppercase tracking-widest font-bold opacity-70">
                   {siteSettings?.site_motto || 'Innovate . Engage . Grow'}
                 </span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 md:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {siteSettings?.public_site_url && (
               <a
                 href={siteSettings.public_site_url}
@@ -370,7 +370,7 @@ export default function AdminLayout() {
                 target="_blank"
                 rel="noreferrer"
                 title="View Public Website"
-                className="hidden sm:flex p-2 rounded-md hover:bg-muted transition-colors relative text-muted-foreground"
+                className="flex p-2 rounded-md hover:bg-muted transition-colors relative text-muted-foreground"
               >
                 <Globe className="h-5 w-5" />
               </a>
@@ -378,7 +378,7 @@ export default function AdminLayout() {
 
             <button
               onClick={handleOpenNotices}
-              className="hidden md:flex p-2 rounded-md hover:bg-muted transition-colors relative"
+              className="hidden sm:flex p-2 rounded-md hover:bg-muted transition-colors relative"
               title="Notice Board"
             >
               <Megaphone className="h-5 w-5 text-muted-foreground" />
