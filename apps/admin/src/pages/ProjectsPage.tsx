@@ -220,7 +220,9 @@ export default function ProjectsPage() {
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-colors ${statusFilter === s ? 'bg-primary text-white' : 'border border-border text-muted-foreground hover:text-foreground'
+            className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize transition-all ${statusFilter === s
+                ? 'bg-primary/15 text-primary border border-primary/25 backdrop-blur-md shadow-[0_0_15px_rgba(var(--primary),0.05)]'
+                : 'border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
               }`}
           >
             {s}

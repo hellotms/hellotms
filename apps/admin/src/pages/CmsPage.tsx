@@ -192,7 +192,16 @@ export default function CmsPage() {
             { id: 'cms', label: 'CMS Setting', icon: Globe },
             { id: 'admin', label: 'Admin Setting', icon: Sliders },
           ].map(tab => (
-            <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setEditingSection(null); }} className={cn("flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-lg transition-all tracking-wider uppercase whitespace-nowrap", activeTab === tab.id ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+            <button
+              key={tab.id}
+              onClick={() => { setActiveTab(tab.id as any); setEditingSection(null); }}
+              className={cn(
+                "flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl transition-all tracking-wider uppercase whitespace-nowrap border",
+                activeTab === tab.id
+                  ? "bg-primary/15 text-primary border-primary/20 backdrop-blur-md shadow-[0_0_20px_rgba(var(--primary),0.05)]"
+                  : "text-muted-foreground border-transparent hover:bg-muted/50 hover:text-foreground"
+              )}
+            >
               <tab.icon className="h-4 w-4" /> {tab.label}
             </button>
           ))}

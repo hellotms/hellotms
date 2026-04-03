@@ -6,7 +6,7 @@ import {
     Image, FileText, AlertCircle, ChevronDown
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
-import { getInitials } from '@/lib/utils';
+import { getInitials, cn } from '@/lib/utils';
 import { formatAuditLogMessage } from '@/components/AuditLogFormatter';
 
 interface AuditLog {
@@ -101,7 +101,7 @@ export default function WorkLogsPage() {
                 <div className="relative">
                     <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <select value={actionFilter} onChange={e => setActionFilter(e.target.value)}
-                        className="pl-9 pr-8 py-2.5 rounded-lg border border-border bg-background text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-40">
+                        className="pl-9 pr-8 py-2.5 rounded-lg border border-border bg-background text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-40 outline-none">
                         {actionTypes.map(a => <option key={a} value={a}>{a === 'all' ? 'All Actions' : a.replace(/_/g, ' ')}</option>)}
                     </select>
                     <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />

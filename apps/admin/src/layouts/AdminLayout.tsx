@@ -102,8 +102,8 @@ const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, hand
           className={({ isActive }) => cn(
             'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all group relative',
             isActive
-              ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-              : 'text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+              ? 'bg-primary/15 text-primary border border-primary/25 backdrop-blur-md shadow-[0_0_15px_rgba(var(--primary),0.05)]'
+              : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
           )}
         >
           {({ isActive }) => (
@@ -351,13 +351,13 @@ export default function AdminLayout() {
                   <span className="font-['Lato'] text-[15px] md:text-[17px] font-bold text-foreground leading-none truncate">The Marketing Solution</span>
                   <span className="hidden xs:inline-block px-2 py-0.5 bg-primary/5 text-primary text-[8px] font-bold uppercase tracking-widest rounded-md border border-primary/10">Inside</span>
                 </div>
-                <span className="text-[9px] md:text-[10px] text-muted-foreground mt-1 truncate hidden sm:block uppercase tracking-[0.2em] font-black opacity-60">
+                <span className="text-[10px] text-muted-foreground mt-1 truncate uppercase tracking-widest font-bold">
                   {siteSettings?.site_motto || 'Innovate . Engage . Grow'}
                 </span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 md:gap-2">
             {siteSettings?.public_site_url && (
               <a
                 href={siteSettings.public_site_url}
@@ -370,7 +370,7 @@ export default function AdminLayout() {
                 target="_blank"
                 rel="noreferrer"
                 title="View Public Website"
-                className="p-2 rounded-md hover:bg-muted transition-colors relative text-muted-foreground mr-1"
+                className="hidden sm:flex p-2 rounded-md hover:bg-muted transition-colors relative text-muted-foreground"
               >
                 <Globe className="h-5 w-5" />
               </a>
@@ -378,7 +378,7 @@ export default function AdminLayout() {
 
             <button
               onClick={handleOpenNotices}
-              className="p-2 rounded-md hover:bg-muted transition-colors relative mr-2"
+              className="hidden md:flex p-2 rounded-md hover:bg-muted transition-colors relative"
               title="Notice Board"
             >
               <Megaphone className="h-5 w-5 text-muted-foreground" />
@@ -389,10 +389,10 @@ export default function AdminLayout() {
               )}
             </button>
 
-            {/* Theme toggle */}
+            {/* Theme toggle - Always visible */}
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="p-2 rounded-md hover:bg-muted transition-colors relative mr-1 text-muted-foreground"
+              className="p-2 rounded-md hover:bg-muted transition-colors relative text-muted-foreground"
               title="Toggle theme"
             >
               {mounted ? (

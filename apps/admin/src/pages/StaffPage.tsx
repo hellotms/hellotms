@@ -88,22 +88,39 @@ export default function StaffPage() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="flex items-center gap-4 bg-card border border-border p-4 rounded-xl shadow-sm">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-card border border-border p-4 rounded-xl shadow-sm">
+        <div className="flex items-center gap-2 shrink-0">
           <ShieldCheck className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium text-muted-foreground">Filter by Role:</span>
+          <span className="text-sm font-bold text-muted-foreground uppercase tracking-widest text-[10px]">Filter by Role:</span>
         </div>
-        <select
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
-          className="bg-muted border-none rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary min-w-[150px] outline-none"
-        >
-          <option value="all">All Roles</option>
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
+          <button
+            onClick={() => setRoleFilter('all')}
+            className={cn(
+              "px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap border",
+              roleFilter === 'all'
+                ? "bg-primary/15 text-primary border-primary/20 backdrop-blur-md shadow-[0_0_15px_rgba(var(--primary),0.05)]"
+                : "border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+            )}
+          >
+            All Roles
+          </button>
           {roles.map(r => (
-            <option key={r.id} value={r.id}>{r.label}</option>
+            <button
+              key={r.id}
+              onClick={() => setRoleFilter(r.id)}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap border",
+                roleFilter === r.id
+                  ? "bg-primary/15 text-primary border-primary/20 backdrop-blur-md shadow-[0_0_15px_rgba(var(--primary),0.05)]"
+                  : "border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+              )}
+            >
+              {r.label}
+            </button>
           ))}
-        </select>
-        <div className="ml-auto text-xs text-muted-foreground">
+        </div>
+        <div className="sm:ml-auto text-[10px] uppercase font-black tracking-widest text-muted-foreground opacity-60">
           Showing <strong>{processedStaff.length}</strong> members
         </div>
       </div>
