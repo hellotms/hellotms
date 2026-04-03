@@ -98,7 +98,10 @@ export default function DashboardPage() {
     },
   });
 
-  // Revenue vs Expense trend (by month)
+  // Revenue vs Expense trend (smart: daily for <=30 days, monthly for longer)
+  const rangeDays = Math.ceil((new Date(toISO).getTime() - new Date(fromISO).getTime()) / (1000 * 60 * 60 * 24));
+  const useDaily = rangeDays <= 31;
+
   const { data: trendData } = useQuery({
     queryKey: ['dashboard-trend', fromISO, toISO],
     queryFn: async () => {
@@ -112,15 +115,6 @@ export default function DashboardPage() {
         .is('deleted_at', null)
         .order('entry_date');
 
-      // Get Income from collections
-      const { data: collections } = await supabase
-        .from('collections')
-        .select('amount, payment_date')
-        .gte('payment_date', fromISO)
-        .lte('payment_date', toISO)
-        .is('deleted_at', null)
-        .order('payment_date');
-
       // Get Advances from projects
       const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999Z` : toISO;
       const { data: advances } = await supabase
@@ -133,24 +127,36 @@ export default function DashboardPage() {
 
       const map: Record<string, { date: string; invoiced: number; expense: number; profit: number }> = {};
 
-      // Fill all months in range with zeros first
+      // Pre-fill all intervals with zeros
       const start = new Date(fromISO);
       const end = new Date(toISO);
-      let current = new Date(start.getFullYear(), start.getMonth(), 1);
-      while (current <= end) {
-        const m = current.toISOString().slice(0, 7);
-        map[m] = { date: m, invoiced: 0, expense: 0, profit: 0 };
-        current.setMonth(current.getMonth() + 1);
+
+      if (useDaily) {
+        // Daily: fill each day
+        let d = new Date(start);
+        while (d <= end) {
+          const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+          map[key] = { date: key, invoiced: 0, expense: 0, profit: 0 };
+          d.setDate(d.getDate() + 1);
+        }
+      } else {
+        // Monthly: fill each month
+        let current = new Date(start.getFullYear(), start.getMonth(), 1);
+        while (current <= end) {
+          const key = current.toISOString().slice(0, 7); // YYYY-MM
+          map[key] = { date: key, invoiced: 0, expense: 0, profit: 0 };
+          current.setMonth(current.getMonth() + 1);
+        }
       }
 
       ledger?.forEach((row) => {
-        const month = row.entry_date.slice(0, 7); // YYYY-MM
-        if (map[month]) map[month].expense += Number(row.amount);
+        const key = useDaily ? row.entry_date.slice(0, 10) : row.entry_date.slice(0, 7);
+        if (map[key]) map[key].expense += Number(row.amount);
       });
 
       advances?.forEach((row) => {
-        const month = row.created_at.slice(0, 7); // YYYY-MM
-        if (map[month]) map[month].invoiced += Number(row.invoice_amount || 0);
+        const key = useDaily ? row.created_at.slice(0, 10) : row.created_at.slice(0, 7);
+        if (map[key]) map[key].invoiced += Number(row.invoice_amount || 0);
       });
 
       return Object.values(map)
@@ -352,6 +358,13 @@ export default function DashboardPage() {
                   tickLine={false}
                   minTickGap={15}
                   tickFormatter={(str) => {
+                    if (str.length === 10) {
+                      // Daily: YYYY-MM-DD → "Apr 03"
+                      const [y, m, d] = str.split('-');
+                      const date = new Date(Number(y), Number(m) - 1, Number(d));
+                      return date.toLocaleString('default', { month: 'short', day: '2-digit' });
+                    }
+                    // Monthly: YYYY-MM → "Jan"
                     const [y, m] = str.split('-');
                     const date = new Date(Number(y), Number(m) - 1);
                     return date.toLocaleString('default', { month: 'short' });

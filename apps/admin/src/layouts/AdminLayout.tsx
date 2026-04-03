@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { cn, getInitials } from '@/lib/utils';
 import {
@@ -8,6 +8,9 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import IdleScreen from '@/components/IdleScreen';
+import { MobileBottomNav } from '@/components/MobileBottomNav';
+import { MobileBillingSheet } from '@/components/MobileBillingSheet';
+import { MobileProfileDrawer } from '@/components/MobileProfileDrawer';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from 'next-themes';
@@ -150,7 +153,10 @@ const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, hand
 export default function AdminLayout() {
   const { profile, role, signOut, can } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [billingOpen, setBillingOpen] = useState(false);
+  const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
   const [hasUpdate, setHasUpdate] = useState(false);
@@ -322,20 +328,7 @@ export default function AdminLayout() {
         {/* Topbar */}
         <header className="h-16 border-b border-border/60 bg-background/80 backdrop-blur-md flex items-center justify-between px-2 sm:px-4 md:px-8 shrink-0 z-10 sticky top-0">
           <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 rounded-xl hover:bg-muted transition-all active:scale-95 flex items-center shrink-0 border border-border/40"
-            >
-              <Menu className="h-5 w-5 font-bold" />
-              {hasUpdate && (
-                <div
-                  onClick={(e) => { e.stopPropagation(); handleApplyUpdate(); }}
-                  className="px-2 py-0.5 bg-red-500 text-white text-[8px] font-black uppercase tracking-widest rounded-full animate-bounce shadow-lg shadow-red-500/30 ml-2"
-                >
-                  UP
-                </div>
-              )}
-            </button>
+
             <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
               <div className="relative group shrink-0">
                 {siteSettings?.company_logo_url ? (
@@ -406,11 +399,37 @@ export default function AdminLayout() {
 
         {/* Page content */}
         <main className="flex-1 overflow-auto">
-          <div className="p-4 md:p-6 lg:p-8 animate-fade-in">
+          <div key={location.pathname} className="p-4 md:p-6 lg:p-8 pb-20 md:pb-8 animate-in fade-in slide-in-from-bottom-2 duration-200">
             <Outlet />
           </div>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav
+        onBillingOpen={() => setBillingOpen(true)}
+        onProfileOpen={() => setProfileDrawerOpen(true)}
+      />
+
+      {/* Mobile Billing Sheet */}
+      <MobileBillingSheet
+        isOpen={billingOpen}
+        onClose={() => setBillingOpen(false)}
+      />
+
+      {/* Mobile Profile Drawer */}
+      <MobileProfileDrawer
+        isOpen={profileDrawerOpen}
+        onClose={() => setProfileDrawerOpen(false)}
+        profile={profile}
+        role={role}
+        can={can}
+        handleSignOut={handleSignOut}
+        hasUpdate={hasUpdate}
+        onApplyUpdate={handleApplyUpdate}
+        isUpdating={isUpdating}
+        appVersion={appVersion}
+      />
     </div>
   );
 }
