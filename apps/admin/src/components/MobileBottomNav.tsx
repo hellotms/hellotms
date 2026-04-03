@@ -31,18 +31,22 @@ export function MobileBottomNav({ onBillingOpen, onProfileOpen, unreadCount }: M
             key={to}
             to={to}
             className={({ isActive }) => cn(
-              'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 relative transition-all min-h-[56px]',
+              'flex-1 flex flex-col items-center justify-center gap-1.5 py-3 relative transition-all min-h-[64px]',
               isActive ? 'text-primary' : 'text-sidebar-foreground/40 active:text-sidebar-foreground/60'
             )}
           >
             {({ isActive }) => (
               <>
-                {isActive && (
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[2.5px] rounded-full bg-primary" />
-                )}
-                <Icon className="h-[18px] w-[18px]" strokeWidth={isActive ? 2.5 : 1.8} />
+                <div className={cn(
+                  'flex items-center justify-center rounded-2xl transition-all',
+                  isActive
+                    ? 'bg-primary/15 backdrop-blur-sm border border-primary/20 px-4 py-1.5 shadow-[0_0_12px_rgba(var(--primary),0.15)]'
+                    : 'px-0 py-0'
+                )}>
+                  <Icon className="h-[20px] w-[20px]" strokeWidth={isActive ? 2.5 : 1.8} />
+                </div>
                 <span className={cn(
-                  'text-[9px] leading-none',
+                  'text-[10px] leading-none',
                   isActive ? 'font-bold text-primary' : 'font-medium'
                 )}>
                   {label}
@@ -56,16 +60,20 @@ export function MobileBottomNav({ onBillingOpen, onProfileOpen, unreadCount }: M
         <button
           onClick={onBillingOpen}
           className={cn(
-            'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 relative transition-all min-h-[56px]',
+            'flex-1 flex flex-col items-center justify-center gap-1.5 py-3 relative transition-all min-h-[64px]',
             isBillingActive ? 'text-primary' : 'text-sidebar-foreground/40 active:text-sidebar-foreground/60'
           )}
         >
-          {isBillingActive && (
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[2.5px] rounded-full bg-primary" />
-          )}
-          <FileText className="h-[18px] w-[18px]" strokeWidth={isBillingActive ? 2.5 : 1.8} />
+          <div className={cn(
+            'flex items-center justify-center rounded-2xl transition-all',
+            isBillingActive
+              ? 'bg-primary/15 backdrop-blur-sm border border-primary/20 px-4 py-1.5 shadow-[0_0_12px_rgba(var(--primary),0.15)]'
+              : 'px-0 py-0'
+          )}>
+            <FileText className="h-[20px] w-[20px]" strokeWidth={isBillingActive ? 2.5 : 1.8} />
+          </div>
           <span className={cn(
-            'text-[9px] leading-none',
+            'text-[10px] leading-none',
             isBillingActive ? 'font-bold text-primary' : 'font-medium'
           )}>
             Billing
@@ -76,23 +84,27 @@ export function MobileBottomNav({ onBillingOpen, onProfileOpen, unreadCount }: M
         <button
           onClick={onProfileOpen}
           className={cn(
-            'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 relative transition-all min-h-[56px]',
+            'flex-1 flex flex-col items-center justify-center gap-1.5 py-3 relative transition-all min-h-[64px]',
             isProfileActive ? 'text-primary' : 'text-sidebar-foreground/40 active:text-sidebar-foreground/60'
           )}
         >
-          {isProfileActive && (
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[2.5px] rounded-full bg-primary" />
-          )}
-          <User className="h-[18px] w-[18px]" strokeWidth={isProfileActive ? 2.5 : 1.8} />
+          <div className={cn(
+            'flex items-center justify-center rounded-2xl transition-all relative',
+            isProfileActive
+              ? 'bg-primary/15 backdrop-blur-sm border border-primary/20 px-4 py-1.5 shadow-[0_0_12px_rgba(var(--primary),0.15)]'
+              : 'px-0 py-0'
+          )}>
+            <User className="h-[20px] w-[20px]" strokeWidth={isProfileActive ? 2.5 : 1.8} />
+            {(unreadCount ?? 0) > 0 && (
+              <span className="absolute -top-0.5 -right-1 h-2 w-2 rounded-full bg-red-400 ring-2 ring-sidebar" />
+            )}
+          </div>
           <span className={cn(
-            'text-[9px] leading-none',
+            'text-[10px] leading-none',
             isProfileActive ? 'font-bold text-primary' : 'font-medium'
           )}>
             Profile
           </span>
-          {(unreadCount ?? 0) > 0 && (
-            <span className="absolute top-2 right-1/4 h-2 w-2 rounded-full bg-red-400 ring-2 ring-sidebar" />
-          )}
         </button>
       </nav>
     </div>

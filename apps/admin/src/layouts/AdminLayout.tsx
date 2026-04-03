@@ -14,6 +14,7 @@ import { MobileProfileDrawer } from '@/components/MobileProfileDrawer';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from 'next-themes';
+import packageJson from '../../package.json';
 import { toast } from '../components/Toast';
 
 // Add Tauri open capability if running in desktop app
@@ -137,7 +138,7 @@ const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, hand
       )}
       <div className="px-3 py-2 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-sidebar-foreground/40">
         <span>App Version</span>
-        <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full border border-primary/20">v{appVersion || '0.1.3'}</span>
+        <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full border border-primary/20">v{appVersion}</span>
       </div>
       <button
         onClick={handleSignOut}
@@ -162,7 +163,7 @@ export default function AdminLayout() {
   const [hasUpdate, setHasUpdate] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<any>(null);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [appVersion, setAppVersion] = useState<string>('0.1.3');
+  const [appVersion, setAppVersion] = useState<string>(packageJson.version);
 
   // Check for updates (PC Apps only - Native Updater)
   useEffect(() => {
@@ -332,19 +333,19 @@ export default function AdminLayout() {
             <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
               <div className="relative group shrink-0">
                 {siteSettings?.company_logo_url ? (
-                  <img src={siteSettings.company_logo_url} alt="Logo" className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl object-cover bg-muted/20 shadow-sm" />
+                  <img src={siteSettings.company_logo_url} alt="Logo" className="h-10 w-10 sm:h-9 sm:w-9 rounded-xl object-cover bg-muted/20 shadow-sm" />
                 ) : (
-                  <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 shadow-inner group-hover:scale-105 transition-transform">
+                  <div className="h-10 w-10 sm:h-9 sm:w-9 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 shadow-inner group-hover:scale-105 transition-transform">
                     <span className="text-primary font-black text-[10px] tracking-tighter">TMS</span>
                   </div>
                 )}
               </div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                  <span className="font-['Lato'] text-[13px] sm:text-base font-bold text-foreground leading-none truncate grow">The Marketing Solution</span>
+                  <span className="font-['Lato'] text-[17px] sm:text-base md:text-[18px] font-bold text-foreground leading-none truncate grow">The Marketing Solution</span>
                   <span className="hidden xs:inline-block px-1.5 py-0.5 bg-primary/5 text-primary text-[7px] font-bold uppercase tracking-widest rounded-md border border-primary/10 shrink-0">Inside</span>
                 </div>
-                <span className="text-[8px] sm:text-[10px] text-muted-foreground mt-0.5 truncate uppercase tracking-widest font-bold opacity-70">
+                <span className="text-[10px] sm:text-[10px] text-muted-foreground mt-0.5 truncate uppercase tracking-widest font-bold opacity-70">
                   {siteSettings?.site_motto || 'Innovate . Engage . Grow'}
                 </span>
               </div>
