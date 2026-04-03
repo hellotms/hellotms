@@ -15,6 +15,9 @@ export function SplashManager({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
+    // Remove the startup black background so Tailwind themes can take over
+    document.body.style.backgroundColor = '';
+
     // If running in Tauri PC App, show the window smoothly only after React mounts it
     if ((window as any).__TAURI_INTERNALS__) {
       import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {

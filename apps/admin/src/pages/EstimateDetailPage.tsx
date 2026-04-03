@@ -189,14 +189,18 @@ export default function EstimateDetailPage() {
 
   return (
     <div>
-      <PageHeader
-        title={`Estimate ${estimate.invoice_number}`}
-        description={`${estimate.companies?.name ?? ''} — ${estimate.projects?.title ?? ''}`}
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => navigate('/estimates')} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-4 w-4" /> Back
-            </button>
+      <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-6">
+        <div className="flex items-center gap-3 flex-1 w-full">
+          <button onClick={() => navigate('/estimates')} className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground mr-1">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <PageHeader
+              title={`Estimate ${estimate.invoice_number}`}
+              description={`${estimate.companies?.name ?? ''} — ${estimate.projects?.title ?? ''}`}
+              className="mb-0"
+              actions={
+                <div className="flex items-center gap-2 flex-wrap">
             {estimate.status === 'draft' && (
               <button onClick={() => updateStatusMutation.mutate('sent')} className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted">
                 <Send className="h-4 w-4" /> Mark Sent
@@ -213,9 +217,12 @@ export default function EstimateDetailPage() {
             <button onClick={() => { setSendSuccess(false); setSendError(''); setIsSendOpen(true); }} className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90">
               <Send className="h-4 w-4" /> Send to Client
             </button>
+              </div>
+            }
+          />
           </div>
-        }
-      />
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
