@@ -15,6 +15,15 @@ export function SplashManager({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
+    // If running in Tauri PC App, show the window smoothly only after React mounts it
+    if ((window as any).__TAURI_INTERNALS__) {
+      import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+        setTimeout(() => {
+          getCurrentWindow().show().catch(console.error);
+        }, 150);
+      }).catch(console.error);
+    }
+
     if (showSplash) {
       document.body.style.overflow = 'hidden';
     } else {
