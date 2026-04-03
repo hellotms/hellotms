@@ -47,7 +47,7 @@ export default function DashboardPage() {
         supabase
           .from('projects')
           .select('id, status, invoice_amount, advance_received, created_at')
-          .gte('created_at', fromISO)
+          .gte('created_at', startTimestamp)
           .lte('created_at', endTimestamp)
           .is('deleted_at', null),
         supabase
@@ -59,7 +59,7 @@ export default function DashboardPage() {
         supabase
           .from('leads')
           .select('id, status')
-          .gte('created_at', fromISO)
+          .gte('created_at', startTimestamp)
           .lte('created_at', endTimestamp),
       ]);
 
@@ -116,11 +116,12 @@ export default function DashboardPage() {
         .order('entry_date');
 
       // Get Advances from projects
-      const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999Z` : toISO;
+      const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999+06:00` : toISO;
+      const startTimestamp = fromISO && !fromISO.includes('T') ? `${fromISO}T00:00:00.000+06:00` : fromISO;
       const { data: advances } = await supabase
         .from('projects')
         .select('advance_received, invoice_amount, created_at')
-        .gte('created_at', fromISO)
+        .gte('created_at', startTimestamp)
         .lte('created_at', endTimestamp)
         .is('deleted_at', null)
         .order('created_at');
@@ -155,7 +156,14 @@ export default function DashboardPage() {
       });
 
       advances?.forEach((row) => {
-        const key = useDaily ? row.created_at.slice(0, 10) : row.created_at.slice(0, 7);
+        // Parse UTC timestamp to Local Date String to ensure correct day grouping
+        const d = new Date(row.created_at);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const localDateStr = `${yyyy}-${mm}-${dd}`;
+        
+        const key = useDaily ? localDateStr : localDateStr.slice(0, 7);
         if (map[key]) map[key].invoiced += Number(row.invoice_amount || 0);
       });
 
@@ -199,11 +207,14 @@ export default function DashboardPage() {
   const { data: projectStatusData } = useQuery({
     queryKey: ['dashboard-project-status', fromISO, toISO],
     queryFn: async () => {
+      const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999+06:00` : toISO;
+      const startTimestamp = fromISO && !fromISO.includes('T') ? `${fromISO}T00:00:00.000+06:00` : fromISO;
+      
       const { data } = await supabase
         .from('projects')
         .select('status')
-        .gte('event_start_date', fromISO)
-        .lte('event_start_date', toISO)
+        .gte('created_at', startTimestamp)
+        .lte('created_at', endTimestamp)
         .is('deleted_at', null);
       if (!data) return [];
       const counts: Record<string, number> = {};
@@ -236,7 +247,7 @@ export default function DashboardPage() {
       const { data: projects } = await supabase
         .from('projects')
         .select('id, title, status, payment_status, advance_received, invoice_amount, event_start_date, created_at, companies(name)')
-        .gte('created_at', fromISO) // Using created_at for report range
+        .gte('created_at', startTimestamp) // Using created_at for report range
         .lte('created_at', endTimestamp)
         .is('deleted_at', null);
 
