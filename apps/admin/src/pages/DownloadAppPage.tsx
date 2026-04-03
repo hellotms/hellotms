@@ -41,6 +41,7 @@ export default function DownloadAppPage() {
 
   const getUrl = (platform: string) => versions.find(v => v.platform === platform)?.url;
   const getVersion = (platform: string) => versions.find(v => v.platform === platform)?.version || '0.1.0';
+  const getChangelog = (platform: string) => versions.find(v => v.platform === platform)?.changelog || '';
 
   const platforms = [
     {
@@ -50,6 +51,7 @@ export default function DownloadAppPage() {
       icon: Monitor,
       url: getUrl('windows'),
       version: getVersion('windows'),
+      changelog: getChangelog('windows'),
       steps: [
         'Download the .msi or .exe installer',
         'Run the installer on your Windows PC',
@@ -63,6 +65,7 @@ export default function DownloadAppPage() {
       icon: Smartphone,
       url: getUrl('android'),
       version: getVersion('android'),
+      changelog: getChangelog('android'),
       steps: [
         'Download the APK file to your phone',
         'Enable "Install from Unknown Sources" if prompted',
@@ -117,6 +120,17 @@ export default function DownloadAppPage() {
                 ))}
               </ul>
             </div>
+
+            {p.changelog && (
+              <div className="space-y-3 mb-10 bg-primary/5 p-6 rounded-2xl border border-primary/20">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                  <Info className="h-3.5 w-3.5" /> What's New in {p.version}
+                </h4>
+                <div className="text-xs text-foreground/80 leading-relaxed whitespace-pre-wrap">
+                  {p.changelog}
+                </div>
+              </div>
+            )}
 
             {p.id === 'windows' ? (
               <div className="space-y-4">
