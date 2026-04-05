@@ -151,7 +151,7 @@ async function buildAndStorePdf(
       padMarginTop: settings?.pad_margin_top ?? 150,
       padMarginBottom: settings?.pad_margin_bottom ?? 80,
       ownerName: settings?.hero_title ?? 'The Marketing Solution',
-      ownerUrl: settings?.public_site_url ?? 'hellotms.com.bd',
+      ownerUrl: settings?.public_site_url ?? 'themarketingsolution.com.bd',
     };
 
     const pdfBytes = await generateInvoicePdf(pdfData);
@@ -214,7 +214,7 @@ invoicesRoute.post('/estimate/send', requirePermission('manage_invoices'), async
       padMarginTop: settings?.pad_margin_top ?? 150,
       padMarginBottom: settings?.pad_margin_bottom ?? 80,
       ownerName: settings?.hero_title ?? 'The Marketing Solution',
-      ownerUrl: settings?.public_site_url ?? 'hellotms.com.bd',
+      ownerUrl: settings?.public_site_url ?? 'themarketingsolution.com.bd',
     };
 
     const { pdfUrl, pdfBase64 } = await buildPdfFromData(pdfData, c.env);

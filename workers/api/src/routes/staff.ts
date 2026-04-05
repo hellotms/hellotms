@@ -83,7 +83,7 @@ staffRoute.post('/invite', requirePermission('manage_staff'), async (c) => {
       .single();
 
     const companyName = settings?.hero_title ?? 'Marketing Solution';
-    const companyUrl = settings?.public_site_url ?? 'hellotms.com.bd';
+    const companyUrl = settings?.public_site_url ?? 'themarketingsolution.com.bd';
     const loginUrl = (companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`).replace(/\/$/, '') + '/admin';
 
     // Send Invite Email
@@ -234,7 +234,7 @@ staffRoute.put('/:id/reset-password', async (c) => {
     .single();
 
   const companyName = settings?.hero_title ?? 'Marketing Solution';
-  const companyUrl = settings?.public_site_url ?? 'hellotms.com.bd';
+  const companyUrl = settings?.public_site_url ?? 'themarketingsolution.com.bd';
   const loginUrl = (companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`).replace(/\/$/, '') + '/admin';
 
   const tempPassword = generateTempPassword();

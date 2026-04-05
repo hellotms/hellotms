@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default async function PrivacyPage() {
   const { data: settings } = await supabase.from('site_settings').select('contact_info').eq('id', 1).single();
   const contact = settings?.contact_info as { email?: string; phone?: string } | undefined;
-  const email = contact?.email || 'hello@hellotms.com.bd';
+  const email = contact?.email || 'hello@themarketingsolution.com.bd';
   const phone = contact?.phone || '+880 1700 000 000';
 
   return (

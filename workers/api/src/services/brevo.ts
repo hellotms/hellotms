@@ -51,7 +51,7 @@ export function buildInviteEmailHtml(params: {
   companyUrl?: string;
 }): string {
   const companyName = params.companyName || 'The Marketing Solution';
-  const companyUrl = params.companyUrl || 'hellotms.com.bd';
+  const companyUrl = params.companyUrl || 'themarketingsolution.com.bd';
   const hostname = companyUrl.replace(/^https?:\/\//, '').split('/')[0];
 
   return `
@@ -103,7 +103,7 @@ export function buildPasswordResetEmailHtml(params: {
   companyUrl?: string;
 }): string {
   const companyName = params.companyName || 'The Marketing Solution';
-  const companyUrl = params.companyUrl || 'hellotms.com.bd';
+  const companyUrl = params.companyUrl || 'themarketingsolution.com.bd';
   const hostname = companyUrl.replace(/^https?:\/\//, '').split('/')[0];
 
   return `
@@ -166,7 +166,7 @@ export function buildInvoiceEmailHtml(params: {
   type?: string;
 }): string {
   const companyName = params.companyName || 'The Marketing Solution';
-  const companyUrl = params.companyUrl || 'hellotms.com.bd';
+  const companyUrl = params.companyUrl || 'themarketingsolution.com.bd';
   const companyEmail = params.companyEmail || `hello@${companyUrl.replace(/^https?:\/\//, '').split('/')[0]}`;
   const hostname = companyUrl.replace(/^https?:\/\//, '').split('/')[0];
   const dueColor = params.dueAmountNumber > 0 ? '#dc2626' : '#059669';

@@ -139,7 +139,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@hellotms.com.bd"
+                  placeholder="admin@themarketingsolution.com.bd"
                   className="w-full px-6 py-3.5 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-transparent text-sm transition-all shadow-inner"
                 />
               </div>
@@ -215,7 +215,7 @@ export default function LoginPage() {
                      required
                      value={email}
                      onChange={(e) => setEmail(e.target.value)}
-                     placeholder="admin@hellotms.com.bd"
+                     placeholder="admin@themarketingsolution.com.bd"
                      className="w-full pl-14 pr-6 py-3.5 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-transparent text-sm transition-all shadow-inner"
                    />
                 </div>

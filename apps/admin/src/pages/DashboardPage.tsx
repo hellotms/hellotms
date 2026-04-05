@@ -243,13 +243,31 @@ export default function DashboardPage() {
     queryFn: async () => {
       const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999+06:00` : toISO;
       const startTimestamp = fromISO && !fromISO.includes('T') ? `${fromISO}T00:00:00.000+06:00` : fromISO;
-      // 1. Get projects in range
-      const { data: projects } = await supabase
+      // 1. Get projects with any financial activity in range OR created in range
+      const [entryIds, collIds] = await Promise.all([
+        supabase.from('ledger_entries').select('project_id').gte('entry_date', fromISO).lte('entry_date', toISO).is('deleted_at', null),
+        supabase.from('collections').select('project_id').gte('payment_date', fromISO).lte('payment_date', toISO).is('deleted_at', null)
+      ]);
+
+      const activityProjectIds = Array.from(new Set([
+        ...(entryIds.data?.map(e => e.project_id).filter(Boolean) || []),
+        ...(collIds.data?.map(c => c.project_id).filter(Boolean) || [])
+      ])) as string[];
+
+      // Filter to only include projects that are either (created in range) OR (have activity in range)
+      let query = supabase
         .from('projects')
         .select('id, title, status, payment_status, advance_received, invoice_amount, event_start_date, created_at, companies(name)')
-        .gte('created_at', startTimestamp) // Using created_at for report range
-        .lte('created_at', endTimestamp)
         .is('deleted_at', null);
+
+      if (activityProjectIds.length > 0) {
+        // Use and() inside or() to correctly group the date range condition
+        query = query.or(`and(created_at.gte.${startTimestamp},created_at.lte.${endTimestamp}),id.in.(${activityProjectIds.join(',')})`);
+      } else {
+        query = query.gte('created_at', startTimestamp).lte('created_at', endTimestamp);
+      }
+
+      const { data: projects } = await query;
 
       if (!projects || projects.length === 0) return [];
 

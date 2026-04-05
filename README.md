@@ -1,17 +1,17 @@
 # Marketing Solution — Hello TMS
 
-Production-ready Events Management System for [hellotms.com.bd](https://hellotms.com.bd).
+Production-ready Events Management System for [themarketingsolution.com.bd](https://themarketingsolution.com.bd).
 
 ## Architecture
 
 ```
-hellotms.com.bd/              ← pnpm workspace root
+themarketingsolution.com.bd/              ← pnpm workspace root
 ├── apps/
-│   ├── admin/                ← Vite + React 18 SPA  (admin.hellotms.com.bd)
+│   ├── admin/                ← Vite + React 18 SPA  (admin.themarketingsolution.com.bd)
 │   ├── admin/src-tauri/      ← Tauri (Rust) for Windows Desktop App
-│   └── public/               ← Next.js 14 App Router (hellotms.com.bd)
+│   └── public/               ← Next.js 14 App Router (themarketingsolution.com.bd)
 ├── workers/
-│   └── api/                  ← Cloudflare Worker + Hono (api.hellotms.com.bd)
+│   └── api/                  ← Cloudflare Worker + Hono (api.themarketingsolution.com.bd)
 ├── packages/
 │   └── shared/               ← TypeScript types, Zod schemas, utils
 └── supabase/
@@ -73,8 +73,8 @@ hellotms.com.bd/              ← pnpm workspace root
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/yourorg/hellotms.com.bd.git
-cd hellotms.com.bd
+git clone https://github.com/yourorg/themarketingsolution.com.bd.git
+cd themarketingsolution.com.bd
 pnpm install
 ```
 
@@ -186,7 +186,7 @@ wrangler deploy
 # Root directory: (leave empty)
 # Environment variables: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL
 
-# Custom domain: admin.hellotms.com.bd
+# Custom domain: admin.themarketingsolution.com.bd
 ```
 
 ### Public Site — Cloudflare Pages
@@ -199,7 +199,7 @@ wrangler deploy
 # Root directory: (leave empty)
 # Environment variables: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_API_BASE_URL
 
-# Custom domain: hellotms.com.bd
+# Custom domain: themarketingsolution.com.bd
 ```
 
 ### Desktop App (Windows) — Tauri
@@ -236,8 +236,8 @@ wrangler deploy
 
 1. Create a free account at [brevo.com](https://brevo.com)
 2. Go to **SMTP & API** → **API Keys** → create a key
-3. Verify your sender domain: `hellotms.com.bd` (add DKIM/SPF/DMARC DNS records)
-4. Set `BREVO_SENDER_EMAIL=noreply@hellotms.com.bd` in Worker secrets
+3. Verify your sender domain: `themarketingsolution.com.bd` (add DKIM/SPF/DMARC DNS records)
+4. Set `BREVO_SENDER_EMAIL=noreply@themarketingsolution.com.bd` in Worker secrets
 
 ---
 

@@ -61,13 +61,45 @@ export default function RecycleBinPage() {
                             item.entity_type === 'invoice' ? 'invoices' :
                                 item.entity_type === 'app_version' ? 'app_versions' : 'collections';
 
-                // 1. Remove deleted_at flag
+                // 1. Remove deleted_at flag from main entity
                 const { error: updateError } = await supabase
                     .from(table)
                     .update({ deleted_at: null })
                     .eq('id', item.entity_id);
 
                 if (updateError) throw updateError;
+
+                // 2. Cascade restore for specific entities
+                if (item.entity_type === 'project') {
+                    // Restore child records for this project
+                    await Promise.all([
+                        supabase.from('invoices').update({ deleted_at: null }).eq('project_id', item.entity_id),
+                        supabase.from('collections').update({ deleted_at: null }).eq('project_id', item.entity_id),
+                        supabase.from('ledger_entries').update({ deleted_at: null }).eq('project_id', item.entity_id)
+                    ]);
+                } else if (item.entity_type === 'company') {
+                    // Restore projects and their records for this company
+                    const { data: projects } = await supabase
+                        .from('projects')
+                        .select('id')
+                        .eq('company_id', item.entity_id);
+                    
+                    if (projects && projects.length > 0) {
+                        const projectIds = projects.map(p => p.id);
+                        await Promise.all([
+                            supabase.from('projects').update({ deleted_at: null }).eq('company_id', item.entity_id),
+                            supabase.from('invoices').update({ deleted_at: null }).in('project_id', projectIds),
+                            supabase.from('collections').update({ deleted_at: null }).in('project_id', projectIds),
+                            supabase.from('ledger_entries').update({ deleted_at: null }).in('project_id', projectIds)
+                        ]);
+                    }
+                    
+                    // Also restore any direct company invoices/leads
+                    await Promise.all([
+                        supabase.from('invoices').update({ deleted_at: null }).eq('company_id', item.entity_id),
+                        supabase.from('leads').update({ deleted_at: null }).eq('company_id', item.entity_id)
+                    ]);
+                }
             }
 
             // 2. Delete from trash_bin

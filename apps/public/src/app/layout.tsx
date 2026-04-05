@@ -44,7 +44,7 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title: siteName,
       description,
-      url: settings?.public_site_url || 'https://hellotms.com.bd',
+      url: settings?.public_site_url || 'https://themarketingsolution.com.bd',
       siteName,
       images: [
         {

@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { supabase } from '@/lib/supabase';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://hellotms.com.bd';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://themarketingsolution.com.bd';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const staticPages: MetadataRoute.Sitemap = [

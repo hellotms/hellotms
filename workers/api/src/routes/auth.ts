@@ -71,7 +71,7 @@ authRoute.post('/forgot-password', async (c) => {
       .single();
 
     const companyName = settings?.hero_title ?? 'Marketing Solution';
-    const companyUrl = settings?.public_site_url ?? 'hellotms.com.bd';
+    const companyUrl = settings?.public_site_url ?? 'themarketingsolution.com.bd';
     const loginUrl = (companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`).replace(/\/$/, '') + '/admin';
 
     // 7. Send Email via Brevo

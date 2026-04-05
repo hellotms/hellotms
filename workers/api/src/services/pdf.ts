@@ -129,7 +129,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   let { page, width, height } = addPage();
 
   const ownerName = data.ownerName || 'The Marketing Solution';
-  const ownerUrl = data.ownerUrl ? new URL(data.ownerUrl).hostname : 'hellotms.com.bd';
+  const ownerUrl = data.ownerUrl ? new URL(data.ownerUrl).hostname : 'themarketingsolution.com.bd';
 
   // ── Header (only when no pad background) ──────────────────────────────────
   if (!usePad) {

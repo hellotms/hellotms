@@ -1,8 +1,8 @@
 {
   "name": "@hellotms/admin",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
-  "description": "Admin Panel - The Marketing Solution (admin.hellotms.com.bd)",
+  "description": "Admin Panel - The Marketing Solution (admin.themarketingsolution.com.bd)",
   "type": "module",
   "scripts": {
     "dev": "vite",

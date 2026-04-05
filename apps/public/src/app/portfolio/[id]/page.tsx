@@ -1,7 +1,8 @@
-// Server component page — generateStaticParams must be in a server component
-// The actual UI is in ProjectDetailView (client component)
 import { ProjectDetailView } from './ProjectDetailView';
 import { supabase } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 3600; // Optional: revalidate every hour
 
 // Required by output:export for dynamic routes.
 // We fetch all published project IDs so Next.js can pre-render them.
