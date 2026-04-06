@@ -29,36 +29,60 @@ if (!keyStr) {
 }
 
 try {
-    console.log(`Building tms-Portal v${version}...`);
-    // Pass the actual content of the key, not the path
+    const isSignOnly = process.argv.includes('--sign-only');
+
+    if (!isSignOnly) {
+        console.log(`Building NSIS and MSI for tms-Portal v${version}...`);
+        
+        // The working trick: Pass the BASE64 encoded version of the key as the environment variable
+        // Tauri CLI on Windows handles base64 content in the env var better than file paths.
+        const buildEnv = {
+            ...process.env,
+            TAURI_SIGNING_PRIVATE_KEY: keyStr,
+            TAURI_SIGNING_PRIVATE_KEY_PASSWORD: pwdStr
+        };
+        
+        // 1. Build the installers
+        execSync('pnpm tauri build --bundles nsis,msi', { 
+            stdio: 'inherit',
+            env: buildEnv
+        });
+        
+        console.log('Build complete. Checking for .sig files...');
+    } else {
+        console.log(`Skipping build. Manually signing v${version} installers...`);
+    }
+
     const buildEnv = {
         ...process.env,
         TAURI_SIGNING_PRIVATE_KEY: keyStr,
         TAURI_SIGNING_PRIVATE_KEY_PASSWORD: pwdStr
     };
     
-    execSync('pnpm tauri build', { 
-        stdio: 'inherit',
-        env: buildEnv
-    });
-    
-    console.log('Build complete. Checking for .sig files...');
-    
-    // Fallback: If for some reason Tauri v2 didn't generate .sig, try manual sign
+    // 2. Manual Signing Fallback (if build didn't sign them)
     const nsisPath = `./src-tauri/target/release/bundle/nsis/tms-Portal_${version}_x64-setup.exe`;
     const msiPath = `./src-tauri/target/release/bundle/msi/tms-Portal_${version}_x64_en-US.msi`;
     
-    if (fs.existsSync(nsisPath) && !fs.existsSync(`${nsisPath}.sig`)) {
-        console.log('Manual signing NSIS...');
-        execSync(`pnpm tauri signer sign -k admin_tauri.key -p ${pwdStr} ${nsisPath}`, { stdio: 'inherit' });
-    }
-    
-    if (fs.existsSync(msiPath) && !fs.existsSync(`${msiPath}.sig`)) {
-        console.log('Manual signing MSI...');
-        execSync(`pnpm tauri signer sign -k admin_tauri.key -p ${pwdStr} ${msiPath}`, { stdio: 'inherit' });
-    }
+    const signFile = (filePath) => {
+        if (fs.existsSync(filePath) && !fs.existsSync(`${filePath}.sig`)) {
+            console.log(`Manually signing: ${filePath}`);
+            // Use the same env var trick for manual signing call
+            execSync(`pnpm tauri signer sign ${filePath}`, { 
+                stdio: 'inherit',
+                env: buildEnv
+            });
+        }
+    };
+
+    signFile(nsisPath);
+    signFile(msiPath);
+
+    console.log('\n✅ All installers generated and signed successfully!');
+    console.log(`EXE: ${nsisPath}`);
+    console.log(`MSI: ${msiPath}`);
 
 } catch (err) {
-    console.error('Build or Sign failed');
+    console.error('\n❌ Build or Signing process failed.');
+    console.error(err.message);
     process.exit(1);
 }

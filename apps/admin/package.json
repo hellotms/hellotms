@@ -12,7 +12,7 @@
     "lint": "eslint src --ext .ts,.tsx",
     "tauri": "tauri",
     "build-win": "node build-win.cjs",
-    "sign-win": "tauri signer sign -k ./admin_tauri.key -p TMS2024 ./src-tauri/target/release/bundle/nsis/tms-Portal_0.1.5_x64-setup.exe"
+    "sign-win": "node build-win.cjs --sign-only"
   },
   "dependencies": {
     "@hellotms/shared": "workspace:*",

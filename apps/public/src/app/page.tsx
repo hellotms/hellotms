@@ -1,5 +1,5 @@
-'use client';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { ArrowRight, Camera, Users, Star, Award, Play, CheckCircle, Sparkles, TrendingUp, Globe } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -152,7 +152,14 @@ export default function HomePage() {
                 empowering brands by
               </span>
               {siteSettings?.company_logo_url && (
-                <img src={siteSettings.company_logo_url} alt="Logo" className="h-7 w-auto object-contain" />
+                <div className="relative h-7 w-20">
+                  <Image 
+                    src={siteSettings.company_logo_url} 
+                    alt="The Marketing Solution Logo" 
+                    fill 
+                    className="object-contain"
+                  />
+                </div>
               )}
             </div>
 
@@ -283,7 +290,12 @@ export default function HomePage() {
                 >
                   <div className={`relative h-52 bg-gradient-to-br ${GRADIENT_BG_CLASSES[i % GRADIENT_BG_CLASSES.length]} flex items-center justify-center`}>
                     {project.cover_image_url ? (
-                      <img src={project.cover_image_url} alt={project.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <Image 
+                        src={project.cover_image_url} 
+                        alt={project.title} 
+                        fill 
+                        className="object-cover group-hover:scale-105 transition-transform duration-500" 
+                      />
                     ) : (
                       <Camera className="h-12 w-12 text-white/20 group-hover:text-white/30 transition-colors" />
                     )}

@@ -80,18 +80,32 @@ pnpm install
 
 ### 2. Environment Variables
 
+Each module requires specific environment variables. Create `.env` files in their respective directories:
+
+#### Admin SPA (`apps/admin/.env`)
 ```bash
-# Admin SPA
-cp apps/admin/.env.example apps/admin/.env.local
-# Edit with your Supabase URL and anon key
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_anon_key
+VITE_API_BASE_URL=http://localhost:8787 # Local worker URL
+# For Desktop App Signing:
+TAURI_SIGNING_PRIVATE_KEY="your_private_key"
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD="your_password"
+```
 
-# Public site
-cp apps/public/.env.example apps/public/.env.local
-# Edit with your Supabase URL and anon key
+#### Public Site (`apps/public/.env.local`)
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+NEXT_PUBLIC_API_BASE_URL=https://api.themarketingsolution.com.bd
+```
 
-# Worker (local dev)
-cp workers/api/.env.example workers/api/.dev.vars
-# Edit with your Supabase service role key and Brevo credentials
+#### Worker API (`workers/api/.dev.vars`)
+```bash
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_KEY=your_service_role_key
+BREVO_API_KEY=your_brevo_api_key
+BREVO_SENDER_EMAIL=noreply@themarketingsolution.com.bd
+BREVO_SENDER_NAME="The Marketing Solution"
 ```
 
 ### 3. Start Supabase locally
@@ -202,15 +216,20 @@ wrangler deploy
 # Custom domain: themarketingsolution.com.bd
 ```
 
-### Desktop App (Windows) — Tauri
+### Desktop App (Windows) — Tauri (v0.1.5+)
 
-1.  **Prerequisites**: Install [Rust](https://www.rust-lang.org/tools/install) and [WebView2](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
-2.  **Build**:
+1.  **Prerequisites**: Install [Rust](https://www.rust-lang.org/tools/install) and [WiX Toolset v3.11](https://wixtoolset.org/releases/) (for MSI).
+2.  **Build & Sign (EXE + MSI)**:
     ```bash
-    pnpm --filter @hellotms/admin run tauri build
+    pnpm run build:admin:win
     ```
-3.  **Output**: Found in `apps/admin/src-tauri/target/release/bundle/msi/` or `nsis/`.
-4.  **Distribution**: Upload the `.msi` or `.exe` via **Core Settings > Admin Setting** to make it available for download.
+    *This command uses a robust Node.js utility to bypass Windows shell encoding issues and automatically signs both installers.*
+3.  **Sign Existing Installers**:
+    ```bash
+    pnpm run sign:admin:win
+    ```
+4.  **Output**: Found in `apps/admin/src-tauri/target/release/bundle/nsis/` (EXE) and `msi/` (MSI).
+5.  **Distribution**: Upload the `.exe`, `.msi`, and their corresponding `.sig` files via **Core Settings > Admin Setting**.
 
 ### Mobile App (Android)
 
@@ -228,7 +247,7 @@ wrangler deploy
 | CNAME | `@` | `<pages-project>.pages.dev` |
 | CNAME | `www` | `<pages-project>.pages.dev` |
 | CNAME | `admin` | `<admin-pages-project>.pages.dev` |
-| CNAME | `api` | `hellotms-api.<account>.workers.dev` |
+| CNAME | `api` | `api.themarketingsolution.com.bd` |
 
 ---
 
@@ -291,4 +310,4 @@ Cloudflare Worker serving as a secure gateway:
 
 ## License
 
-Proprietary — © 2024 Hello TMS. All rights reserved.
+Proprietary — © 2024 The Marketing Solution. All rights reserved.

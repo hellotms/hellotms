@@ -5,6 +5,7 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { SplashManager } from '@/components/SplashManager';
+import { JsonLd } from '@/components/JsonLd';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -32,10 +33,29 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     title: {
-      default: siteName,
+      default: `${siteName} | Premier Event Management & Marketing Agency`,
       template: `%s | ${siteName}`,
     },
     description,
+    keywords: [
+      'Event Management Bangladesh',
+      'Corporate Event Planning Dhaka',
+      'Brand Activations Bangladesh',
+      'Best Event Agency Dhaka',
+      'The Marketing Solution Agency',
+      'Event Logistics Experts',
+      'Wedding Planning Dhaka',
+      'Corporate Videography Bangladesh',
+    ],
+    authors: [{ name: 'The Marketing Solution' }],
+    creator: 'The Marketing Solution',
+    publisher: 'The Marketing Solution',
+    formatDetection: {
+      email: false,
+      address: true,
+      telephone: true,
+    },
+    metadataBase: new URL(settings?.public_site_url || 'https://themarketingsolution.com.bd'),
     icons: {
       icon: logoUrl,
       shortcut: logoUrl,
@@ -51,6 +71,7 @@ export async function generateMetadata(): Promise<Metadata> {
           url: logoUrl,
           width: 800,
           height: 600,
+          alt: siteName,
         },
       ],
       locale: 'en_BD',
@@ -61,10 +82,21 @@ export async function generateMetadata(): Promise<Metadata> {
       title: siteName,
       description,
       images: [logoUrl],
+      creator: '@TheMarketingSol',
     },
     robots: {
       index: true,
       follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
+    },
+    verification: {
+      google: 'YOUR_VERIFICATION_ID', // Can be set later
     },
   };
 }
@@ -75,6 +107,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${outfit.className} ${lato.className}`} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark">
           <SplashManager>
+            <JsonLd />
             <Navbar />
             <main>{children}</main>
             <Footer />

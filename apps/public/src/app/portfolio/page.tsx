@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -131,10 +132,11 @@ export default function PortfolioPage() {
                   >
                     <div className={`relative h-56 bg-gradient-to-br ${GRADIENT_CLASSES[gradientIdx]} overflow-hidden`}>
                       {project.cover_image_url ? (
-                        <img
+                        <Image
                           src={project.cover_image_url}
                           alt={project.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       ) : (
                         mounted ? <Camera className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-12 w-12 text-white/15 group-hover:text-white/25 transition-colors" /> : <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-12 w-12" />

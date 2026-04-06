@@ -1,5 +1,5 @@
-'use client';
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Calendar, Building2, Tag, Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -90,10 +90,12 @@ export function ProjectDetailView({ id }: { id: string }) {
             {/* Hero / Cover */}
             <section className={`relative h-64 sm:h-80 md:h-96 bg-gradient-to-br ${GRADIENT_DEFAULT} overflow-hidden`}>
                 {project.cover_image_url && (
-                    <img
+                    <Image
                         src={project.cover_image_url}
                         alt={project.title}
-                        className="absolute inset-0 w-full h-full object-cover"
+                        fill
+                        priority
+                        className="object-cover"
                     />
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
@@ -146,11 +148,14 @@ export function ProjectDetailView({ id }: { id: string }) {
                     <div className="space-y-5">
                         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-5">
                             {project.companies?.logo_url && (
-                                <img
-                                    src={project.companies.logo_url}
-                                    alt={project.companies.name}
-                                    className="h-12 object-contain mb-2"
-                                />
+                                <div className="relative h-12 w-32 mb-2">
+                                    <Image
+                                        src={project.companies.logo_url}
+                                        alt={project.companies.name}
+                                        fill
+                                        className="object-contain"
+                                    />
+                                </div>
                             )}
                             <h3 className="font-bold text-[var(--foreground)]">Event Details</h3>
                             {[

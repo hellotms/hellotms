@@ -1,4 +1,4 @@
-'use client';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { HeroSlide } from '@hellotms/shared';
 import { cn } from '@/lib/utils';
@@ -37,10 +37,13 @@ export function HeroSlider({ slides, onSlideChange }: HeroSliderProps) {
             index === current ? "opacity-100" : "opacity-0"
           )}
         >
-          <img
+          <Image
             src={slide.image_url}
-            alt={slide.title || "Hero Slide"}
-            className="w-full h-full object-cover"
+            alt={slide.title || "The Marketing Solution Event"}
+            fill
+            priority={index === 0}
+            className="object-cover"
+            sizes="100vw"
           />
           {/* Overlay for better readability */}
           <div className="absolute inset-0 bg-black/40" />

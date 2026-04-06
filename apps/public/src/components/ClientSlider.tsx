@@ -1,5 +1,4 @@
-'use client';
-
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Company } from '@hellotms/shared';
@@ -51,11 +50,14 @@ export default function ClientSlider() {
               className="flex items-center gap-4 transition-all duration-500 group"
             >
               {company.logo_url ? (
-                <img
-                  src={company.logo_url}
-                  alt={company.name}
-                  className="h-8 md:h-11 w-auto object-contain transition-all duration-500 hover:scale-110 drop-shadow-sm"
-                />
+                <div className="relative h-8 md:h-11 w-24">
+                  <Image
+                    src={company.logo_url}
+                    alt={company.name}
+                    fill
+                    className="object-contain transition-all duration-500 hover:scale-110 drop-shadow-sm"
+                  />
+                </div>
               ) : (
                 <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center transition-all group-hover:bg-primary/20">
                   <span className="text-[10px] font-black text-primary uppercase">{company.name.slice(0, 2)}</span>
