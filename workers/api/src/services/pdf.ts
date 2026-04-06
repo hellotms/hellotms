@@ -474,7 +474,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
     pages.forEach(p => {
       const { width: pw } = p.getSize();
       p.drawRectangle({ x: 0, y: 0, width: pw, height: 38, color: lightGray });
-      p.drawText(`${ownerUrl} · hello@${ownerUrl}`, {
+      p.drawText(`${ownerUrl} · support@${ownerUrl}`, {
         x: margin, y: 14, size: 8, font: regularFont, color: gray,
       });
     });

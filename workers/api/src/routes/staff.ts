@@ -78,13 +78,16 @@ staffRoute.post('/invite', requirePermission('manage_staff'), async (c) => {
     // Fetch branding
     const { data: settings } = await supabase
       .from('site_settings')
-      .select('hero_title, public_site_url')
+      .select('public_site_url')
       .eq('id', 1)
       .single();
 
-    const companyName = settings?.hero_title ?? 'Marketing Solution';
+    const companyName = 'The Marketing Solution';
     const companyUrl = settings?.public_site_url ?? 'themarketingsolution.com.bd';
-    const loginUrl = (companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`).replace(/\/$/, '') + '/admin';
+    
+    // Logic: Transform main domain to admin subdomain (e.g. https://... to https://admin....)
+    const baseDomain = companyUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const loginUrl = `https://admin.${baseDomain}`;
 
     // Send Invite Email
     const html = buildInviteEmailHtml({
@@ -226,16 +229,18 @@ staffRoute.put('/:id/reset-password', async (c) => {
     }
   }
 
-  // Fetch branding
   const { data: settings } = await supabase
     .from('site_settings')
-    .select('hero_title, public_site_url')
+    .select('public_site_url')
     .eq('id', 1)
     .single();
 
-  const companyName = settings?.hero_title ?? 'Marketing Solution';
+  const companyName = 'The Marketing Solution';
   const companyUrl = settings?.public_site_url ?? 'themarketingsolution.com.bd';
-  const loginUrl = (companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`).replace(/\/$/, '') + '/admin';
+  
+  // Logic: Transform main domain to admin subdomain
+  const baseDomain = companyUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const loginUrl = `https://admin.${baseDomain}`;
 
   const tempPassword = generateTempPassword();
 

@@ -1,9 +1,13 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
+import { formatInTimeZone } from 'date-fns-tz';
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+const TIMEZONE = 'Asia/Dhaka';
 
 export function formatBDT(amount: number): string {
   return `৳ ${amount.toLocaleString('en-IN')}`;
@@ -11,24 +15,20 @@ export function formatBDT(amount: number): string {
 
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  const day = String(d.getDate()).padStart(2, '0');
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const month = months[d.getMonth()];
-  const year = d.getFullYear();
-  return `${day} ${month}, ${year}`;
+  try {
+    return formatInTimeZone(new Date(dateStr), TIMEZONE, 'dd MMM, yyyy');
+  } catch (e) {
+    return '—';
+  }
 }
 
 export function formatDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  const day = String(d.getDate()).padStart(2, '0');
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const month = months[d.getMonth()];
-  const year = d.getFullYear();
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  return `${day} ${month}, ${year} ${hours}:${minutes}`;
+  try {
+    return formatInTimeZone(new Date(dateStr), TIMEZONE, 'dd MMM, yyyy HH:mm');
+  } catch (e) {
+    return '—';
+  }
 }
 
 export function slugify(text: string): string {

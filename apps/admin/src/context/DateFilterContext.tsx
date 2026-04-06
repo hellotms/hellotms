@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState } from 'react';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+
+const TIMEZONE = 'Asia/Dhaka';
 
 export type DatePreset = 'today' | 'week' | 'month' | 'year' | 'custom';
 
@@ -18,12 +21,15 @@ interface DateFilterContextValue {
 }
 
 function getPresetRange(preset: DatePreset): DateRange {
-  const now = new Date();
+  // Get current time in Asia/Dhaka
+  const now = toZonedTime(new Date(), TIMEZONE);
+  
   switch (preset) {
     case 'today':
       return { from: startOfDay(now), to: endOfDay(now) };
     case 'week':
-      return { from: startOfWeek(now, { weekStartsOn: 0 }), to: endOfWeek(now, { weekStartsOn: 0 }) };
+      // weekStartsOn: 6 is Saturday
+      return { from: startOfWeek(now, { weekStartsOn: 6 }), to: endOfWeek(now, { weekStartsOn: 6 }) };
     case 'month':
       return { from: startOfMonth(now), to: endOfMonth(now) };
     case 'year':
@@ -49,12 +55,9 @@ export function DateFilterProvider({ children }: { children: React.ReactNode }) 
     setRange(r);
   };
 
-  // Helper to get YYYY-MM-DD in local time
+  // Helper to get YYYY-MM-DD in Asia/Dhaka
   const toLocalDateString = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return formatInTimeZone(date, TIMEZONE, 'yyyy-MM-dd');
   };
 
   const fromISO = toLocalDateString(range.from);

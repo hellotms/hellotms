@@ -2,7 +2,7 @@
   "name": "hellotms-marketing-solution",
   "version": "1.0.0",
   "private": true,
-  "description": "Marketing Solution - Events Management System for hellotms.com.bd",
+  "description": "Marketing Solution - Events Management System for themarketingsolution.com.bd",
   "scripts": {
     "dev": "pnpm run --parallel dev",
     "dev:admin": "pnpm --filter @hellotms/admin dev",

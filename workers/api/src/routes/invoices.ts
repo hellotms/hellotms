@@ -150,7 +150,7 @@ async function buildAndStorePdf(
       padImageUrl: settings?.invoice_pad_url ?? undefined,
       padMarginTop: settings?.pad_margin_top ?? 150,
       padMarginBottom: settings?.pad_margin_bottom ?? 80,
-      ownerName: settings?.hero_title ?? 'The Marketing Solution',
+      ownerName: 'The Marketing Solution',
       ownerUrl: settings?.public_site_url ?? 'themarketingsolution.com.bd',
     };
 
@@ -213,7 +213,7 @@ invoicesRoute.post('/estimate/send', requirePermission('manage_invoices'), async
       padImageUrl: settings?.invoice_pad_url ?? undefined,
       padMarginTop: settings?.pad_margin_top ?? 150,
       padMarginBottom: settings?.pad_margin_bottom ?? 80,
-      ownerName: settings?.hero_title ?? 'The Marketing Solution',
+      ownerName: 'The Marketing Solution',
       ownerUrl: settings?.public_site_url ?? 'themarketingsolution.com.bd',
     };
 
@@ -245,7 +245,7 @@ invoicesRoute.post('/estimate/send', requirePermission('manage_invoices'), async
       })),
       collections: [],
       downloadUrl: pdfUrl,
-      companyName: settings?.hero_title,
+      companyName: 'The Marketing Solution',
       companyUrl: settings?.public_site_url,
       companyEmail: (settings?.contact_info as any)?.email,
       type: 'estimate'
@@ -257,7 +257,7 @@ invoicesRoute.post('/estimate/send', requirePermission('manage_invoices'), async
       c.env.BREVO_SENDER_NAME,
       {
         to: [{ email: data.company.email, name: data.company.name }],
-        subject: `Estimate ${data.invoiceNumber} from ${settings?.hero_title ?? 'Marketing Solution'}`,
+        subject: `Estimate ${data.invoiceNumber} from The Marketing Solution`,
         htmlContent: html,
         attachments: [{ name: `${data.invoiceNumber}.pdf`, content: pdfBase64, contentType: 'application/pdf' }],
       }
@@ -378,7 +378,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
         amount: fmt(c.amount || 0),
       })),
       downloadUrl: pdfResult.pdfUrl,
-      companyName: settings?.hero_title,
+      companyName: 'The Marketing Solution',
       companyUrl: settings?.public_site_url,
       companyEmail: (settings?.contact_info as any)?.email,
       type: invoice.type
@@ -390,7 +390,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       c.env.BREVO_SENDER_NAME,
       {
         to: [{ email: recipientEmail, name: recipientName }],
-        subject: `${invoice.type === 'estimate' ? 'Estimate' : 'Invoice'} ${invoice.invoice_number} from ${settings?.hero_title ?? 'Marketing Solution'}`,
+        subject: `${invoice.type === 'estimate' ? 'Estimate' : 'Invoice'} ${invoice.invoice_number} from The Marketing Solution`,
         htmlContent: html,
         attachments: [{ name: `${invoice.invoice_number}.pdf`, content: pdfResult.pdfBase64 || '', contentType: 'application/pdf' }],
       }

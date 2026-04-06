@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { toast } from '@/components/Toast';
 
 const IS_DEV = import.meta.env.DEV;
-const API_BASE = import.meta.env.VITE_API_BASE_URL || (IS_DEV ? 'http://localhost:8787' : 'https://hellotms-api.info-tms2021.workers.dev');
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (IS_DEV ? 'http://localhost:8787' : 'https://api.themarketingsolution.com.bd');
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {

@@ -28,8 +28,8 @@ export default function DashboardPage() {
     queryKey: ['dashboard-kpis', fromISO, toISO],
     queryFn: async () => {
       // For created_at (timestamp), we need to ensure the end date covers the whole day in BD Time (GMT+6)
-      const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999+06:00` : toISO;
-      const startTimestamp = fromISO && !fromISO.includes('T') ? `${fromISO}T00:00:00.000+06:00` : fromISO;
+      const endTimestamp = toISO ? `${toISO}T23:59:59.999+06:00` : toISO;
+      const startTimestamp = fromISO ? `${fromISO}T00:00:00.000+06:00` : fromISO;
 
       const [expenseRes, activeProjectsRes, allProjectsRes, collectionsRes, leadsRes] = await Promise.all([
         supabase
@@ -116,8 +116,8 @@ export default function DashboardPage() {
         .order('entry_date');
 
       // Get Advances from projects
-      const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999+06:00` : toISO;
-      const startTimestamp = fromISO && !fromISO.includes('T') ? `${fromISO}T00:00:00.000+06:00` : fromISO;
+      const endTimestamp = toISO ? `${toISO}T23:59:59.999+06:00` : toISO;
+      const startTimestamp = fromISO ? `${fromISO}T00:00:00.000+06:00` : fromISO;
       const { data: advances } = await supabase
         .from('projects')
         .select('advance_received, invoice_amount, created_at')
@@ -156,12 +156,8 @@ export default function DashboardPage() {
       });
 
       advances?.forEach((row) => {
-        // Parse UTC timestamp to Local Date String to ensure correct day grouping
-        const d = new Date(row.created_at);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        const localDateStr = `${yyyy}-${mm}-${dd}`;
+        // Use the ISO date string part directly to avoid browser timezone shift
+        const localDateStr = row.created_at.slice(0, 10); // YYYY-MM-DD from Sugabase
         
         const key = useDaily ? localDateStr : localDateStr.slice(0, 7);
         if (map[key]) map[key].invoiced += Number(row.invoice_amount || 0);
@@ -207,8 +203,8 @@ export default function DashboardPage() {
   const { data: projectStatusData } = useQuery({
     queryKey: ['dashboard-project-status', fromISO, toISO],
     queryFn: async () => {
-      const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999+06:00` : toISO;
-      const startTimestamp = fromISO && !fromISO.includes('T') ? `${fromISO}T00:00:00.000+06:00` : fromISO;
+      const endTimestamp = toISO ? `${toISO}T23:59:59.999+06:00` : toISO;
+      const startTimestamp = fromISO ? `${fromISO}T00:00:00.000+06:00` : fromISO;
       
       const { data } = await supabase
         .from('projects')
@@ -241,8 +237,8 @@ export default function DashboardPage() {
   const { data: projectPnL } = useQuery({
     queryKey: ['dashboard-project-pnl', fromISO, toISO],
     queryFn: async () => {
-      const endTimestamp = toISO && !toISO.includes('T') ? `${toISO}T23:59:59.999+06:00` : toISO;
-      const startTimestamp = fromISO && !fromISO.includes('T') ? `${fromISO}T00:00:00.000+06:00` : fromISO;
+      const endTimestamp = toISO ? `${toISO}T23:59:59.999+06:00` : toISO;
+      const startTimestamp = fromISO ? `${fromISO}T00:00:00.000+06:00` : fromISO;
       // 1. Get projects with any financial activity in range OR created in range
       const [entryIds, collIds] = await Promise.all([
         supabase.from('ledger_entries').select('project_id').gte('entry_date', fromISO).lte('entry_date', toISO).is('deleted_at', null),
@@ -487,7 +483,7 @@ export default function DashboardPage() {
             <tbody className="divide-y divide-border">
               {projectPnL?.map((p) => (
                 <tr key={p.id} onClick={() => navigate(`/projects/${p.id}`)} className="hover:bg-muted/50 cursor-pointer transition-colors">
-                  <td className="px-4 py-3 font-medium text-foreground sticky left-0 bg-card/80 backdrop-blur-sm z-10">{p.title}</td>
+                  <td className="px-4 py-3 font-medium text-foreground sm:sticky left-0 bg-card/80 backdrop-blur-sm z-10">{p.title}</td>
                   <td className="px-4 py-3 text-muted-foreground">{p.company}</td>
                   <td className="px-4 py-3 text-right text-indigo-600 dark:text-indigo-400 font-mono font-bold border-l border-border/10">{formatBDT(p.invoiceAmount)}</td>
                   <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400 font-mono">{formatBDT(p.totalReceived)}</td>

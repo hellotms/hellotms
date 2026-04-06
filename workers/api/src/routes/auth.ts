@@ -70,7 +70,7 @@ authRoute.post('/forgot-password', async (c) => {
       .eq('id', 1)
       .single();
 
-    const companyName = settings?.hero_title ?? 'Marketing Solution';
+    const companyName = 'The Marketing Solution';
     const companyUrl = settings?.public_site_url ?? 'themarketingsolution.com.bd';
     const loginUrl = (companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`).replace(/\/$/, '') + '/admin';
 

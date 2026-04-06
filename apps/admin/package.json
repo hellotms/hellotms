@@ -11,8 +11,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "tauri": "tauri",
-    "build-win": "tauri build",
-    "sign-win": "tauri signer sign ./src-tauri/target/release/bundle/nsis/tms-Portal_0.1.2_x64-setup.exe"
+    "build-win": "node build-win.cjs",
+    "sign-win": "tauri signer sign -k ./admin_tauri.key -p TMS2024 ./src-tauri/target/release/bundle/nsis/tms-Portal_0.1.5_x64-setup.exe"
   },
   "dependencies": {
     "@hellotms/shared": "workspace:*",
@@ -41,6 +41,7 @@
     "clsx": "^2.1.0",
     "cmdk": "^0.2.1",
     "date-fns": "^3.3.1",
+    "date-fns-tz": "^3.2.0",
     "lucide-react": "^0.335.0",
     "next-themes": "^0.4.6",
     "react": "^18.2.0",

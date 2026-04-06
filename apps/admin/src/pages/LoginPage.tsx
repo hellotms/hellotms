@@ -47,7 +47,7 @@ export default function LoginPage() {
     setLoading(true);
     
     try {
-      const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'https://hellotms-api.info-tms2021.workers.dev';
+      const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'https://api.themarketingsolution.com.bd';
       const res = await fetch(`${API_BASE}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

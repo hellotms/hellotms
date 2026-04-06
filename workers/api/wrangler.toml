@@ -11,8 +11,8 @@ crons = ["*/30 * * * *"]   # every 30 mins — for random keepalive ping (stocha
 
 [vars]
 ENVIRONMENT = "production"
-ALLOWED_ORIGINS = "https://hellotms.pages.dev,https://hellotms-admin.pages.dev,http://localhost:5173,http://localhost:3000"
-R2_PUBLIC_URL = "https://pub-d74fef399a584bd1a3f644d818273e03.r2.dev"
+ALLOWED_ORIGINS = "https://hellotms.pages.dev,https://hellotms-admin.pages.dev,http://localhost:5173,http://localhost:3000,https://themarketingsolution.com.bd,https://admin.themarketingsolution.com.bd"
+R2_PUBLIC_URL = "https://assets.themarketingsolution.com.bd"
 
 [[r2_buckets]]
 binding = "MEDIA_BUCKET"

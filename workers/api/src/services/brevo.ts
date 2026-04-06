@@ -167,7 +167,7 @@ export function buildInvoiceEmailHtml(params: {
 }): string {
   const companyName = params.companyName || 'The Marketing Solution';
   const companyUrl = params.companyUrl || 'themarketingsolution.com.bd';
-  const companyEmail = params.companyEmail || `hello@${companyUrl.replace(/^https?:\/\//, '').split('/')[0]}`;
+  const companyEmail = params.companyEmail || `support@${companyUrl.replace(/^https?:\/\//, '').split('/')[0]}`;
   const hostname = companyUrl.replace(/^https?:\/\//, '').split('/')[0];
   const dueColor = params.dueAmountNumber > 0 ? '#dc2626' : '#059669';
   const dueText = params.dueAmountNumber > 0 ? `AMOUNT DUE: ${params.dueAmount}` : 'FULLY PAID';

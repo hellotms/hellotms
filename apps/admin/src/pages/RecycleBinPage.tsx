@@ -69,40 +69,63 @@ export default function RecycleBinPage() {
 
                 if (updateError) throw updateError;
 
-                // 2. Cascade restore for specific entities
-                if (item.entity_type === 'project') {
-                    // Restore child records for this project
-                    await Promise.all([
-                        supabase.from('invoices').update({ deleted_at: null }).eq('project_id', item.entity_id),
-                        supabase.from('collections').update({ deleted_at: null }).eq('project_id', item.entity_id),
-                        supabase.from('ledger_entries').update({ deleted_at: null }).eq('project_id', item.entity_id)
-                    ]);
-                } else if (item.entity_type === 'company') {
-                    // Restore projects and their records for this company
-                    const { data: projects } = await supabase
-                        .from('projects')
-                        .select('id')
-                        .eq('company_id', item.entity_id);
-                    
-                    if (projects && projects.length > 0) {
-                        const projectIds = projects.map(p => p.id);
-                        await Promise.all([
-                            supabase.from('projects').update({ deleted_at: null }).eq('company_id', item.entity_id),
-                            supabase.from('invoices').update({ deleted_at: null }).in('project_id', projectIds),
-                            supabase.from('collections').update({ deleted_at: null }).in('project_id', projectIds),
-                            supabase.from('ledger_entries').update({ deleted_at: null }).in('project_id', projectIds)
-                        ]);
+                // 2. Smart Cascade Restore for specific entities
+                if (item.entity_type === 'project' || item.entity_type === 'company') {
+                    // Get all IDs that are currently in the trash independently
+                    const { data: independentTrash } = await supabase.from('trash_bin').select('entity_id');
+                    const skipIds = (independentTrash?.map(t => t.entity_id) || []).filter(Boolean);
+
+                    if (item.entity_type === 'project') {
+                        // Restore children for this project, EXCLUDING those in skipIds
+                        const queries = [];
+                        if (skipIds.length > 0) {
+                            queries.push(supabase.from('invoices').update({ deleted_at: null }).eq('project_id', item.entity_id).not('id', 'in', `(${skipIds.join(',')})`));
+                            queries.push(supabase.from('collections').update({ deleted_at: null }).eq('project_id', item.entity_id).not('id', 'in', `(${skipIds.join(',')})`));
+                            queries.push(supabase.from('ledger_entries').update({ deleted_at: null }).eq('project_id', item.entity_id).not('id', 'in', `(${skipIds.join(',')})`));
+                        } else {
+                            queries.push(supabase.from('invoices').update({ deleted_at: null }).eq('project_id', item.entity_id));
+                            queries.push(supabase.from('collections').update({ deleted_at: null }).eq('project_id', item.entity_id));
+                            queries.push(supabase.from('ledger_entries').update({ deleted_at: null }).eq('project_id', item.entity_id));
+                        }
+                        await Promise.all(queries);
+                    } else if (item.entity_type === 'company') {
+                        const { data: projects } = await supabase.from('projects').select('id').eq('company_id', item.entity_id);
+                        if (projects && projects.length > 0) {
+                            const pIds = projects.map(p => p.id);
+                            const queries = [];
+                            // Restore projects
+                            queries.push(supabase.from('projects').update({ deleted_at: null }).eq('company_id', item.entity_id).not('id', 'in', `(${skipIds.join(',')})`));
+                            
+                            // Restore children of those projects
+                            if (skipIds.length > 0) {
+                                queries.push(supabase.from('invoices').update({ deleted_at: null }).in('project_id', pIds).not('id', 'in', `(${skipIds.join(',')})`));
+                                queries.push(supabase.from('collections').update({ deleted_at: null }).in('project_id', pIds).not('id', 'in', `(${skipIds.join(',')})`));
+                                queries.push(supabase.from('ledger_entries').update({ deleted_at: null }).in('project_id', pIds).not('id', 'in', `(${skipIds.join(',')})`));
+                            } else {
+                                queries.push(supabase.from('invoices').update({ deleted_at: null }).in('project_id', pIds));
+                                queries.push(supabase.from('collections').update({ deleted_at: null }).in('project_id', pIds));
+                                queries.push(supabase.from('ledger_entries').update({ deleted_at: null }).in('project_id', pIds));
+                            }
+                            await Promise.all(queries);
+                        }
+                        // Also direct company invoices/leads
+                        const queries = [];
+                        queries.push(supabase.from('invoices').update({ deleted_at: null }).eq('company_id', item.entity_id).not('id', 'in', `(${skipIds.join(',')})`));
+                        queries.push(supabase.from('leads').update({ deleted_at: null }).eq('company_id', item.entity_id).not('id', 'in', `(${skipIds.join(',')})`));
+                        await Promise.all(queries);
                     }
-                    
-                    // Also restore any direct company invoices/leads
-                    await Promise.all([
-                        supabase.from('invoices').update({ deleted_at: null }).eq('company_id', item.entity_id),
-                        supabase.from('leads').update({ deleted_at: null }).eq('company_id', item.entity_id)
-                    ]);
                 }
             }
 
-            // 2. Delete from trash_bin
+            // 3. Log the action
+            await supabase.from('audit_logs').insert({
+                action: 'restore',
+                entity_type: item.entity_type,
+                entity_id: item.entity_id,
+                after: { name: item.entity_name },
+            });
+
+            // 4. Delete from trash_bin
             const { error: deleteError } = await supabase
                 .from('trash_bin')
                 .delete()
@@ -112,10 +135,11 @@ export default function RecycleBinPage() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['trash-bin'] });
-            // Also invalidate the specific entity lists
             queryClient.invalidateQueries({ queryKey: ['companies'] });
             queryClient.invalidateQueries({ queryKey: ['projects'] });
             queryClient.invalidateQueries({ queryKey: ['invoices'] });
+            queryClient.invalidateQueries({ queryKey: ['collections'] });
+            queryClient.invalidateQueries({ queryKey: ['ledger-entries'] });
             queryClient.invalidateQueries({ queryKey: ['app-versions'] });
             toast('Item restored successfully', 'success');
             setRestoreTarget(null);
@@ -209,8 +233,9 @@ export default function RecycleBinPage() {
                     <p className="text-muted-foreground max-w-sm mx-auto">Items you delete will show up here. You can restore them within 30 days.</p>
                 </div>
             ) : (
-                <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-                    <div className="overflow-x-auto">
+                <div className="bg-transparent md:bg-card md:border md:border-border rounded-xl md:overflow-hidden md:shadow-sm">
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left text-sm">
                             <thead>
                                 <tr className="bg-muted/50 border-b border-border">
@@ -229,8 +254,8 @@ export default function RecycleBinPage() {
                                         <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-4">
-                                                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${item.entity_type === 'company' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 text-blue-600 dark:text-blue-400' :
-                                                        item.entity_type === 'project' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 text-amber-600 dark:text-amber-400' :
+                                                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${item.entity_type === 'company' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400' :
+                                                        item.entity_type === 'project' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400' :
                                                             item.entity_type === 'invoice' ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 
                                                             item.entity_type === 'app_version' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400' :
                                                             'bg-gray-100 text-muted-foreground'
@@ -258,7 +283,7 @@ export default function RecycleBinPage() {
                                             <td className="px-6 py-4">
                                                 <span className="text-muted-foreground">{item.profiles?.name || 'Unknown'}</span>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button
                                                         onClick={() => setRestoreTarget(item)}
@@ -268,9 +293,9 @@ export default function RecycleBinPage() {
                                                     </button>
                                                     <button
                                                         onClick={() => setDeleteTarget(item)}
-                                                        className="p-2 rounded-md border border-red-200 border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-600 text-red-600 dark:text-red-400 hover:bg-red-100 dark:bg-red-500/20 transition-colors flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold"
+                                                        className="p-2 rounded-md border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:bg-red-500/20 transition-colors flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold"
                                                     >
-                                                        <Trash2 className="h-3.5 w-3.5" /> Delete Forever
+                                                        <Trash2 className="h-3.5 w-3.5" /> Delete
                                                     </button>
                                                 </div>
                                             </td>
@@ -279,6 +304,69 @@ export default function RecycleBinPage() {
                                 })}
                             </tbody>
                         </table>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden space-y-4">
+                        {trashItems.map((item) => {
+                            const Icon = getIcon(item.entity_type);
+                            const expired = isExpired(item.expires_at);
+
+                            return (
+                                <div key={item.id} className="bg-card border border-border rounded-xl p-4 shadow-sm space-y-4">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${item.entity_type === 'company' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400' :
+                                                item.entity_type === 'project' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400' :
+                                                    item.entity_type === 'invoice' ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 
+                                                    item.entity_type === 'app_version' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400' :
+                                                    'bg-gray-100 text-muted-foreground'
+                                                }`}>
+                                                <Icon className="h-5 w-5" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <h4 className="font-bold text-foreground text-sm truncate">{item.entity_name}</h4>
+                                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{item.entity_type}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/50">
+                                        <div>
+                                            <p className="text-[10px] text-muted-foreground uppercase font-bold">Deleted On</p>
+                                            <p className="text-xs text-foreground font-medium">{formatDateTime(item.deleted_at)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-muted-foreground uppercase font-bold">Deleted By</p>
+                                            <p className="text-xs text-foreground font-medium">{item.profiles?.name || 'Unknown'}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className={`text-[10px] font-bold tracking-wider p-2 rounded-lg text-center ${expired ? 'bg-red-500/10 text-red-500 uppercase' : 'bg-orange-500/10 text-orange-500'}`}>
+                                        {expired ? (
+                                            <div className="flex items-center justify-center gap-1.5"><AlertTriangle className="h-3 w-3" /> Expired</div>
+                                        ) : (
+                                            <div className="flex items-center justify-center gap-1.5"><Clock className="h-3 w-3" /> Wiped: {formatDateTime(item.expires_at)}</div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex items-center gap-2 pt-2">
+                                        <button
+                                            onClick={() => setRestoreTarget(item)}
+                                            className="flex-1 h-11 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-lg shadow-primary/20 active:scale-95 transition-all"
+                                        >
+                                            <RotateCcw className="h-4 w-4" /> Restore
+                                        </button>
+                                        <button
+                                            onClick={() => setDeleteTarget(item)}
+                                            className="h-11 px-4 flex items-center justify-center rounded-xl bg-red-500/10 text-red-500 font-bold text-sm hover:bg-red-500/20 active:scale-95 transition-all"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}
