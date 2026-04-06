@@ -29,23 +29,30 @@ if (!keyStr) {
 }
 
 try {
+    const b64Key = keyStr.trim();
+    // Decode the base64 string to the raw minisign format
+    const rawKey = Buffer.from(b64Key, 'base64').toString('utf8');
+    const tempKeyFile = path.resolve(__dirname, 'temp_signing.key');
+    
+    fs.writeFileSync(tempKeyFile, rawKey, 'utf8');
+
     const isSignOnly = process.argv.includes('--sign-only');
+
+    // Environment variables needed (only password for signing)
+    const buildEnv = {
+        ...process.env,
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: pwdStr
+    };
 
     if (!isSignOnly) {
         console.log(`Building NSIS and MSI for tms-Portal v${version}...`);
         
-        // The working trick: Pass the BASE64 encoded version of the key as the environment variable
-        // Tauri CLI on Windows handles base64 content in the env var better than file paths.
-        const buildEnv = {
-            ...process.env,
-            TAURI_SIGNING_PRIVATE_KEY: keyStr,
-            TAURI_SIGNING_PRIVATE_KEY_PASSWORD: pwdStr
-        };
-        
         // 1. Build the installers
+        // Tauri build might not be able to sign because we aren't passing the raw key in ENV here,
+        // but that's perfectly fine because our fallback script will sign them!
         execSync('pnpm tauri build --bundles nsis,msi', { 
             stdio: 'inherit',
-            env: buildEnv
+            env: { ...buildEnv, TAURI_SIGNING_PRIVATE_KEY: b64Key } // Attempt to let it sign if it can
         });
         
         console.log('Build complete. Checking for .sig files...');
@@ -53,24 +60,20 @@ try {
         console.log(`Skipping build. Manually signing v${version} installers...`);
     }
 
-    const buildEnv = {
-        ...process.env,
-        TAURI_SIGNING_PRIVATE_KEY: keyStr,
-        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: pwdStr
-    };
-    
     // 2. Manual Signing Fallback (if build didn't sign them)
     const nsisPath = `./src-tauri/target/release/bundle/nsis/tms-Portal_${version}_x64-setup.exe`;
     const msiPath = `./src-tauri/target/release/bundle/msi/tms-Portal_${version}_x64_en-US.msi`;
     
     const signFile = (filePath) => {
-        if (fs.existsSync(filePath) && !fs.existsSync(`${filePath}.sig`)) {
+        if (fs.existsSync(filePath)) {
             console.log(`Manually signing: ${filePath}`);
-            // Use the same env var trick for manual signing call
-            execSync(`pnpm tauri signer sign ${filePath}`, { 
+            // Use the --private-key-path argument to completely bypass the Windows environment variable bugs
+            execSync(`pnpm tauri signer sign --private-key-path "${tempKeyFile}" -p ${pwdStr} "${filePath}"`, { 
                 stdio: 'inherit',
-                env: buildEnv
+                cwd: __dirname
             });
+        } else {
+            console.warn(`Warning: Installer not found at ${filePath}`);
         }
     };
 
@@ -85,4 +88,11 @@ try {
     console.error('\n❌ Build or Signing process failed.');
     console.error(err.message);
     process.exit(1);
+} finally {
+    // Always clean up the unencrypted private key file!
+    const tempKeyFile = path.resolve(__dirname, 'temp_signing.key');
+    if (fs.existsSync(tempKeyFile)) {
+        fs.unlinkSync(tempKeyFile);
+        console.log('Cleaned up temporary signing key.');
+    }
 }
