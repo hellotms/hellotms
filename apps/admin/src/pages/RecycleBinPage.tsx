@@ -4,12 +4,12 @@ import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { ConfirmModal } from '@/components/Modal';
 import { toast } from '@/components/Toast';
-import { Trash2, RotateCcw, Building2, FolderOpen, Receipt, Clock, AlertTriangle, MessageSquare, Monitor } from 'lucide-react';
+import { Trash2, RotateCcw, Building2, FolderOpen, Receipt, Clock, AlertTriangle, MessageSquare, Monitor, DollarSign } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 
 type TrashItem = {
     id: string;
-    entity_type: 'company' | 'project' | 'invoice' | 'collection' | 'lead' | 'app_version';
+    entity_type: 'company' | 'project' | 'invoice' | 'collection' | 'lead' | 'app_version' | 'ledger';
     entity_id: string;
     entity_name: string;
     entity_data: any;
@@ -59,7 +59,8 @@ export default function RecycleBinPage() {
                     item.entity_type === 'company' ? 'companies' :
                         item.entity_type === 'project' ? 'projects' :
                             item.entity_type === 'invoice' ? 'invoices' :
-                                item.entity_type === 'app_version' ? 'app_versions' : 'collections';
+                                item.entity_type === 'app_version' ? 'app_versions' : 
+                                    item.entity_type === 'ledger' ? 'ledger_entries' : 'collections';
 
                 // 1. Remove deleted_at flag from main entity
                 const { error: updateError } = await supabase
@@ -139,7 +140,8 @@ export default function RecycleBinPage() {
             queryClient.invalidateQueries({ queryKey: ['projects'] });
             queryClient.invalidateQueries({ queryKey: ['invoices'] });
             queryClient.invalidateQueries({ queryKey: ['collections'] });
-            queryClient.invalidateQueries({ queryKey: ['ledger-entries'] });
+            queryClient.invalidateQueries({ queryKey: ['ledger'] });
+            queryClient.invalidateQueries({ queryKey: ['leads'] });
             queryClient.invalidateQueries({ queryKey: ['app-versions'] });
             toast('Item restored successfully', 'success');
             setRestoreTarget(null);
@@ -160,7 +162,8 @@ export default function RecycleBinPage() {
                     item.entity_type === 'company' ? 'companies' :
                         item.entity_type === 'project' ? 'projects' :
                             item.entity_type === 'invoice' ? 'invoices' :
-                                item.entity_type === 'app_version' ? 'app_versions' : 'collections';
+                                item.entity_type === 'app_version' ? 'app_versions' : 
+                                    item.entity_type === 'ledger' ? 'ledger_entries' : 'collections';
 
                 // 1. Truly delete from the main table
                 const { error: mainError } = await supabase
@@ -207,6 +210,8 @@ export default function RecycleBinPage() {
             case 'company': return Building2;
             case 'project': return FolderOpen;
             case 'invoice': return Receipt;
+            case 'collection': return DollarSign;
+            case 'ledger': return Receipt;
             case 'lead': return MessageSquare;
             case 'app_version': return Monitor;
             default: return Clock;
@@ -257,6 +262,8 @@ export default function RecycleBinPage() {
                                                     <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${item.entity_type === 'company' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400' :
                                                         item.entity_type === 'project' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400' :
                                                             item.entity_type === 'invoice' ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 
+                                                            item.entity_type === 'ledger' ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400' :
+                                                            item.entity_type === 'collection' ? 'bg-teal-100 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400' :
                                                             item.entity_type === 'app_version' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400' :
                                                             'bg-gray-100 text-muted-foreground'
                                                         }`}>
@@ -319,6 +326,8 @@ export default function RecycleBinPage() {
                                             <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${item.entity_type === 'company' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400' :
                                                 item.entity_type === 'project' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400' :
                                                     item.entity_type === 'invoice' ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 
+                                                    item.entity_type === 'ledger' ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400' :
+                                                    item.entity_type === 'collection' ? 'bg-teal-100 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400' :
                                                     item.entity_type === 'app_version' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400' :
                                                     'bg-gray-100 text-muted-foreground'
                                                 }`}>

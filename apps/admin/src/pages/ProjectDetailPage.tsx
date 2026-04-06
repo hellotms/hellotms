@@ -308,9 +308,7 @@ export default function ProjectDetailPage() {
           deleted_by: authProfile?.id,
         });
       }
-      /* Column missing in DB */
-      // const { error } = await supabase.from('collections').update({ deleted_at: new Date().toISOString() }).eq('id', collectionId);
-      const { error } = await supabase.from('collections').delete().eq('id', collectionId);
+      const { error } = await supabase.from('collections').update({ deleted_at: new Date().toISOString() }).eq('id', collectionId);
       if (error) throw error;
       auditApi.log({
         action: 'delete_collection',
