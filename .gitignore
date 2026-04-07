@@ -17,8 +17,15 @@ pnpm-debug.log*
 
 # Tauri Signing Keys
 *.key
+*.pub
 *.sig
+tauri_key
 
 # Tauri Build Artifacts
 src-tauri/target/
 src-tauri/binaries/
+*.tsbuildinfo
+
+# Temporary Files
+temp.env
+temp_env.cjs
