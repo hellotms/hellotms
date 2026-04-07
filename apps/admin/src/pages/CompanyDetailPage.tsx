@@ -512,7 +512,7 @@ export default function CompanyDetailPage() {
           isPending={createProjectMutation.isPending}
           onSubmit={(v) => createProjectMutation.mutate(v)}
           onCancel={() => setIsProjectModalOpen(false)}
-          defaultValues={{ company_id: company.id }}
+          initialData={{ company_id: company.id } as any}
         />
       </Modal>
 

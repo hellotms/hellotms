@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState } from 'react';
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { startOfDay, endOfDay, subDays } from 'date-fns';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 
 const TIMEZONE = 'Asia/Dhaka';
 
-export type DatePreset = 'today' | 'week' | 'month' | 'year' | 'custom';
+export type DatePreset = 'today' | '7days' | '30days' | '365days' | 'custom';
 
 export interface DateRange {
   from: Date;
@@ -27,23 +27,22 @@ function getPresetRange(preset: DatePreset): DateRange {
   switch (preset) {
     case 'today':
       return { from: startOfDay(now), to: endOfDay(now) };
-    case 'week':
-      // weekStartsOn: 6 is Saturday
-      return { from: startOfWeek(now, { weekStartsOn: 6 }), to: endOfWeek(now, { weekStartsOn: 6 }) };
-    case 'month':
-      return { from: startOfMonth(now), to: endOfMonth(now) };
-    case 'year':
-      return { from: startOfYear(now), to: endOfYear(now) };
+    case '7days':
+      return { from: startOfDay(subDays(now, 6)), to: endOfDay(now) };
+    case '30days':
+      return { from: startOfDay(subDays(now, 29)), to: endOfDay(now) };
+    case '365days':
+      return { from: startOfDay(subDays(now, 364)), to: endOfDay(now) };
     default:
-      return { from: startOfMonth(now), to: endOfMonth(now) };
+      return { from: startOfDay(subDays(now, 29)), to: endOfDay(now) };
   }
 }
 
 const DateFilterContext = createContext<DateFilterContextValue | undefined>(undefined);
 
 export function DateFilterProvider({ children }: { children: React.ReactNode }) {
-  const [preset, setPresetState] = useState<DatePreset>('month');
-  const [range, setRange] = useState<DateRange>(getPresetRange('month'));
+  const [preset, setPresetState] = useState<DatePreset>('30days');
+  const [range, setRange] = useState<DateRange>(getPresetRange('30days'));
 
   const setPreset = (p: DatePreset) => {
     setPresetState(p);

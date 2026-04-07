@@ -1,19 +1,19 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { projectSchema, EVENT_CATEGORIES } from '@hellotms/shared';
-import type { ProjectInput, Company } from '@hellotms/shared';
+import type { ProjectInput, Company, Project } from '@hellotms/shared';
 import { ImageUpload } from './ImageUpload';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface ProjectFormProps {
   companies: Company[];
   onSubmit: (values: ProjectInput) => void;
   onCancel: () => void;
   isPending: boolean;
-  defaultValues?: Partial<ProjectInput>;
+  initialData?: Project;
 }
 
-export function ProjectForm({ companies, onSubmit, onCancel, isPending, defaultValues }: ProjectFormProps) {
+export function ProjectForm({ companies, onSubmit, onCancel, isPending, initialData }: ProjectFormProps) {
   const today = new Date().toISOString().split('T')[0];
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<ProjectInput>({
     resolver: zodResolver(projectSchema),
@@ -23,14 +23,25 @@ export function ProjectForm({ companies, onSubmit, onCancel, isPending, defaultV
       is_featured: false,
       proposal_date: today,
       event_start_date: today,
-      ...defaultValues
-    },
+      ...initialData,
+      // Ensure null values from DB are converted to types compatible with form/schema
+      invoice_amount: initialData?.invoice_amount ?? undefined,
+      advance_received: initialData?.advance_received ?? 0,
+    } as any,
   });
 
   const coverImageUrl = watch('cover_image_url');
   const selectedCategory = watch('category');
   const isOtherCategory = selectedCategory === 'Others';
   const [customCategory, setCustomCategory] = useState('');
+
+  // Handle initialization of custom category when editing
+  useEffect(() => {
+    if (initialData?.category && !EVENT_CATEGORIES.includes(initialData.category as any)) {
+      setValue('category', 'Others');
+      setCustomCategory(initialData.category);
+    }
+  }, [initialData, setValue]);
 
   const handleFormSubmit = (values: ProjectInput) => {
     const finalValues = {

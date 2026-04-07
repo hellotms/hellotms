@@ -6,9 +6,9 @@ import { useState, useRef, useEffect } from 'react';
 
 const PRESETS: { label: string; value: DatePreset }[] = [
   { label: 'Today', value: 'today' },
-  { label: 'This Week', value: 'week' },
-  { label: 'This Month', value: 'month' },
-  { label: 'This Year', value: 'year' },
+  { label: 'Last 7 Days', value: '7days' },
+  { label: 'Last 30 Days', value: '30days' },
+  { label: '1 Year', value: '365days' },
   { label: 'Custom', value: 'custom' },
 ];
 

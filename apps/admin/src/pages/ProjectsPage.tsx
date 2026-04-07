@@ -27,6 +27,7 @@ export default function ProjectsPage() {
   const { profile } = useAuth();
   const [searchParams] = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') ?? 'all');
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
 
@@ -56,18 +57,19 @@ export default function ProjectsPage() {
     },
   });
 
-  const createMutation = useMutation({
+  const saveMutation = useMutation({
     mutationFn: async (values: ProjectInput) => {
-      // 1. Upload Cover Image Document if a crop happened
+      const isEditing = !!editingProject;
+      
+      // 1. Upload Cover Image
       const finalCoverUrl = await mediaApi.uploadAndCleanMedia(
         values.cover_image_url as string | File | null,
-        null,
+        isEditing ? editingProject.cover_image_url : null,
         'projects',
         'cover',
         values.title
       );
 
-      // Default event_end_date to event_start_date if not provided
       const payload = {
         ...values,
         event_end_date: values.event_end_date || values.event_start_date,
@@ -79,23 +81,26 @@ export default function ProjectsPage() {
         notes: values.notes || null,
         location: values.location || null,
       };
-      const { data, error } = await supabase.from('projects').insert(payload).select().single();
-      if (error) throw error;
-      auditApi.log({
-        action: 'create_project',
-        entity_type: 'project',
-        entity_id: data.id,
-        after: payload
-      });
+
+      if (isEditing) {
+        const { error } = await supabase.from('projects').update(payload).eq('id', editingProject.id);
+        if (error) throw error;
+        auditApi.log({ action: 'update_project', entity_type: 'project', entity_id: editingProject.id, after: payload });
+      } else {
+        const { data, error } = await supabase.from('projects').insert(payload).select().single();
+        if (error) throw error;
+        auditApi.log({ action: 'create_project', entity_type: 'project', entity_id: data.id, after: payload });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       setIsOpen(false);
-      toast('Project created successfully!', 'success');
+      setEditingProject(null);
+      toast(editingProject ? 'Project updated successfully!' : 'Project created successfully!', 'success');
     },
     onError: (error: any) => {
-      console.error('[ProjectsPage] Create error:', error);
-      toast(`Failed to create project: ${error.message || 'Unknown error'}`, 'error');
+      console.error('[ProjectsPage] Save error:', error);
+      toast(`Failed to save project: ${error.message || 'Unknown error'}`, 'error');
     }
   });
 
@@ -177,20 +182,26 @@ export default function ProjectsPage() {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
-        <div className="flex items-center gap-1 justify-end">
+        <div className="flex items-center gap-2 justify-end">
           <button
-            onClick={(e) => { e.stopPropagation(); navigate(`/projects/${row.original.id}`); }}
-            className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
-            title="Edit / View Project"
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              setEditingProject(row.original); 
+              setIsOpen(true);
+            }}
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-all active:scale-95 font-bold text-xs"
+            title="Edit Project"
           >
-            <Pencil className="h-4 w-4" />
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleDelete(row.original); }}
-            className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 transition-colors text-muted-foreground hover:text-destructive"
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 transition-all active:scale-95 font-bold text-xs"
             title="Delete Project"
           >
-            <Trash className="h-4 w-4" />
+            <Trash className="h-3.5 w-3.5" />
+            Delete
           </button>
         </div>
       ),
@@ -244,13 +255,14 @@ export default function ProjectsPage() {
         )}
       </div>
 
-      {/* Create Project Modal */}
-      <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="New Project" size="lg">
+      {/* Project Modal (Create/Edit) */}
+      <Modal isOpen={isOpen} onClose={() => { setIsOpen(false); setEditingProject(null); }} title={editingProject ? 'Edit Project' : 'New Project'} size="lg">
         <ProjectForm
+          initialData={editingProject || undefined}
           companies={companies}
-          isPending={createMutation.isPending}
-          onSubmit={(v) => createMutation.mutate(v)}
-          onCancel={() => setIsOpen(false)}
+          isPending={saveMutation.isPending}
+          onSubmit={(v) => saveMutation.mutate(v)}
+          onCancel={() => { setIsOpen(false); setEditingProject(null); }}
         />
       </Modal>
 

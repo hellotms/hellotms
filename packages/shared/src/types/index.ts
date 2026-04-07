@@ -87,6 +87,17 @@ export interface LedgerEntry {
   created_at: string;
 }
 
+export interface LedgerPayment {
+  id: string;
+  ledger_id: string;
+  amount: number;
+  payment_date: string; // ISO date
+  method?: string | null;
+  note?: string | null;
+  created_at: string;
+  deleted_at?: string | null;
+}
+
 export interface Collection {
   id: string;
   project_id: string;

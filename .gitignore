@@ -29,3 +29,7 @@ src-tauri/binaries/
 # Temporary Files
 temp.env
 temp_env.cjs
+supabase/.temp/
+.temp/
+*.tmp
+*.bak

@@ -30,11 +30,11 @@ if (!keyStr) {
 
 try {
     const b64Key = keyStr.trim();
-    // Decode the base64 string to the raw minisign format
-    const rawKey = Buffer.from(b64Key, 'base64').toString('utf8');
     const tempKeyFile = path.resolve(__dirname, 'temp_signing.key');
     
-    fs.writeFileSync(tempKeyFile, rawKey, 'utf8');
+    // Write the Base64-encoded key directly. 
+    // Tauri's built-in signer on Windows often expects the file to contain the base64 string itself.
+    fs.writeFileSync(tempKeyFile, b64Key, 'utf8');
 
     const isSignOnly = process.argv.includes('--sign-only');
 

@@ -60,6 +60,7 @@ export type LedgerEntryInput = z.infer<typeof ledgerEntrySchema>;
 
 // ─── Collection ───────────────────────────────────────────────────────────────
 export const collectionSchema = z.object({
+  id: z.string().uuid().optional(),
   project_id: z.string().uuid(),
   amount: z.preprocess((val) => (val === "" || val === null || (typeof val === 'number' && isNaN(val)) ? undefined : Number(val)), z.number().positive('Amount must be positive')),
   payment_date: z.string().min(1),
@@ -68,6 +69,18 @@ export const collectionSchema = z.object({
 });
 
 export type CollectionInput = z.infer<typeof collectionSchema>;
+
+// ─── Ledger Payment ─────────────────────────────────────────────────────────
+export const ledgerPaymentSchema = z.object({
+  id: z.string().uuid().optional(),
+  ledger_id: z.string().uuid(),
+  amount: z.preprocess((val) => (val === "" || val === null || (typeof val === 'number' && isNaN(val)) ? undefined : Number(val)), z.number().positive('Amount must be positive')),
+  payment_date: z.string().min(1),
+  method: z.string().max(50).optional().nullable(),
+  note: z.string().max(500).optional().nullable(),
+});
+
+export type LedgerPaymentInput = z.infer<typeof ledgerPaymentSchema>;
 
 // ─── Invoice ──────────────────────────────────────────────────────────────────
 export const invoiceItemSchema = z.object({

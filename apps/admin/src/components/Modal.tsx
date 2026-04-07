@@ -35,7 +35,7 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
         'animate-fade-in max-h-[90vh] flex flex-col'
       )}>
         {/* Header */}
-        <div className="flex items-start justify-between p-6 border-b border-border shrink-0">
+        <div className="flex items-start justify-between p-4 sm:p-6 border-b border-border shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-foreground">{title}</h2>
             {description && <p className="text-sm text-muted-foreground mt-0.5">{description}</p>}
@@ -49,7 +49,7 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 text-foreground">
           {children}
         </div>
       </div>
