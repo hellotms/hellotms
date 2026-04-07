@@ -380,6 +380,39 @@ export default function ProjectDetailPage() {
       if (editingEntry) {
         const { error } = await supabase.from('ledger_entries').update(values).eq('id', editingEntry.id);
         if (error) throw error;
+        
+        // SYNC: Adjust payment history if paid_amount changed
+        const oldPaid = Number(editingEntry.paid_amount ?? 0);
+        const newPaid = Number(values.paid_amount ?? 0);
+        const diff = newPaid - oldPaid;
+        
+        if (diff !== 0) {
+          // Find the most recent payment for this entry to adjust it, or create a new one
+          const { data: latestPayment } = await supabase
+            .from('ledger_payments')
+            .select('*')
+            .eq('ledger_id', editingEntry.id)
+            .is('deleted_at', null)
+            .order('payment_date', { ascending: false })
+            .limit(1)
+            .maybeSingle(); // Switch to maybeSingle to avoid 406 on no rows
+            
+          if (latestPayment) {
+            await supabase.from('ledger_payments').update({
+              amount: Number(latestPayment.amount) + diff,
+              note: (latestPayment.note || '') + ` (Adjusted from expense edit)`
+            }).eq('id', latestPayment.id);
+          } else {
+            await supabase.from('ledger_payments').insert({
+              ledger_id: editingEntry.id,
+              amount: diff,
+              payment_date: values.entry_date || new Date().toISOString().split('T')[0],
+              method: 'Cash',
+              note: 'Initial payment adjustment'
+            });
+          }
+        }
+
         auditApi.log({
           action: 'update_ledger_entry',
           entity_type: 'ledger',
@@ -387,18 +420,31 @@ export default function ProjectDetailPage() {
           after: values
         });
       } else {
-        const { data, error } = await supabase.from('ledger_entries').insert(values).select().single();
+        const { data: newEntry, error } = await supabase.from('ledger_entries').insert(values).select().single();
         if (error) throw error;
+        
+        // SYNC: Create initial payment record if paid_amount > 0
+        if (Number(values.paid_amount) > 0) {
+          await supabase.from('ledger_payments').insert({
+            ledger_id: newEntry.id,
+            amount: values.paid_amount,
+            payment_date: values.entry_date || new Date().toISOString().split('T')[0],
+            method: 'Cash',
+            note: 'Initial payment recorded at expense creation'
+          });
+        }
+
         auditApi.log({
           action: 'create_ledger_entry',
           entity_type: 'ledger',
-          entity_id: data.id,
+          entity_id: newEntry.id,
           after: values
         });
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ledger', id] });
+      queryClient.invalidateQueries({ queryKey: ['ledger-payments', id] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
       setIsLedgerOpen(false);

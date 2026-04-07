@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+// Unused import removed
 
 export function JsonLd() {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://themarketingsolution.com.bd';
