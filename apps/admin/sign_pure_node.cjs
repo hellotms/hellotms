@@ -10,7 +10,7 @@ const path = require('path');
 function run() {
     console.log("🚀 Starting Pure Node Signing (Bikolpo Method)...");
 
-    const keyPath = path.resolve(__dirname, 'real_tauri.key');
+    const keyPath = path.resolve(__dirname, 'admin_tauri.key');
     if (!fs.existsSync(keyPath)) {
         console.error("❌ Error: real_tauri.key not found.");
         return;
