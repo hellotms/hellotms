@@ -101,10 +101,12 @@ export interface LedgerPayment {
 export interface Collection {
   id: string;
   project_id: string;
+  name?: string | null;
   amount: number;
   payment_date: string; // ISO date
   method?: string | null;
   note?: string | null;
+  deleted_at?: string | null;
   created_at: string;
 }
 
@@ -159,9 +161,12 @@ export interface Lead {
   location?: string | null;
   budget_range?: string | null;
   message?: string | null;
-  is_starred?: boolean;
   status: LeadStatus;
+  is_starred?: boolean;
   notes?: string | null;
+  company?: string | null;
+  replied_by?: string | null;
+  replied_at?: string | null;
   created_at: string;
 }
 

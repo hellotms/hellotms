@@ -1,36 +1,39 @@
-import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
-import { ConfirmModal } from '@/components/Modal';
 import { toast } from '@/components/Toast';
-import { Trash2, RotateCcw, Building2, FolderOpen, Receipt, Clock, AlertTriangle, MessageSquare, Monitor, DollarSign } from 'lucide-react';
-import { formatDateTime } from '@/lib/utils';
+import { formatBDT, formatDate } from '@/lib/utils';
+import { Trash2, RotateCcw, Building2, FolderOpen, Receipt, Clock, DollarSign, MessageSquare, Monitor } from 'lucide-react';
+import { useState } from 'react';
+import { Modal, ConfirmModal } from '@/components/Modal';
 
-type TrashItem = {
+interface TrashItem {
     id: string;
-    entity_type: 'company' | 'project' | 'invoice' | 'collection' | 'lead' | 'app_version' | 'ledger';
+    entity_type: string;
     entity_id: string;
     entity_name: string;
     entity_data: any;
     deleted_at: string;
-    expires_at: string;
     deleted_by: string;
-    profiles: { name: string } | null;
-};
+    expires_at: string;
+    profiles?: {
+        name: string;
+    };
+}
 
 export default function RecycleBinPage() {
     const queryClient = useQueryClient();
-    const [restoreTarget, setRestoreTarget] = useState<TrashItem | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<TrashItem | null>(null);
+    const [restoreTarget, setRestoreTarget] = useState<TrashItem | null>(null);
 
-    const { data: trashItems, isLoading } = useQuery<TrashItem[]>({
+    const { data: trashItems = [], isLoading } = useQuery<TrashItem[]>({
         queryKey: ['trash-bin'],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('trash_bin')
                 .select('*, profiles(name)')
                 .order('deleted_at', { ascending: false });
+
             if (error) throw error;
             return data as TrashItem[];
         },
@@ -39,21 +42,9 @@ export default function RecycleBinPage() {
     const restoreMutation = useMutation({
         mutationFn: async (item: TrashItem) => {
             if (item.entity_type === 'lead') {
-                // Restore lead: re-insert into leads table
-                const { error: insertError } = await supabase.from('leads').insert({
-                    id: item.entity_id,
-                    ...item.entity_data
-                });
-                if (insertError) throw insertError;
-            } else if (item.entity_type === 'collection' && item.entity_data?._is_gallery_photo) {
-                // Restore gallery photo: re-insert into project_media
-                const { error: insertError } = await supabase.from('project_media').insert({
-                    id: item.entity_id,
-                    project_id: item.entity_data.project_id,
-                    path: item.entity_data.path,
-                    url: item.entity_data.url,
-                });
-                if (insertError) throw insertError;
+                // Special case for leads (unified date migration)
+                const { error } = await supabase.from('leads').update({ deleted_at: null }).eq('id', item.entity_id);
+                if (error) throw error;
             } else {
                 const table =
                     item.entity_type === 'company' ? 'companies' :
@@ -62,77 +53,31 @@ export default function RecycleBinPage() {
                                 item.entity_type === 'app_version' ? 'app_versions' : 
                                     item.entity_type === 'ledger' ? 'ledger_entries' : 'collections';
 
-                // 1. Remove deleted_at flag from main entity
-                const { error: updateError } = await supabase
+                // 1. Restore the main entity
+                const { error: mainError } = await supabase
                     .from(table)
                     .update({ deleted_at: null })
                     .eq('id', item.entity_id);
 
-                if (updateError) throw updateError;
+                if (mainError) throw mainError;
 
-                // 2. Smart Cascade Restore for specific entities
-                if (item.entity_type === 'project' || item.entity_type === 'company') {
-                    // Get all IDs that are currently in the trash independently
-                    const { data: independentTrash } = await supabase.from('trash_bin').select('entity_id');
-                    const skipIds = (independentTrash?.map(t => t.entity_id) || []).filter(Boolean);
-
-                    if (item.entity_type === 'project') {
-                        // Restore children for this project, EXCLUDING those in skipIds
-                        const queries = [];
-                        if (skipIds.length > 0) {
-                            queries.push(supabase.from('invoices').update({ deleted_at: null }).eq('project_id', item.entity_id).not('id', 'in', `(${skipIds.join(',')})`));
-                            queries.push(supabase.from('collections').update({ deleted_at: null }).eq('project_id', item.entity_id).not('id', 'in', `(${skipIds.join(',')})`));
-                            queries.push(supabase.from('ledger_entries').update({ deleted_at: null }).eq('project_id', item.entity_id).not('id', 'in', `(${skipIds.join(',')})`));
-                        } else {
-                            queries.push(supabase.from('invoices').update({ deleted_at: null }).eq('project_id', item.entity_id));
-                            queries.push(supabase.from('collections').update({ deleted_at: null }).eq('project_id', item.entity_id));
-                            queries.push(supabase.from('ledger_entries').update({ deleted_at: null }).eq('project_id', item.entity_id));
-                        }
-                        await Promise.all(queries);
-                    } else if (item.entity_type === 'company') {
-                        const { data: projects } = await supabase.from('projects').select('id').eq('company_id', item.entity_id);
-                        if (projects && projects.length > 0) {
-                            const pIds = projects.map(p => p.id);
-                            const queries = [];
-                            // Restore projects
-                            queries.push(supabase.from('projects').update({ deleted_at: null }).eq('company_id', item.entity_id).not('id', 'in', `(${skipIds.join(',')})`));
-                            
-                            // Restore children of those projects
-                            if (skipIds.length > 0) {
-                                queries.push(supabase.from('invoices').update({ deleted_at: null }).in('project_id', pIds).not('id', 'in', `(${skipIds.join(',')})`));
-                                queries.push(supabase.from('collections').update({ deleted_at: null }).in('project_id', pIds).not('id', 'in', `(${skipIds.join(',')})`));
-                                queries.push(supabase.from('ledger_entries').update({ deleted_at: null }).in('project_id', pIds).not('id', 'in', `(${skipIds.join(',')})`));
-                            } else {
-                                queries.push(supabase.from('invoices').update({ deleted_at: null }).in('project_id', pIds));
-                                queries.push(supabase.from('collections').update({ deleted_at: null }).in('project_id', pIds));
-                                queries.push(supabase.from('ledger_entries').update({ deleted_at: null }).in('project_id', pIds));
-                            }
-                            await Promise.all(queries);
-                        }
-                        // Also direct company invoices/leads
-                        const queries = [];
-                        queries.push(supabase.from('invoices').update({ deleted_at: null }).eq('company_id', item.entity_id).not('id', 'in', `(${skipIds.join(',')})`));
-                        queries.push(supabase.from('leads').update({ deleted_at: null }).eq('company_id', item.entity_id).not('id', 'in', `(${skipIds.join(',')})`));
-                        await Promise.all(queries);
-                    }
+                // 2. If it's a ledger, also restore child payments with SAME deleted_at
+                if (item.entity_type === 'ledger') {
+                    await supabase
+                        .from('ledger_payments')
+                        .update({ deleted_at: null })
+                        .eq('ledger_id', item.entity_id)
+                        .eq('deleted_at', item.deleted_at);
                 }
             }
 
-            // 3. Log the action
-            await supabase.from('audit_logs').insert({
-                action: 'restore',
-                entity_type: item.entity_type,
-                entity_id: item.entity_id,
-                after: { name: item.entity_name },
-            });
-
-            // 4. Delete from trash_bin
-            const { error: deleteError } = await supabase
+            // 3. Delete from trash_bin
+            const { error: trashError } = await supabase
                 .from('trash_bin')
                 .delete()
                 .eq('id', item.id);
 
-            if (deleteError) throw deleteError;
+            if (trashError) throw trashError;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['trash-bin'] });
@@ -151,45 +96,83 @@ export default function RecycleBinPage() {
 
     const permanentDeleteMutation = useMutation({
         mutationFn: async (item: TrashItem) => {
-            if (item.entity_type === 'lead') {
-                // Already hard-deleted from main table, do nothing here.
+            const { mediaApi } = await import('@/lib/api');
+
+            // Reusable cleanup helper for R2 URLs
+            const cleanupFile = async (urlStr: string | null | undefined) => {
+                if (!urlStr) return;
+                try {
+                    const url = new URL(urlStr);
+                    const key = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
+                    if (key && !key.startsWith('http')) {
+                        await mediaApi.delete(key);
+                    }
+                } catch (err) {
+                    console.warn(`[RecycleBin] Failed to delete file ${urlStr}:`, err);
+                }
+            };
+
+            if (item.entity_type === 'project') {
+                // Recursive cleanup for project
+                // 1. Invoices (PDFs)
+                const { data: invs } = await supabase.from('invoices').select('pdf_url').eq('project_id', item.entity_id);
+                for (const inv of invs || []) {
+                    if (inv.pdf_url) await cleanupFile(inv.pdf_url);
+                }
+                // 2. Ledger (Attachments)
+                const { data: entries } = await supabase.from('ledger_entries').select('attachment_url').eq('project_id', item.entity_id);
+                for (const entry of entries || []) {
+                    if (entry.attachment_url) await cleanupFile(entry.attachment_url);
+                }
+                // 3. Media (Gallery)
+                const { data: media } = await supabase.from('project_media').select('path').eq('project_id', item.entity_id);
+                for (const m of media || []) {
+                    if (m.path) await mediaApi.delete(m.path);
+                }
+            } else if (item.entity_type === 'company') {
+                // Recursive cleanup for company (purging all associated project files)
+                const { data: projs } = await supabase.from('projects').select('id').eq('company_id', item.entity_id);
+                for (const proj of projs || []) {
+                    // Cleanup invoices for this project
+                    const { data: invs } = await supabase.from('invoices').select('pdf_url').eq('project_id', proj.id);
+                    for (const inv of invs || []) {
+                        if (inv.pdf_url) await cleanupFile(inv.pdf_url);
+                    }
+                    // Cleanup ledger entries for this project
+                    const { data: entries } = await supabase.from('ledger_entries').select('attachment_url').eq('project_id', proj.id);
+                    for (const entry of entries || []) {
+                        if (entry.attachment_url) await cleanupFile(entry.attachment_url);
+                    }
+                    // Cleanup gallery media for this project
+                    const { data: media } = await supabase.from('project_media').select('path').eq('project_id', proj.id);
+                    for (const m of media || []) {
+                        if (m.path) await mediaApi.delete(m.path);
+                    }
+                }
+            } else if (item.entity_type === 'invoice') {
+                await cleanupFile(item.entity_data?.pdf_url);
+            } else if (item.entity_type === 'ledger') {
+                await cleanupFile(item.entity_data?.attachment_url);
             } else if (item.entity_type === 'collection' && item.entity_data?._is_gallery_photo) {
-                // Permanently delete gallery photo: call mediaApi.delete
-                const { mediaApi } = await import('@/lib/api');
                 await mediaApi.delete(item.entity_data.path);
-            } else {
+            } else if (item.entity_type === 'app_version') {
+                await cleanupFile(item.entity_data?.url);
+            }
+
+            // Finally, Hard Delete from DB
+            if (item.entity_type !== 'lead') {
                 const table =
                     item.entity_type === 'company' ? 'companies' :
                         item.entity_type === 'project' ? 'projects' :
                             item.entity_type === 'invoice' ? 'invoices' :
-                                item.entity_type === 'app_version' ? 'app_versions' : 
+                                item.entity_type === 'app_version' ? 'app_versions' :
                                     item.entity_type === 'ledger' ? 'ledger_entries' : 'collections';
 
-                // 1. Truly delete from the main table
-                const { error: mainError } = await supabase
-                    .from(table)
-                    .delete()
-                    .eq('id', item.entity_id);
-
+                const { error: mainError } = await supabase.from(table).delete().eq('id', item.entity_id);
                 if (mainError) throw mainError;
-
-                // 1.5 If it's an invoice or app version, delete the file from R2
-                const fileUrl = item.entity_type === 'invoice' ? item.entity_data?.pdf_url : item.entity_data?.url;
-                if ((item.entity_type === 'invoice' || item.entity_type === 'app_version') && fileUrl) {
-                    try {
-                        const { mediaApi } = await import('@/lib/api');
-                        const url = new URL(fileUrl);
-                        const key = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
-                        if (key && !key.startsWith('http')) {
-                            await mediaApi.delete(key);
-                        }
-                    } catch (err) {
-                        console.warn(`[RecycleBin] Failed to delete ${item.entity_type} file from R2:`, err);
-                    }
-                }
             }
 
-            // 2. Delete from trash_bin
+            // Delete from trash_bin
             const { error: trashError } = await supabase
                 .from('trash_bin')
                 .delete()
@@ -276,33 +259,31 @@ export default function RecycleBinPage() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className="space-y-1">
-                                                    <p className="text-foreground">{formatDateTime(item.deleted_at)}</p>
-                                                    <div className={`flex items-center gap-1.5 text-[10px] font-bold tracking-wider ${expired ? 'text-red-500 uppercase' : 'text-orange-500'}`}>
-                                                        {expired ? (
-                                                            <><AlertTriangle className="h-3 w-3" /> Expired - Auto Delete Soon</>
-                                                        ) : (
-                                                            <><Clock className="h-3 w-3" /> Final Delete: {formatDateTime(item.expires_at)}</>
-                                                        )}
-                                                    </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-foreground">{formatDate(item.deleted_at)}</span>
+                                                    <span className="text-[10px] text-muted-foreground">Expires {formatDate(item.expires_at)}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="text-muted-foreground">{item.profiles?.name || 'Unknown'}</span>
+                                                <span className="text-muted-foreground">{item.profiles?.name || 'System'}</span>
                                             </td>
-                                            <td className="px-6 py-4 text-right">
+                                            <td className="px-6 py-4">
                                                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => setRestoreTarget(item)}
-                                                        className="p-2 rounded-md border border-border bg-card text-foreground hover:bg-muted hover:text-primary transition-colors flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold"
-                                                    >
-                                                        <RotateCcw className="h-3.5 w-3.5" /> Restore
-                                                    </button>
+                                                    {!expired && (
+                                                        <button
+                                                            onClick={() => setRestoreTarget(item)}
+                                                            className="p-2 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors"
+                                                            title="Restore"
+                                                        >
+                                                            <RotateCcw className="h-4 w-4" />
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={() => setDeleteTarget(item)}
-                                                        className="p-2 rounded-md border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:bg-red-500/20 transition-colors flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold"
+                                                        className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                                                        title="Delete Permanently"
                                                     >
-                                                        <Trash2 className="h-3.5 w-3.5" /> Delete
+                                                        <Trash2 className="h-4 w-4" />
                                                     </button>
                                                 </div>
                                             </td>
@@ -314,63 +295,48 @@ export default function RecycleBinPage() {
                     </div>
 
                     {/* Mobile Card View */}
-                    <div className="md:hidden space-y-4">
+                    <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
                         {trashItems.map((item) => {
                             const Icon = getIcon(item.entity_type);
                             const expired = isExpired(item.expires_at);
 
                             return (
-                                <div key={item.id} className="bg-card border border-border rounded-xl p-4 shadow-sm space-y-4">
-                                    <div className="flex items-start justify-between">
+                                <div key={item.id} className="bg-background border border-border rounded-xl p-4 space-y-4 shadow-sm">
+                                    <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${item.entity_type === 'company' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400' :
-                                                item.entity_type === 'project' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400' :
-                                                    item.entity_type === 'invoice' ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 
-                                                    item.entity_type === 'ledger' ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400' :
-                                                    item.entity_type === 'collection' ? 'bg-teal-100 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400' :
-                                                    item.entity_type === 'app_version' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400' :
-                                                    'bg-gray-100 text-muted-foreground'
-                                                }`}>
+                                            <div className="bg-muted h-10 w-10 rounded-lg flex items-center justify-center">
                                                 <Icon className="h-5 w-5" />
                                             </div>
-                                            <div className="min-w-0">
-                                                <h4 className="font-bold text-foreground text-sm truncate">{item.entity_name}</h4>
-                                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{item.entity_type}</p>
+                                            <div>
+                                                <h4 className="font-bold text-foreground text-sm">{item.entity_name}</h4>
+                                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{item.entity_type}</p>
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/50">
+                                    <div className="grid grid-cols-2 gap-4 text-xs border-t border-border pt-3">
                                         <div>
-                                            <p className="text-[10px] text-muted-foreground uppercase font-bold">Deleted On</p>
-                                            <p className="text-xs text-foreground font-medium">{formatDateTime(item.deleted_at)}</p>
+                                            <p className="text-muted-foreground mb-1 font-medium">Deleted On</p>
+                                            <p className="text-foreground">{formatDate(item.deleted_at)}</p>
                                         </div>
                                         <div>
-                                            <p className="text-[10px] text-muted-foreground uppercase font-bold">Deleted By</p>
-                                            <p className="text-xs text-foreground font-medium">{item.profiles?.name || 'Unknown'}</p>
+                                            <p className="text-muted-foreground mb-1 font-medium">Expires On</p>
+                                            <p className="text-foreground">{formatDate(item.expires_at)}</p>
                                         </div>
                                     </div>
-
-                                    <div className={`text-[10px] font-bold tracking-wider p-2 rounded-lg text-center ${expired ? 'bg-red-500/10 text-red-500 uppercase' : 'bg-orange-500/10 text-orange-500'}`}>
-                                        {expired ? (
-                                            <div className="flex items-center justify-center gap-1.5"><AlertTriangle className="h-3 w-3" /> Expired</div>
-                                        ) : (
-                                            <div className="flex items-center justify-center gap-1.5"><Clock className="h-3 w-3" /> Wiped: {formatDateTime(item.expires_at)}</div>
+                                    <div className="flex items-center justify-end gap-2 pt-2">
+                                        {!expired && (
+                                            <button
+                                                onClick={() => setRestoreTarget(item)}
+                                                className="flex-1 py-2 bg-emerald-500/10 text-emerald-600 rounded-lg font-bold text-xs"
+                                            >
+                                                Restore
+                                            </button>
                                         )}
-                                    </div>
-
-                                    <div className="flex items-center gap-2 pt-2">
-                                        <button
-                                            onClick={() => setRestoreTarget(item)}
-                                            className="flex-1 h-11 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-lg shadow-primary/20 active:scale-95 transition-all"
-                                        >
-                                            <RotateCcw className="h-4 w-4" /> Restore
-                                        </button>
                                         <button
                                             onClick={() => setDeleteTarget(item)}
-                                            className="h-11 px-4 flex items-center justify-center rounded-xl bg-red-500/10 text-red-500 font-bold text-sm hover:bg-red-500/20 active:scale-95 transition-all"
+                                            className="flex-1 py-2 bg-red-500/10 text-red-600 rounded-lg font-bold text-xs"
                                         >
-                                            <Trash2 className="h-4 w-4" />
+                                            Delete
                                         </button>
                                     </div>
                                 </div>
@@ -380,27 +346,25 @@ export default function RecycleBinPage() {
                 </div>
             )}
 
-            {/* Restore Modal */}
-            <ConfirmModal
-                isOpen={!!restoreTarget}
-                onClose={() => setRestoreTarget(null)}
-                onConfirm={() => restoreTarget && restoreMutation.mutate(restoreTarget)}
-                title="Restore Item?"
-                message={`Are you sure you want to restore "${restoreTarget?.entity_name}"?`}
-                confirmLabel="Yes, Restore"
-                loading={restoreMutation.isPending}
-            />
-
-            {/* Permanent Delete Modal */}
             <ConfirmModal
                 isOpen={!!deleteTarget}
                 onClose={() => setDeleteTarget(null)}
                 onConfirm={() => deleteTarget && permanentDeleteMutation.mutate(deleteTarget)}
-                title="Delete Forever?"
-                message={`This action is IRREVERSIBLE. "${deleteTarget?.entity_name}" and all its associated data will be permanently wiped.`}
-                confirmLabel="Wipe Permanently"
+                title="Delete Permanently"
+                message={`Are you sure you want to permanently delete "${deleteTarget?.entity_name}"? This action cannot be undone and will remove all associated files from cloud storage.`}
+                confirmLabel="Delete Permanently"
                 danger
                 loading={permanentDeleteMutation.isPending}
+            />
+
+            <ConfirmModal
+                isOpen={!!restoreTarget}
+                onClose={() => setRestoreTarget(null)}
+                onConfirm={() => restoreTarget && restoreMutation.mutate(restoreTarget)}
+                title="Restore Item"
+                message={`Are you sure you want to restore "${restoreTarget?.entity_name}"? It will be returned to its original place.`}
+                confirmLabel="Restore"
+                loading={restoreMutation.isPending}
             />
         </div>
     );

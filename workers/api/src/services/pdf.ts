@@ -330,22 +330,22 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   const hasAdvance = (data.advanceReceived ?? 0) > 0;
 
   if (data.type === 'invoice' && (hasPayments || hasAdvance)) {
-    page.drawText('PAYMENTS RECEIVED', { x: totalsX, y: rightY, size: 9, font: boldFont, color: blue });
+    page.drawText('PAYMENTS HISTORY', { x: totalsX, y: rightY, size: 9, font: boldFont, color: blue });
     rightY -= 14;
 
-    // Show Advance Payment first if it exists
-    if ((data.advanceReceived ?? 0) > 0) {
-      page.drawText('Project Advance Payment', { x: totalsX, y: rightY, size: 8, font: regularFont, color: gray });
+    // Show Advance Payment first
+    if (hasAdvance) {
+      page.drawText('Project Advance', { x: totalsX, y: rightY, size: 8, font: regularFont, color: gray });
       const advStr = `- ${fmtBDT(data.advanceReceived!)}`;
       page.drawText(advStr, {
         x: width - margin - regularFont.widthOfTextAtSize(advStr, 8),
         y: rightY, size: 8, font: boldFont, color: gray,
       });
-      rightY -= 16;
+      rightY -= 12;
     }
 
     data.payments!.forEach(p => {
-      const methodStr = p.method ? ` (${cleanText(p.method)})` : '';
+      const methodStr = p.method ? ` via ${cleanText(p.method)}` : '';
       const label = `${cleanText(p.date)}${methodStr}`;
       page.drawText(label, { x: totalsX, y: rightY, size: 8, font: regularFont, color: gray });
       const amtStr = `- ${fmtBDT(p.amount ?? 0)}`;
@@ -353,7 +353,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
         x: width - margin - regularFont.widthOfTextAtSize(amtStr, 8),
         y: rightY, size: 8, font: boldFont, color: gray,
       });
-      rightY -= 16;
+      rightY -= 12;
     });
 
     rightY -= 4;

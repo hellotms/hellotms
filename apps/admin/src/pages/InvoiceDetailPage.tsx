@@ -266,7 +266,7 @@ export default function InvoiceDetailPage() {
 
   // Subject line (prefer subject, fallback to auto-generate)
   const subjectText = invoice.subject ||
-    `Invoice for ${invoice.projects?.title ?? ''}${invoice.projects?.location ? ` at ${invoice.projects.location}` : ''}`;
+    `${invoice.type === 'estimate' ? 'Estimate' : 'Invoice'} for ${invoice.projects?.title ?? ''}${invoice.projects?.location ? ` at ${invoice.projects.location}` : ''}`;
 
   const isDraft = invoice.status === 'draft';
 

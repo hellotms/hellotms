@@ -128,6 +128,7 @@ export default function LeadsPage() {
       ),
     },
     { accessorKey: 'email', header: 'Email', cell: ({ getValue }) => <span className="text-sm">{getValue() as string}</span> },
+    { accessorKey: 'company', header: 'Company', cell: ({ getValue }) => getValue() ? <span className="text-sm">{getValue() as string}</span> : '—' },
     { accessorKey: 'phone', header: 'Phone', cell: ({ getValue }) => getValue() ? <span className="text-sm">{getValue() as string}</span> : '—' },
     {
       accessorKey: 'event_date',

@@ -10,7 +10,7 @@ import { DateRangePicker } from '@/components/DateRangePicker';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useDateFilter } from '@/context/DateFilterContext';
-import { formatBDT, formatDate, formatDateTime, getInitials } from '@/lib/utils';
+import { cn, formatBDT, formatDate, formatDateTime, getInitials } from '@/lib/utils';
 import {
   DollarSign, TrendingDown, TrendingUp, AlertCircle,
   FolderOpen, CheckCircle2, Users, MessageSquare
@@ -23,48 +23,61 @@ export default function DashboardPage() {
   const { fromISO, toISO } = useDateFilter();
   const navigate = useNavigate();
 
-  // KPIs from ledger entries in date range
+  // KPIs from completed projects in date range
   const { data: kpis, isLoading: kpisLoading } = useQuery({
     queryKey: ['dashboard-kpis', fromISO, toISO],
     queryFn: async () => {
-      // For created_at (timestamp), we need to ensure the end date covers the whole day in BD Time (GMT+6)
-      const endTimestamp = toISO ? `${toISO}T23:59:59.999+06:00` : toISO;
-      const startTimestamp = fromISO ? `${fromISO}T00:00:00.000+06:00` : fromISO;
+      // Find projects completed in this range
+      const { data: completedInPeriod } = await supabase
+        .from('projects')
+        .select('id, invoice_amount, advance_received')
+        .eq('status', 'completed')
+        .gte('project_completed_at', fromISO)
+        .lte('project_completed_at', toISO)
+        .is('deleted_at', null);
 
-      const [expenseRes, activeProjectsRes, allProjectsRes, collectionsRes, leadsRes] = await Promise.all([
+      if (!completedInPeriod || completedInPeriod.length === 0) {
+        // Still need leads count for the card
+        const endTimestamp = toISO ? `${toISO}T23:59:59.999+06:00` : toISO;
+        const startTimestamp = fromISO ? `${fromISO}T00:00:00.000+06:00` : fromISO;
+        const { count: leadsCount } = await supabase
+          .from('leads')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', startTimestamp)
+          .lte('created_at', endTimestamp);
+
+        return {
+          totalInvoiced: 0,
+          collectionReceived: 0,
+          collectionDue: 0,
+          netExpenses: 0,
+          netProfit: 0,
+          vendorDue: 0,
+          profitRatio: 0,
+          activeProjects: 0,
+          completedProjects: 0,
+          leadsCount: leadsCount || 0,
+        };
+      }
+
+      const pIds = completedInPeriod.map(p => p.id);
+
+      // Get financials for ONLY these projects
+      const [expenseRes, collectionsRes] = await Promise.all([
         supabase
           .from('ledger_entries')
-          .select('amount, paid_amount, due_amount, is_external, paid_status')
-          .eq('type', 'expense')
-          .gte('entry_date', fromISO)
-          .lte('entry_date', toISO)
-          .is('deleted_at', null),
-        supabase
-          .from('projects')
-          .select('id, status, invoice_amount, advance_received')
-          .eq('status', 'active')
-          .is('deleted_at', null),
-        supabase
-          .from('projects')
-          .select('id, status, invoice_amount, advance_received, created_at')
-          .gte('created_at', startTimestamp)
-          .lte('created_at', endTimestamp)
+          .select('amount, paid_amount, due_amount, is_external')
+          .in('project_id', pIds)
           .is('deleted_at', null),
         supabase
           .from('collections')
           .select('amount')
-          .gte('payment_date', fromISO)
-          .lte('payment_date', toISO)
+          .in('project_id', pIds)
           .is('deleted_at', null),
-        supabase
-          .from('leads')
-          .select('id, status')
-          .gte('created_at', startTimestamp)
-          .lte('created_at', endTimestamp),
       ]);
 
-      const totalInvoiced = (allProjectsRes.data ?? []).reduce((s, p) => s + Number(p.invoice_amount || 0), 0);
-      const totalAdvance = (allProjectsRes.data ?? []).reduce((s, p) => s + Number(p.advance_received || 0), 0);
+      const totalInvoiced = completedInPeriod.reduce((s, p) => s + Number(p.invoice_amount || 0), 0);
+      const totalAdvance = completedInPeriod.reduce((s, p) => s + Number(p.advance_received || 0), 0);
       const totalCollections = (collectionsRes.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
       
       const collectionReceived = totalAdvance + totalCollections;
@@ -76,12 +89,15 @@ export default function DashboardPage() {
       const netProfit = totalInvoiced - netExpenses;
       const profitRatio = totalInvoiced > 0 ? (netProfit / totalInvoiced) * 100 : 0;
 
-      // Vendor Due = Sum of all due_amount from ledger entries (V-Cash Due)
       const vendorDue = (expenseRes.data ?? []).reduce((s, r) => s + Number(r.due_amount || 0), 0);
 
-      const activeProjects = activeProjectsRes.data?.length ?? 0;
-      const completedProjects = (allProjectsRes.data ?? []).filter(p => p.status === 'completed').length;
-      const leadsCount = leadsRes.data?.length ?? 0;
+      const endTimestamp = toISO ? `${toISO}T23:59:59.999+06:00` : toISO;
+      const startTimestamp = fromISO ? `${fromISO}T00:00:00.000+06:00` : fromISO;
+      
+      const [{ count: activeCount }, { count: leadsCount }] = await Promise.all([
+        supabase.from('projects').select('*', { count: 'exact', head: true }).eq('status', 'active').is('deleted_at', null),
+        supabase.from('leads').select('*', { count: 'exact', head: true }).gte('created_at', startTimestamp).lte('created_at', endTimestamp),
+      ]);
 
       return {
         totalInvoiced,
@@ -91,9 +107,9 @@ export default function DashboardPage() {
         netProfit,
         vendorDue,
         profitRatio,
-        activeProjects,
-        completedProjects,
-        leadsCount,
+        activeProjects: activeCount || 0,
+        completedProjects: completedInPeriod.length,
+        leadsCount: leadsCount || 0,
       };
     },
   });
@@ -102,65 +118,60 @@ export default function DashboardPage() {
   const rangeDays = Math.ceil((new Date(toISO).getTime() - new Date(fromISO).getTime()) / (1000 * 60 * 60 * 24));
   const useDaily = rangeDays <= 31;
 
+  // Revenue vs Expense trend (Completed Projects Based)
   const { data: trendData } = useQuery({
     queryKey: ['dashboard-trend', fromISO, toISO],
     queryFn: async () => {
-      // Get Expenses from ledger
+      // Get projects completed in range
+      const { data: completedProjects } = await supabase
+        .from('projects')
+        .select('id, invoice_amount, project_completed_at')
+        .eq('status', 'completed')
+        .gte('project_completed_at', fromISO)
+        .lte('project_completed_at', toISO)
+        .is('deleted_at', null);
+
+      if (!completedProjects || completedProjects.length === 0) return [];
+
+      const pIds = completedProjects.map(p => p.id);
+
+      // Get associated expenses
       const { data: ledger } = await supabase
         .from('ledger_entries')
-        .select('type, amount, entry_date')
-        .eq('type', 'expense')
-        .gte('entry_date', fromISO)
-        .lte('entry_date', toISO)
-        .is('deleted_at', null)
-        .order('entry_date');
-
-      // Get Advances from projects
-      const endTimestamp = toISO ? `${toISO}T23:59:59.999+06:00` : toISO;
-      const startTimestamp = fromISO ? `${fromISO}T00:00:00.000+06:00` : fromISO;
-      const { data: advances } = await supabase
-        .from('projects')
-        .select('advance_received, invoice_amount, created_at')
-        .gte('created_at', startTimestamp)
-        .lte('created_at', endTimestamp)
-        .is('deleted_at', null)
-        .order('created_at');
+        .select('amount, project_id')
+        .in('project_id', pIds)
+        .is('deleted_at', null);
 
       const map: Record<string, { date: string; invoiced: number; expense: number; profit: number }> = {};
-
-      // Pre-fill all intervals with zeros
       const start = new Date(fromISO);
       const end = new Date(toISO);
 
+      // Pre-fill intervals
       if (useDaily) {
-        // Daily: fill each day
         let d = new Date(start);
         while (d <= end) {
-          const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+          const key = d.toISOString().slice(0, 10);
           map[key] = { date: key, invoiced: 0, expense: 0, profit: 0 };
           d.setDate(d.getDate() + 1);
         }
       } else {
-        // Monthly: fill each month
         let current = new Date(start.getFullYear(), start.getMonth(), 1);
         while (current <= end) {
-          const key = current.toISOString().slice(0, 7); // YYYY-MM
+          const key = current.toISOString().slice(0, 7);
           map[key] = { date: key, invoiced: 0, expense: 0, profit: 0 };
           current.setMonth(current.getMonth() + 1);
         }
       }
 
-      ledger?.forEach((row) => {
-        const key = useDaily ? row.entry_date.slice(0, 10) : row.entry_date.slice(0, 7);
-        if (map[key]) map[key].expense += Number(row.amount);
-      });
-
-      advances?.forEach((row) => {
-        // Use the ISO date string part directly to avoid browser timezone shift
-        const localDateStr = row.created_at.slice(0, 10); // YYYY-MM-DD from Sugabase
-        
-        const key = useDaily ? localDateStr : localDateStr.slice(0, 7);
-        if (map[key]) map[key].invoiced += Number(row.invoice_amount || 0);
+      completedProjects.forEach(p => {
+        const dateStr = p.project_completed_at || '';
+        const key = useDaily ? dateStr.slice(0, 10) : dateStr.slice(0, 7);
+        if (map[key]) {
+          map[key].invoiced += Number(p.invoice_amount || 0);
+          // Distribute project total expenses on the completion date for "Project Base" trend
+          const projectExpenses = (ledger ?? []).filter(e => e.project_id === p.id).reduce((s, e) => s + Number(e.amount), 0);
+          map[key].expense += projectExpenses;
+        }
       });
 
       return Object.values(map)
@@ -190,7 +201,7 @@ export default function DashboardPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('invoices')
-        .select('id, invoice_number, total_amount, due_date, status, companies(name)')
+        .select('id, invoice_number, total_amount, due_date, status, type, companies(name)')
         .in('status', ['sent', 'overdue'])
         .is('deleted_at', null)
         .order('due_date', { ascending: true })
@@ -199,7 +210,7 @@ export default function DashboardPage() {
     },
   });
 
-  // Project status breakdown
+  // Project status breakdown (Still show all created in period for breakdown)
   const { data: projectStatusData } = useQuery({
     queryKey: ['dashboard-project-status', fromISO, toISO],
     queryFn: async () => {
@@ -233,37 +244,18 @@ export default function DashboardPage() {
     refetchInterval: 5000,
   });
 
-  // Per-Project P&L
+  // Per-Project P&L (Only Completed Projects in Range)
   const { data: projectPnL } = useQuery({
     queryKey: ['dashboard-project-pnl', fromISO, toISO],
     queryFn: async () => {
-      const endTimestamp = toISO ? `${toISO}T23:59:59.999+06:00` : toISO;
-      const startTimestamp = fromISO ? `${fromISO}T00:00:00.000+06:00` : fromISO;
-      // 1. Get projects with any financial activity in range OR created in range
-      const [entryIds, collIds] = await Promise.all([
-        supabase.from('ledger_entries').select('project_id').gte('entry_date', fromISO).lte('entry_date', toISO).is('deleted_at', null),
-        supabase.from('collections').select('project_id').gte('payment_date', fromISO).lte('payment_date', toISO).is('deleted_at', null)
-      ]);
-
-      const activityProjectIds = Array.from(new Set([
-        ...(entryIds.data?.map(e => e.project_id).filter(Boolean) || []),
-        ...(collIds.data?.map(c => c.project_id).filter(Boolean) || [])
-      ])) as string[];
-
-      // Filter to only include projects that are either (created in range) OR (have activity in range)
-      let query = supabase
+      // Get ONLY projects completed in range
+      const { data: projects } = await supabase
         .from('projects')
-        .select('id, title, status, payment_status, advance_received, invoice_amount, event_start_date, created_at, companies(name)')
+        .select('id, title, status, payment_status, advance_received, invoice_amount, event_start_date, project_completed_at, companies(name)')
+        .eq('status', 'completed')
+        .gte('project_completed_at', fromISO)
+        .lte('project_completed_at', toISO)
         .is('deleted_at', null);
-
-      if (activityProjectIds.length > 0) {
-        // Use and() inside or() to correctly group the date range condition
-        query = query.or(`and(created_at.gte.${startTimestamp},created_at.lte.${endTimestamp}),id.in.(${activityProjectIds.join(',')})`);
-      } else {
-        query = query.gte('created_at', startTimestamp).lte('created_at', endTimestamp);
-      }
-
-      const { data: projects } = await query;
 
       if (!projects || projects.length === 0) return [];
 
@@ -314,11 +306,11 @@ export default function DashboardPage() {
         const netProfit = invoiceAmount - totalNetExpense;
         const margin = invoiceAmount > 0 ? (netProfit / invoiceAmount) * 100 : 0;
         
-        // Turnover days
+        // Turnover days: from creation to completion
         let turnoverDays = 0;
-        if (p.event_start_date && p.created_at) {
-          const start = new Date(p.created_at).getTime();
-          const end = new Date(p.event_start_date).getTime();
+        if (p.project_completed_at && (p as any).created_at) {
+          const start = new Date((p as any).created_at).getTime();
+          const end = new Date(p.project_completed_at).getTime();
           turnoverDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
           if (turnoverDays < 0) turnoverDays = 0;
         }
@@ -326,7 +318,7 @@ export default function DashboardPage() {
         return {
           id: p.id,
           title: p.title,
-          company: (p.companies as unknown as { name: string } | null)?.name ?? '—',
+          company: (p.companies as any)?.name ?? '—',
           status: p.status,
           invoiceAmount,
           totalReceived,
@@ -342,6 +334,88 @@ export default function DashboardPage() {
           payment_status: p.payment_status
         };
       }).sort((a, b) => b.netProfit - a.netProfit);
+    }
+  });
+
+  // Unified Transactions for the new table (Entry Date based, disregard project status)
+  const { data: transactions = [], isLoading: transactionsLoading } = useQuery({
+    queryKey: ['dashboard-transactions', fromISO, toISO],
+    queryFn: async () => {
+      const [ledgerEntries, collections, ledgerPayments] = await Promise.all([
+        supabase.from('ledger_entries')
+          .select('id, amount, category, entry_date, note, project_id, is_external, type, projects(title)')
+          .gte('entry_date', fromISO)
+          .lte('entry_date', toISO)
+          .is('deleted_at', null),
+        supabase.from('collections')
+          .select('id, amount, payment_date, method, note, project_id, projects(title)')
+          .gte('payment_date', fromISO)
+          .lte('payment_date', toISO)
+          .is('deleted_at', null),
+        supabase.from('ledger_payments')
+          .select('id, amount, payment_date, method, note, ledger_id, ledger_entries(id, category, is_external, type, projects(title))')
+          .gte('payment_date', fromISO)
+          .lte('payment_date', toISO)
+          .is('deleted_at', null)
+      ]);
+
+      const list: any[] = [];
+
+      // Helper to handle Supabase potentially returning related records as arrays or objects
+      const getRel = (obj: any) => Array.isArray(obj) ? obj[0] : obj;
+
+      // 1. Expenses (Ledger Entries)
+      ledgerEntries.data?.forEach(e => {
+        if (e.type?.toLowerCase() === 'income') return; 
+        
+        const pRelation = getRel(e.projects);
+        list.push({
+          id: `lex-${e.id}`,
+          date: e.entry_date,
+          type: e.is_external ? 'Others Expense' : 'Standard Expense',
+          title: e.category || 'Expense',
+          project: pRelation?.title || '—',
+          amount: Number(e.amount),
+          method: '—',
+          note: e.note || '—',
+          color: 'text-red-500'
+        });
+      });
+
+      // 2. Collections
+      collections.data?.forEach(c => {
+        const pRelation = getRel(c.projects);
+        list.push({
+          id: `coll-${c.id}`,
+          date: c.payment_date,
+          type: 'Collection',
+          title: 'Client Payment',
+          project: pRelation?.title || '—',
+          amount: Number(c.amount),
+          method: c.method || '—',
+          note: c.note || '—',
+          color: 'text-emerald-600'
+        });
+      });
+
+      // 3. Vendor Payments
+      ledgerPayments.data?.forEach(p => {
+        const entry = getRel(p.ledger_entries);
+        const pRelation = getRel(entry?.projects);
+        list.push({
+          id: `pay-${p.id}`,
+          date: p.payment_date,
+          type: 'Payment',
+          title: entry?.category || 'Payment',
+          project: pRelation?.title || '—',
+          amount: Number(p.amount),
+          method: p.method || '—',
+          note: p.note || '—',
+          color: 'text-teal-600'
+        });
+      });
+
+      return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }
   });
 
@@ -571,7 +645,17 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-sm font-semibold text-foreground">{formatBDT(Number(inv.total_amount))}</span>
-                  <StatusBadge status={inv.status} />
+                  <div className="flex flex-col items-end gap-1">
+                    <StatusBadge status={inv.status} />
+                    <span className={cn(
+                      "text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-tighter",
+                      inv.type === 'estimate' 
+                        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" 
+                        : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                    )}>
+                      {inv.type}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -582,34 +666,92 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Recent Activity */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-base font-semibold text-foreground mb-4">Recent Activity</h3>
-        <div className="space-y-3">
-          {auditLogs?.map((log) => {
-            const p = log.profiles as unknown as { name: string; avatar_url?: string | null } | null;
-            return (
-              <div key={log.id} className="flex items-center gap-3 text-sm">
-                {p?.avatar_url ? (
-                  <img src={p.avatar_url} alt="" className="h-5 w-5 rounded-full object-cover shrink-0" />
-                ) : (
-                  <div className="h-5 w-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
-                    {getInitials(p?.name ?? 'S')}
+      {/* Recent Activity & Transactions */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Transactions Table */}
+        <div className="xl:col-span-2 bg-card border border-border rounded-xl p-6 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-semibold text-foreground">Transactions Log</h3>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{formatDate(fromISO)} — {formatDate(toISO)}</p>
+          </div>
+          <div className="overflow-x-auto -mx-6 sm:mx-0">
+            <div className="inline-block min-w-full align-middle">
+              <table className="min-w-full text-left text-xs whitespace-nowrap">
+                <thead>
+                  <tr className="bg-muted/30 border-y border-border">
+                    <th className="px-4 py-3 font-semibold text-foreground">Date</th>
+                    <th className="px-4 py-3 font-semibold text-foreground">Title</th>
+                    <th className="px-4 py-3 font-semibold text-foreground">Type</th>
+                    <th className="px-4 py-3 font-semibold text-foreground">Project Name</th>
+                    <th className="px-4 py-3 font-semibold text-foreground text-right">Amount</th>
+                    <th className="px-4 py-3 font-semibold text-foreground">Method</th>
+                    <th className="px-4 py-3 font-semibold text-foreground">Note</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {transactions?.map((t) => (
+                    <tr key={t.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-2.5 font-medium">{formatDate(t.date)}</td>
+                      <td className="px-4 py-2.5 font-semibold text-foreground truncate max-w-[200px]" title={t.title}>{t.title}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-tighter",
+                          t.type === 'Standard Expense' && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                          t.type === 'Others Expense' && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                          t.type === 'Payment' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                          t.type === 'Collection' && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                        )}>
+                          {t.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 truncate max-w-[150px] opacity-70" title={t.project}>{t.project}</td>
+                      <td className={cn("px-4 py-2.5 text-right font-mono font-bold", t.color)}>
+                        {t.type === 'Collection' ? '+' : '-'}{formatBDT(t.amount)}
+                      </td>
+                      <td className="px-4 py-2.5 opacity-70">{t.method}</td>
+                      <td className="px-4 py-2.5 truncate max-w-[150px] opacity-60 italic" title={t.note}>{t.note}</td>
+                    </tr>
+                  ))}
+                  {!transactions?.length && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground italic">No transactions in this period.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="bg-card border border-border rounded-xl p-6">
+          <h3 className="text-base font-semibold text-foreground mb-4">Recent Activity</h3>
+          <div className="space-y-3">
+            {auditLogs?.map((log) => {
+              const p = log.profiles as unknown as { name: string; avatar_url?: string | null } | null;
+              return (
+                <div key={log.id} className="flex items-center gap-3 text-sm">
+                  {p?.avatar_url ? (
+                    <img src={p.avatar_url} alt="" className="h-5 w-5 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="h-5 w-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
+                      {getInitials(p?.name ?? 'S')}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-foreground text-sm truncate">
+                      <span className="font-semibold">{p?.name ?? 'System'}</span>{' '}
+                      {formatAuditLogMessage(log)}
+                    </span>
                   </div>
-                )}
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <span className="text-foreground text-sm truncate">
-                    <span className="font-semibold">{p?.name ?? 'System'}</span>{' '}
-                    {formatAuditLogMessage(log)}
-                  </span>
+                  <span className="text-muted-foreground shrink-0 text-xs">{formatDateTime(log.created_at)}</span>
                 </div>
-                <span className="text-muted-foreground shrink-0 text-xs">{formatDateTime(log.created_at)}</span>
-              </div>
-            );
-          })}
-          {!auditLogs?.length && (
-            <p className="text-sm text-muted-foreground">No recent activity</p>
-          )}
+              );
+            })}
+            {!auditLogs?.length && (
+              <p className="text-sm text-muted-foreground">No recent activity</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

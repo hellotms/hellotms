@@ -54,6 +54,8 @@ export default function ProjectDetailPage() {
   const [deletePaymentTarget, setDeletePaymentTarget] = useState<string | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isMarkAsPaidOpen, setIsMarkAsPaidOpen] = useState(false);
+  const [isMarkAsUnpaidConfirmOpen, setIsMarkAsUnpaidConfirmOpen] = useState(false);
+  const [isMarkAsPaidConfirmOpen, setIsMarkAsPaidConfirmOpen] = useState(false);
   const [ledgerToPay, setLedgerToPay] = useState<LedgerEntry | null>(null);
   const [editingPayment, setEditingPayment] = useState<LedgerPayment | null>(null);
 
@@ -141,7 +143,7 @@ export default function ProjectDetailPage() {
   const totalInvoiced = invoices.reduce((s, i) => s + Number(i.total_amount), 0);
 
   // New Metrics
-  const vCashAdv = ledgerPayments.reduce((s, p) => s + Number(p.amount), 0);
+  const vCashAdv = ledgerPayments.filter(p => !(p as any).ledger_entries?.is_external).reduce((s, p) => s + Number(p.amount), 0);
   const vCashDue = ledger.filter(e => e.type === 'expense' && !e.is_external).reduce((s, e) => s + Number(e.due_amount ?? (e.paid_status === 'paid' ? 0 : e.amount)), 0);
 
   const netExpenses = expenses + otherExpenses;
@@ -168,6 +170,9 @@ export default function ProjectDetailPage() {
 
     turnoverDays = Math.max(0, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
   }
+
+  const lastColl = [...collections].sort((a,b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
+  const lastCollName = lastColl?.name || (lastColl ? `Received Payment (${formatBDT(Number(lastColl.amount))})` : "");
 
   // Column Definitions for DataTables
   const expenseColumns: ColumnDef<LedgerEntry>[] = [
@@ -226,7 +231,16 @@ export default function ProjectDetailPage() {
   ];
 
   const collectionColumns: ColumnDef<Collection>[] = [
-    { accessorKey: 'payment_date', header: 'Date', cell: ({ row }) => formatDate(row.original.payment_date) },
+    { 
+      accessorKey: 'name', 
+      header: 'Collection Name', 
+      cell: ({ row }) => (
+        <div className="flex flex-col">
+          <span className="font-bold text-foreground">{row.original.name || `Received ${row.index + 1}`}</span>
+          <span className="text-[10px] text-muted-foreground">{formatDate(row.original.payment_date)}</span>
+        </div>
+      ) 
+    },
     { accessorKey: 'amount', header: 'Amount', cell: ({ row }) => <span className="font-mono font-bold text-emerald-600">{formatBDT(row.original.amount)}</span> },
     { accessorKey: 'method', header: 'Method', cell: ({ row }) => <span className="capitalize">{row.original.method || '—'}</span> },
     { accessorKey: 'note', header: 'Note', cell: ({ row }) => <span className="max-w-[200px] truncate block">{row.original.note || '—'}</span> },
@@ -447,6 +461,8 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['ledger-payments', id] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-projects'] });
       setIsLedgerOpen(false);
       setEditingEntry(null);
       ledgerForm.reset({ project_id: id!, type: 'expense', paid_status: 'unpaid' });
@@ -461,27 +477,42 @@ export default function ProjectDetailPage() {
     mutationFn: async (entryId: string) => {
       const entry = ledger.find(e => e.id === entryId);
       if (entry) {
-        await supabase.from('trash_bin').insert({
+        const now = new Date().toISOString();
+        
+        // 1. Log to trash_bin with the exact same timestamp
+        const { error: trashError } = await supabase.from('trash_bin').insert({
           entity_type: 'ledger',
           entity_id: entry.id,
           entity_name: `Expense: ${entry.category} (${formatBDT(Number(entry.amount))})`,
           entity_data: entry,
           deleted_by: authProfile?.id,
+          deleted_at: now, // Important for smart restoration
+        });
+        if (trashError) throw trashError;
+
+        // 2. Soft-delete the expense itself
+        const { error: entryError } = await supabase.from('ledger_entries').update({ deleted_at: now }).eq('id', entryId);
+        if (entryError) throw entryError;
+
+        // 3. Soft-delete associated payments using the SAME timestamp
+        const { error: paymentsError } = await supabase.from('ledger_payments').update({ deleted_at: now }).eq('ledger_id', entryId);
+        if (paymentsError) throw paymentsError;
+
+        auditApi.log({
+          action: 'delete_ledger_entry',
+          entity_type: 'ledger',
+          entity_id: entryId,
+          before: { id: entryId, deleted_at: now }
         });
       }
-      const { error } = await supabase.from('ledger_entries').update({ deleted_at: new Date().toISOString() }).eq('id', entryId);
-      if (error) throw error;
-      auditApi.log({
-        action: 'delete_ledger_entry',
-        entity_type: 'ledger',
-        entity_id: entryId,
-        before: { id: entryId }
-      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ledger', id] });
+      queryClient.invalidateQueries({ queryKey: ['ledger-payments', id] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-projects'] });
       setDeleteTarget(null);
       toast('Entry deleted', 'success');
     },
@@ -528,7 +559,16 @@ export default function ProjectDetailPage() {
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
     const todayStr = `${yyyy}-${mm}-${dd}`;
-    collectionForm.reset({ project_id: id!, payment_date: todayStr });
+    
+    // Auto-naming: Received 1, Received 2, etc. (excluding advance which is special)
+    const nextNum = collections.length + 1;
+    
+    collectionForm.reset({ 
+      project_id: id!, 
+      payment_date: todayStr,
+      name: `Received ${nextNum}`,
+      method: 'Cash'
+    });
     setIsCollectionOpen(true);
   }
 
@@ -565,6 +605,14 @@ export default function ProjectDetailPage() {
   const saveCollectionMutation = useMutation({
     mutationFn: async (values: CollectionInput) => {
       const { id: isEditing, ...dataToSave } = values as any;
+      
+      // If name is empty or just whitespace, set it to null so the fallback "Received X" logic works
+      if (dataToSave.name && typeof dataToSave.name === 'string' && !dataToSave.name.trim()) {
+        dataToSave.name = null;
+      } else if (!dataToSave.name) {
+        dataToSave.name = null;
+      }
+
       if (isEditing) {
         const { error } = await supabase.from('collections').update(dataToSave).eq('id', isEditing);
         if (error) throw error;
@@ -576,11 +624,15 @@ export default function ProjectDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['collections', id] });
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-projects'] });
       setIsCollectionOpen(false);
       collectionForm.reset({ project_id: id!, payment_date: new Date().toISOString().split('T')[0] });
       toast('Client collection updated and status synced', 'success');
     },
-    onError: (error: any) => toast(`Error: ${error.message}`, 'error')
   });
 
   const deleteCollectionMutation = useMutation({
@@ -658,6 +710,9 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['ledger', id] });
       queryClient.invalidateQueries({ queryKey: ['ledger-payments', id] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-projects'] });
       setIsPaymentOpen(false);
       setLedgerToPay(null);
       setEditingPayment(null);
@@ -699,7 +754,11 @@ export default function ProjectDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ledger', id] });
       queryClient.invalidateQueries({ queryKey: ['ledger-payments', id] });
+      queryClient.invalidateQueries({ queryKey: ['project', id] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-trend'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-projects'] });
       setDeletePaymentTarget(null);
       toast('Payment deleted and balance restored', 'success');
     }
@@ -1119,10 +1178,10 @@ export default function ProjectDetailPage() {
           <button
             onClick={() => {
               if (isPaid) {
-                markAsUnpaidMutation.mutate();
+                setIsMarkAsUnpaidConfirmOpen(true);
               } else {
                 if (clientDue <= 0) {
-                  markAsPaidMutation.mutate();
+                  setIsMarkAsPaidConfirmOpen(true);
                 } else {
                   setIsMarkAsPaidOpen(true);
                 }
@@ -1139,11 +1198,33 @@ export default function ProjectDetailPage() {
           </button>
           <button
             onClick={togglePublished}
-            className={`flex items-center gap-2 px-3 h-9 text-xs font-medium rounded-full border transition-colors whitespace-nowrap flex-shrink-0 ${project.is_published ? 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400' : 'border-border text-muted-foreground hover:text-foreground'
+            className={`flex items-center gap-2 px-3 h-9 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap flex-shrink-0 ${project.is_published ? 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400' : 'border-border text-muted-foreground hover:text-foreground'
               }`}
           >
             {project.is_published ? '● Published' : '○ Unpublished'}
           </button>
+          {project.status === 'active' ? (
+            <button
+              onClick={async () => {
+                const now = new Date().toISOString();
+                await supabase.from('projects').update({ 
+                  status: 'completed', 
+                  project_completed_at: now 
+                }).eq('id', id!);
+                queryClient.invalidateQueries({ queryKey: ['project', id] });
+                toast('Project marked as completed', 'success');
+              }}
+              className="flex items-center gap-2 text-xs px-3 h-9 rounded-lg border border-border text-foreground bg-background hover:bg-muted transition-colors whitespace-nowrap flex-shrink-0"
+            >
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              Complete Project
+            </button>
+          ) : project.status === 'completed' && (
+            <div className="flex items-center gap-2 text-xs px-3 h-9 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 whitespace-nowrap flex-shrink-0">
+              <CheckCircle2 className="h-4 w-4" />
+              Project Finished
+            </div>
+          )}
           <button
             onClick={() => setDeleteProjectTarget(project.id)}
             className="flex items-center justify-center h-9 w-10 flex-shrink-0 rounded-lg hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-500 border border-border md:border-0"
@@ -1211,6 +1292,7 @@ export default function ProjectDetailPage() {
               { label: 'Event End', value: project.event_end_date ? formatDate(project.event_end_date) : 'Same day' },
               { label: 'Location', value: project.location },
               { label: 'Status', value: project.status },
+              { label: 'Finished Date', value: project.project_completed_at ? formatDate(project.project_completed_at) : 'Not finished yet' },
               { label: 'Quoted Amount', value: project.invoice_amount ? formatBDT(Number(project.invoice_amount)) : '—' },
               { label: 'Client Collection', value: project.advance_received ? formatBDT(Number(project.advance_received)) : '—' },
               { label: 'Featured', value: project.is_featured ? 'Yes' : 'No' },
@@ -1277,8 +1359,6 @@ export default function ProjectDetailPage() {
           <DataTable 
             data={ledger.filter(e => !e.is_external)} 
             columns={expenseColumns} 
-            searchKey="category"
-            searchPlaceholder="Search category..."
             footerRow={ledger.filter(e => !e.is_external).length > 0 && (
               <tr className="bg-muted/50 font-bold border-t-2 border-border">
                 <td colSpan={2} className="px-4 py-3 text-right text-muted-foreground">Total Expenses:</td>
@@ -1322,8 +1402,6 @@ export default function ProjectDetailPage() {
           <DataTable 
             data={ledger.filter(e => e.is_external)} 
             columns={expenseColumns} 
-            searchKey="category"
-            searchPlaceholder="Search category..."
             footerRow={ledger.filter(e => e.is_external).length > 0 && (
               <tr className="bg-muted/50 font-bold border-t-2 border-border">
                 <td colSpan={2} className="px-4 py-3 text-right text-muted-foreground">Total Other Expenses:</td>
@@ -1342,7 +1420,7 @@ export default function ProjectDetailPage() {
             <div>
               <h3 className="font-semibold text-foreground text-foreground flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-teal-600" />
-                Staff/Vendor Payments
+                Payments
               </h3>
               <p className="text-xs text-muted-foreground">History of payments made towards expenses (V-Cash details).</p>
             </div>
@@ -1366,8 +1444,6 @@ export default function ProjectDetailPage() {
           <DataTable 
             data={ledgerPayments} 
             columns={paymentColumns} 
-            searchKey="note"
-            searchPlaceholder="Search notes..."
             footerRow={ledgerPayments.length > 0 && (
               <tr className="bg-emerald-500/5 font-bold border-t-2 border-emerald-500/20">
                 <td colSpan={2} className="px-4 py-3 text-right text-muted-foreground">Total Paid (V-Cash Adv):</td>
@@ -1413,12 +1489,6 @@ export default function ProjectDetailPage() {
           <DataTable 
             data={collections} 
             columns={collectionColumns} 
-            searchKey="note"
-            searchPlaceholder="Search notes..."
-            onRowClick={(row) => {
-              collectionForm.reset(row);
-              setIsCollectionOpen(true);
-            }}
           />
         </div>
       )}
@@ -1439,8 +1509,6 @@ export default function ProjectDetailPage() {
             data={invoices} 
             columns={invoiceColumns} 
             onRowClick={(row) => navigate(`/invoices/${row.id}`)}
-            searchKey="invoice_number"
-            searchPlaceholder="Search invoice number..."
           />
         </div>
       )}
@@ -1829,20 +1897,26 @@ export default function ProjectDetailPage() {
       <Modal isOpen={isCollectionOpen} onClose={() => setIsCollectionOpen(false)} title={collectionForm.watch('id' as any) ? 'Update Client Collection' : 'Add Client Collection'} size="sm">
         <form onSubmit={collectionForm.handleSubmit((v: any) => saveCollectionMutation.mutate(v))} className="space-y-3">
           {collectionForm.watch('id' as any) && <input type="hidden" {...collectionForm.register('id' as any)} />}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium mb-1">Amount (৳) <span className="text-red-500">*</span></label>
-              <input type="number" step="0.01" {...collectionForm.register('amount', { valueAsNumber: true })} className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              {collectionForm.formState.errors.amount && (
-                <p className="text-xs text-red-500 mt-1">{(collectionForm.formState.errors.amount as any)?.message}</p>
-              )}
+              <label className="block text-sm font-medium mb-1">Collection Name / Installment <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
+              <input {...collectionForm.register('name')} placeholder="e.g. Received 1, Installment 2, Final Payment..." className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Payment Date <span className="text-red-500">*</span></label>
-              <input type="date" {...collectionForm.register('payment_date')} className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              {collectionForm.formState.errors.payment_date && (
-                <p className="text-xs text-red-500 mt-1">{(collectionForm.formState.errors.payment_date as any)?.message}</p>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Amount (৳) <span className="text-red-500">*</span></label>
+                <input type="number" step="0.01" {...collectionForm.register('amount', { valueAsNumber: true })} className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                {collectionForm.formState.errors.amount && (
+                  <p className="text-xs text-red-500 mt-1">{(collectionForm.formState.errors.amount as any)?.message}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Payment Date <span className="text-red-500">*</span></label>
+                <input type="date" {...collectionForm.register('payment_date')} className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                {collectionForm.formState.errors.payment_date && (
+                  <p className="text-xs text-red-500 mt-1">{(collectionForm.formState.errors.payment_date as any)?.message}</p>
+                )}
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2039,14 +2113,28 @@ export default function ProjectDetailPage() {
       />
 
       <ConfirmModal
-        isOpen={!!deleteProjectTarget}
-        onClose={() => setDeleteProjectTarget(null)}
-        onConfirm={() => deleteProjectTarget && deleteProjectMutation.mutate(deleteProjectTarget)}
-        title="Delete Project"
-        message="Are you sure you want to delete this project? Data will be moved to the Recycle Bin."
-        confirmLabel="Delete Project"
+        isOpen={isMarkAsPaidConfirmOpen}
+        onClose={() => setIsMarkAsPaidConfirmOpen(false)}
+        onConfirm={() => {
+          setIsMarkAsPaidConfirmOpen(false);
+          markAsPaidMutation.mutate();
+        }}
+        title="Mark as Fully Paid?"
+        message="Are you sure you want to mark this project as fully paid? This will update the status and record the payment date."
+        confirmLabel="Yes, Mark as Paid"
+      />
+
+      <ConfirmModal
+        isOpen={isMarkAsUnpaidConfirmOpen}
+        onClose={() => setIsMarkAsUnpaidConfirmOpen(false)}
+        onConfirm={() => {
+          setIsMarkAsUnpaidConfirmOpen(false);
+          markAsUnpaidMutation.mutate();
+        }}
+        title="Revert to Unpaid Status?"
+        message={`Warning: This will delete the most recent collection record "${lastCollName}" and move it to the recycle bin. Are you sure?`}
+        confirmLabel="Yes, Revert & Delete"
         danger
-        loading={deleteProjectMutation.isPending}
       />
 
       <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Project" size="lg">
@@ -2068,10 +2156,10 @@ export default function ProjectDetailPage() {
         targetName={project?.title ?? ''}
         targetType="project"
         cascadeItems={[
-          { icon: '🖼️', label: 'All gallery photos', description: 'Project photos stored in cloud storage' },
-          { icon: '💰', label: 'All ledger entries', description: 'Income and expense records for this project' },
-          { icon: '💳', label: 'All collections', description: 'Payment collection history' },
-          { icon: '🧾', label: 'All invoices', description: 'Invoices and their line items' },
+          { icon: '', label: 'All gallery photos', description: 'Project photos stored in cloud storage' },
+          { icon: '', label: 'All ledger entries', description: 'Income and expense records for this project' },
+          { icon: '', label: 'All collections', description: 'Payment collection history' },
+          { icon: '', label: 'All invoices', description: 'Invoices and their line items' },
         ]}
         confirmLabel="Delete Project"
         loading={deleteProjectMutation.isPending}

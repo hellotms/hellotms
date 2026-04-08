@@ -41,26 +41,13 @@ export default function ContactPage() {
     setLoading(true);
     setError('');
     try {
-      // 1. Insert into Contact Submissions directly to bypass Worker setup if not running
-      const { error: contactError } = await supabase.from('contact_submissions').insert([
-        {
-          name: values.name,
-          email: values.email,
-          phone: values.phone || undefined,
-          company: values.company || undefined,
-          service: values.budget_range || undefined,
-          message: values.message || '(No message provided)',
-        }
-      ]);
-
-      if (contactError) throw contactError;
-
-      // 2. Also put into Leads as it previously attempted parallel APIs
+      // 1. Insert into Leads (centralized table)
       const { error: leadError } = await supabase.from('leads').insert([
         {
           name: values.name,
           email: values.email,
           phone: values.phone || undefined,
+          company: values.company || undefined,
           event_date: values.event_date || undefined,
           budget_range: values.budget_range || undefined,
           message: values.message || undefined,
@@ -68,7 +55,7 @@ export default function ContactPage() {
         }
       ]);
 
-      if (leadError) console.warn('[leads] secondary sync missed'); // Only best effort
+      if (leadError) throw leadError;
 
       setSubmitted(true);
     } catch (e: any) {

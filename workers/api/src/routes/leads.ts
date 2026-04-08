@@ -48,8 +48,19 @@ leadsRoute.get('/', authMiddleware, requirePermission('view_leads'), async (c) =
 leadsRoute.put('/:id', authMiddleware, requirePermission('manage_contact_forms'), async (c) => {
   const { id } = c.req.param();
   const body = await c.req.json();
+  const userId = c.get('userId');
+  
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
-  const { error } = await supabase.from('leads').update(body).eq('id', id);
+  
+  const update: Record<string, any> = { ...body };
+  
+  // If status is being updated to contacted or closed, track who did it
+  if (body.status === 'contacted' || body.status === 'closed') {
+    update.replied_at = new Date().toISOString();
+    update.replied_by = userId;
+  }
+
+  const { error } = await supabase.from('leads').update(update).eq('id', id);
   if (error) return c.json({ error: error.message }, 500);
   return c.json({ message: 'Lead updated' });
 });

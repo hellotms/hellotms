@@ -62,6 +62,7 @@ export type LedgerEntryInput = z.infer<typeof ledgerEntrySchema>;
 export const collectionSchema = z.object({
   id: z.string().uuid().optional(),
   project_id: z.string().uuid(),
+  name: z.string().max(100).optional().nullable(),
   amount: z.preprocess((val) => (val === "" || val === null || (typeof val === 'number' && isNaN(val)) ? undefined : Number(val)), z.number().positive('Amount must be positive')),
   payment_date: z.string().min(1),
   method: z.string().max(50).optional().nullable(),
@@ -113,6 +114,7 @@ export const leadSchema = z.object({
   location: z.string().max(200).optional().nullable(),
   budget_range: z.string().max(50).optional().nullable(),
   message: z.string().max(1000).optional().nullable(),
+  company: z.string().max(120).optional().nullable(),
 });
 
 export type LeadInput = z.infer<typeof leadSchema>;

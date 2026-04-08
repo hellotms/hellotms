@@ -214,18 +214,6 @@ export function DataTable<TData>({
             </div>
 
             <div className="space-y-3">
-              {onRowClick && (
-                <button
-                  onClick={() => {
-                    onRowClick(selectedRow);
-                    setSelectedRow(null);
-                  }}
-                  className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-primary to-primary/80 text-white px-4 py-4 rounded-xl font-bold hover:shadow-lg hover:shadow-primary/20 transition-all active:scale-95"
-                >
-                  <ExternalLink className="h-5 w-5" />
-                  View Details
-                </button>
-              )}
 
               <div className="pt-2">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-4 px-1 opacity-70">Manage Record</p>

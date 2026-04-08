@@ -46,6 +46,7 @@ export default function EstimatesPage() {
   const [selectedCompanyId, setSelectedCompanyId] = useState(preCompanyId);
   const [selectedProjectId, setSelectedProjectId] = useState(preProjectId);
   const [estimateNum, setEstimateNum] = useState('');
+  const [subject, setSubject] = useState('');
   const [estimateStatus, setEstimateStatus] = useState('draft');
   const [dueDate, setDueDate] = useState('');
   const [discountType, setDiscountType] = useState<'flat' | 'percent'>('flat');
@@ -120,6 +121,12 @@ export default function EstimatesPage() {
   const handleProjectChange = (projectId: string) => {
     setSelectedProjectId(projectId);
     setLineItems([]);
+    if (projectId === 'others') {
+      setSubject(otherProjectName);
+    } else {
+      const p = allProjects.find(item => item.id === projectId);
+      if (p) setSubject(p.title);
+    }
   };
 
   // Sync effect: Populate lineItems
@@ -171,6 +178,18 @@ export default function EstimatesPage() {
     }
   }, [isOpen, lastEstimateNumber]);
 
+  // Sync subject when modal opens or project is pre-selected
+  useEffect(() => {
+    if (isOpen && selectedProjectId && allProjects.length > 0) {
+      if (selectedProjectId === 'others') {
+        if (!subject && otherProjectName) setSubject(otherProjectName);
+      } else {
+        const p = allProjects.find(item => item.id === selectedProjectId);
+        if (p && !subject) setSubject(p.title);
+      }
+    }
+  }, [isOpen, selectedProjectId, allProjects, otherProjectName, subject]);
+
   // Reset form when modal closes
   const closeModal = () => {
     setIsOpen(false);
@@ -180,6 +199,7 @@ export default function EstimatesPage() {
     setDiscountValue(0);
     setDiscountType('flat');
     setNotes('');
+    setSubject('');
     setDueDate('');
     setOtherCompanyName('');
     setOtherProjectName('');
@@ -234,6 +254,7 @@ export default function EstimatesPage() {
             other_project_name: isOtherProject ? otherProjectName : null,
             type: 'estimate',
             status: estimateStatus,
+            subject: subject || null,
             due_date: dueDate || null,
             total_amount: subtotal,
             discount_type: discountType,
@@ -421,7 +442,7 @@ export default function EstimatesPage() {
       <Modal isOpen={isOpen} onClose={closeModal} title="Create Estimate" size="xl">
         <div className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-xs font-medium mb-1 text-muted-foreground">Estimate # <span className="text-red-500">*</span></label>
               <input value={estimateNum} onChange={e => setEstimateNum(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
             </div>
@@ -466,7 +487,10 @@ export default function EstimatesPage() {
                 <label className="block text-xs font-medium mb-1 text-muted-foreground">Custom Project Name <span className="text-red-500">*</span></label>
                 <input 
                   value={otherProjectName} 
-                  onChange={e => setOtherProjectName(e.target.value)} 
+                  onChange={e => {
+                    setOtherProjectName(e.target.value);
+                    setSubject(e.target.value);
+                  }} 
                   placeholder="Enter project name"
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-primary/5 focus:bg-card transition-colors"
                 />

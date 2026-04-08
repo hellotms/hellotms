@@ -170,10 +170,15 @@ async function buildAndStorePdf(
     const pdfBase64 = toBase64(pdfBytes);
 
     const shortId = id.slice(0, 8);
-    const storagePath = `invoices/invoice_${invoice.invoice_number.replace(/[^a-zA-Z0-9]/g, '-')}_${shortId}.pdf`;
+    const typeLabel = (invoice.type === 'estimate') ? 'Estimate' : 'Invoice';
+    const safeNumber = invoice.invoice_number.replace(/[^a-zA-Z0-9]/g, '-');
+    const storagePath = `invoices/${typeLabel}_${safeNumber}_${shortId}.pdf`;
 
     await env.MEDIA_BUCKET.put(storagePath, pdfBytes, {
-      httpMetadata: { contentType: 'application/pdf' },
+      httpMetadata: { 
+        contentType: 'application/pdf',
+        contentDisposition: `inline; filename="${typeLabel}_${safeNumber}.pdf"`
+      },
     });
 
     const pdfUrl = `${env.R2_PUBLIC_URL}/${storagePath}`;

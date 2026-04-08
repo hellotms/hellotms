@@ -143,7 +143,8 @@ export default function InvoicesPage() {
       const { data } = await supabase
         .from('collections')
         .select('amount')
-        .eq('project_id', selectedProjectId);
+        .eq('project_id', selectedProjectId)
+        .is('deleted_at', null);
       return data ?? [];
     },
     enabled: !!selectedProjectId,
@@ -390,6 +391,13 @@ export default function InvoicesPage() {
           isUnique = true;
           finalInvoiceId = inv.id;
         }
+      }
+
+      // 2. Update project's invoice_amount if current invoice is higher than original quote
+      if (selectedProjectId !== 'others' && invoiceTotalPayable > invoiceAmountFromProject) {
+        await supabase.from('projects').update({
+          invoice_amount: invoiceTotalPayable
+        }).eq('id', selectedProjectId);
       }
 
       if (processedItems.length > 0) {

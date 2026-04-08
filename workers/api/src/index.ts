@@ -7,7 +7,6 @@ import type { Env, Variables } from './types.js';
 import { leadsRoute } from './routes/leads.js';
 import { staffRoute } from './routes/staff.js';
 import { invoicesRoute } from './routes/invoices.js';
-import { contactRoute } from './routes/contact.js';
 import { mediaRoute } from './routes/media.js';
 import { auditRoute } from './routes/audit.js';
 import { authRoute } from './routes/auth.js';
@@ -44,7 +43,6 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 app.route('/leads', leadsRoute);
 app.route('/staff', staffRoute);
 app.route('/invoices', invoicesRoute);
-app.route('/contact', contactRoute);
 app.route('/media', mediaRoute);
 app.route('/audit', auditRoute);
 app.route('/auth', authRoute);

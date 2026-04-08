@@ -131,13 +131,35 @@ export function ProjectForm({ companies, onSubmit, onCancel, isPending, initialD
         </div>
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Status</label>
-          <select {...register('status')} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+          <select 
+            {...register('status')} 
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            onChange={(e) => {
+              const newStatus = e.target.value;
+              setValue('status', newStatus as any);
+              if (newStatus === 'completed' && !watch('project_completed_at')) {
+                setValue('project_completed_at', new Date().toISOString().split('T')[0]);
+              }
+            }}
+          >
             <option value="draft">Draft</option>
             <option value="active">Active</option>
             <option value="completed">Completed</option>
           </select>
         </div>
       </div>
+
+      {watch('status') === 'completed' && (
+        <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+          <label className="block text-sm font-medium text-foreground mb-1">Project Completion Date <span className="text-red-500">*</span></label>
+          <input 
+            type="date" 
+            {...register('project_completed_at', { required: watch('status') === 'completed' })} 
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" 
+          />
+          <p className="text-[10px] text-muted-foreground mt-1">When was this project officially finished?</p>
+        </div>
+      )}
 
       <div>
         <ImageUpload
