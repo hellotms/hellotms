@@ -278,6 +278,13 @@ export default function EstimatesPage() {
         }
       }
 
+      // Update project's invoice_amount to fully replace with current estimate
+      if (!isOtherProject && selectedProjectId) {
+        await supabase.from('projects').update({
+          invoice_amount: estimateTotalPayable
+        }).eq('id', selectedProjectId);
+      }
+
       // Create items + sync expenses to project (only for real projects)
       if (lineItems.length > 0) {
         const isRealProject = !isOtherProject && selectedProjectId;
@@ -295,7 +302,7 @@ export default function EstimatesPage() {
                   project_id: selectedProjectId,
                   type: 'expense',
                   category: item.description || 'Estimate Item',
-                  amount: item.costPrice || 0,
+                  amount: (item.costPrice || 0) * item.quantity,
                   quantity: item.quantity,
                   face_value: item.unit_price,
                   entry_date: new Date().toISOString().slice(0, 10),

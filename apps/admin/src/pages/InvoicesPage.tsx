@@ -325,7 +325,7 @@ export default function InvoicesPage() {
                 project_id: selectedProjectId,
                 type: 'expense',
                 category: i.description || 'Invoice Item Cost',
-                amount: i.costPrice || 0,
+                amount: (i.costPrice || 0) * i.quantity,
                 quantity: i.quantity,
                 face_value: i.unit_price,
                 entry_date: new Date().toISOString().slice(0, 10),

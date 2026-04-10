@@ -130,7 +130,7 @@ export default function InvoiceDetailPage() {
             project_id: invoice.projects.id,
             type: 'expense',
             category: values.description || 'Invoice Item Cost',
-            amount: values.cost_price || 0,
+            amount: (values.cost_price || 0) * values.quantity,
             quantity: values.quantity,
             face_value: values.unit_price,
             entry_date: new Date().toISOString().slice(0, 10),
