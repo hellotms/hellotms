@@ -328,14 +328,16 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
 
     if (!invoice) return c.json({ error: 'Invoice not found after PDF gen' }, 404);
 
-    // Fetch collections separately
-    const { data: collectionsData } = await (supabase as any)
-      .from('collections')
-      .select('amount, payment_date, method')
-      .eq('project_id', invoice.projects.id)
-      .order('payment_date', { ascending: true });
-
-    const collections = collectionsData || [];
+    // Fetch collections separately (only for invoices with a real project)
+    let collections: any[] = [];
+    if (invoice.type === 'invoice' && invoice.projects?.id) {
+      const { data: collectionsData } = await (supabase as any)
+        .from('collections')
+        .select('amount, payment_date, method')
+        .eq('project_id', invoice.projects.id)
+        .order('payment_date', { ascending: true });
+      collections = collectionsData || [];
+    }
 
     // Update sent_at and status
     await (supabase as any)

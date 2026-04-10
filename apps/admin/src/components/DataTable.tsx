@@ -214,6 +214,18 @@ export function DataTable<TData>({
             </div>
 
             <div className="space-y-3">
+              {onRowClick && (
+                <button
+                  onClick={() => {
+                    onRowClick(selectedRow);
+                    setSelectedRow(null);
+                  }}
+                  className="w-full py-4 px-4 bg-primary text-primary-foreground font-bold rounded-2xl shadow-[0_4_12px_-2px_rgba(var(--primary-rgb),0.3)] flex items-center justify-center gap-2 hover:bg-primary/90 transition-all active:scale-95"
+                >
+                  <ExternalLink className="h-5 w-5" />
+                  View Full Details
+                </button>
+              )}
 
               <div className="pt-2">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-4 px-1 opacity-70">Manage Record</p>
@@ -237,7 +249,7 @@ export function DataTable<TData>({
 
             <button
               onClick={() => setSelectedRow(null)}
-              className="w-full py-4 text-sm font-semibold text-muted-foreground hover:text-foreground border border-dashed border-border rounded-xl transition-all active:bg-muted"
+              className="w-full py-4 text-sm font-semibold text-muted-foreground hover:text-foreground border border-dashed border-border rounded-xl transition-all active:bg-muted mt-2"
             >
               Close Menu
             </button>
@@ -249,8 +261,8 @@ export function DataTable<TData>({
       <style>{`
         @media (max-width: 767px) {
           .mobile-action-buttons-container > div {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
+            display: flex !important;
+            flex-wrap: wrap !important;
             gap: 12px !important;
             width: 100% !important;
           }
@@ -263,7 +275,7 @@ export function DataTable<TData>({
             gap: 14px !important;
             padding: 16px 20px !important;
             height: auto !important;
-            width: 100% !important;
+            flex: 1 1 calc(50% - 6px) !important;
             background: rgba(255, 255, 255, 0.05) !important;
             backdrop-filter: blur(8px) !important;
             border: 1px solid rgba(var(--primary-rgb), 0.1) !important;
@@ -275,6 +287,16 @@ export function DataTable<TData>({
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
           }
           
+          /* Make Payment (Emerald) button full width specifically */
+          .mobile-action-buttons-container button[class*="bg-emerald-500/10"],
+          .mobile-action-buttons-container button[class*="bg-emerald-100"] {
+            flex: 1 1 100% !important;
+            order: -1 !important; /* Bring to top */
+            background: rgba(16, 185, 129, 0.08) !important;
+            border-color: rgba(16, 185, 129, 0.2) !important;
+            color: #10b981 !important;
+          }
+
           /* Glass color overlays */
           .mobile-action-buttons-container button[class*="bg-blue-500/10"] {
             background: rgba(59, 130, 246, 0.08) !important;
@@ -285,11 +307,6 @@ export function DataTable<TData>({
             background: rgba(239, 68, 68, 0.08) !important;
             border-color: rgba(239, 68, 68, 0.2) !important;
             color: #ef4444 !important;
-          }
-          .mobile-action-buttons-container button[class*="bg-emerald-500/10"] {
-            background: rgba(16, 185, 129, 0.08) !important;
-            border-color: rgba(16, 185, 129, 0.2) !important;
-            color: #10b981 !important;
           }
 
           .mobile-action-buttons-container button:active {

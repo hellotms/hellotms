@@ -123,14 +123,14 @@ export default function InvoiceDetailPage() {
       const amount = values.quantity * values.unit_price;
       let finalLedgerId = null;
 
-      if (invoice?.type === 'invoice' && invoice?.projects?.id && values.cost_price > 0) {
+      if (invoice?.type === 'invoice' && invoice?.projects?.id) {
         const { data: newLedger, error: ledgerErr } = await supabase
           .from('ledger_entries')
           .insert({
             project_id: invoice.projects.id,
             type: 'expense',
             category: values.description || 'Invoice Item Cost',
-            amount: values.cost_price,
+            amount: values.cost_price || 0,
             quantity: values.quantity,
             face_value: values.unit_price,
             entry_date: new Date().toISOString().slice(0, 10),

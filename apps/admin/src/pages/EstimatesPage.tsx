@@ -278,16 +278,53 @@ export default function EstimatesPage() {
         }
       }
 
-      // Create items
+      // Create items + sync expenses to project (only for real projects)
       if (lineItems.length > 0) {
-        await supabase.from('invoice_items').insert(lineItems.map(i => ({
-          description: i.description,
-          quantity: i.quantity,
-          unit_price: i.unit_price,
-          amount: i.amount,
-          cost_price: i.costPrice,
-          invoice_id: finalId
-        })));
+        const isRealProject = !isOtherProject && selectedProjectId;
+
+        const itemsToInsert = [];
+        for (const item of lineItems) {
+          let ledgerId: string | null = null;
+
+          // If a real project is selected, create a ledger entry for EVERY item
+          if (isRealProject) {
+            try {
+              const { data: newLedger, error: ledgerErr } = await supabase
+                .from('ledger_entries')
+                .insert({
+                  project_id: selectedProjectId,
+                  type: 'expense',
+                  category: item.description || 'Estimate Item',
+                  amount: item.costPrice || 0,
+                  quantity: item.quantity,
+                  face_value: item.unit_price,
+                  entry_date: new Date().toISOString().slice(0, 10),
+                  paid_status: 'unpaid',
+                  is_external: false,
+                })
+                .select('id')
+                .single();
+
+              if (!ledgerErr && newLedger) {
+                ledgerId = newLedger.id;
+              }
+            } catch (e) {
+              console.error('Failed to create ledger entry for estimate item', e);
+            }
+          }
+
+          itemsToInsert.push({
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            amount: item.amount,
+            cost_price: item.costPrice,
+            ledger_id: ledgerId,
+            invoice_id: finalId,
+          });
+        }
+
+        await supabase.from('invoice_items').insert(itemsToInsert);
       }
 
       return { id: finalId, number: currentEstimateNum };

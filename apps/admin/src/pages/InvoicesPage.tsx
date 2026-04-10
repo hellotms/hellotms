@@ -310,12 +310,14 @@ export default function InvoicesPage() {
 
       const { data: { user } } = await supabase.auth.getUser();
 
-      // 1. Pre-process items to create ledger entries for manual costs
+      // 1. Pre-process items to create ledger entries for NEW items only
+      //    Items with ledger_id are already in the project ledger (auto-populated), so skip them.
       const tempLineItems = [...lineItems];
       const processedItems = await Promise.all(tempLineItems.map(async (i, idx) => {
         let finalLedgerId = i.ledger_id;
 
-        if (i.costPrice > 0) {
+        // Only create a new ledger entry for items that DON'T already have one
+        if (!i.ledger_id && selectedProjectId !== 'others') {
           try {
             const { data: newLedger, error: ledgerErr } = await supabase
               .from('ledger_entries')
@@ -323,7 +325,7 @@ export default function InvoicesPage() {
                 project_id: selectedProjectId,
                 type: 'expense',
                 category: i.description || 'Invoice Item Cost',
-                amount: i.costPrice,
+                amount: i.costPrice || 0,
                 quantity: i.quantity,
                 face_value: i.unit_price,
                 entry_date: new Date().toISOString().slice(0, 10),
