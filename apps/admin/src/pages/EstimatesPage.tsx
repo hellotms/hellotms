@@ -125,7 +125,7 @@ export default function EstimatesPage() {
       setSubject(otherProjectName);
     } else {
       const p = allProjects.find(item => item.id === projectId);
-      if (p) setSubject(p.title);
+      if (p) setSubject(`Estimate for ${p.title}`);
     }
   };
 
@@ -185,7 +185,7 @@ export default function EstimatesPage() {
         if (!subject && otherProjectName) setSubject(otherProjectName);
       } else {
         const p = allProjects.find(item => item.id === selectedProjectId);
-        if (p && !subject) setSubject(p.title);
+        if (p && !subject) setSubject(`Estimate for ${p.title}`);
       }
     }
   }, [isOpen, selectedProjectId, allProjects, otherProjectName, subject]);
