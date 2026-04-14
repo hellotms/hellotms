@@ -93,12 +93,12 @@ export default function MobileMenuPage() {
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className={cn(
-              "relative w-12 h-6.5 rounded-full transition-all duration-300",
+              "relative w-12 h-6 rounded-full transition-all duration-300",
               theme === 'dark' ? 'bg-primary shadow-[0_0_10px_rgba(var(--primary),0.3)]' : 'bg-muted-foreground/20'
             )}
           >
             <span className={cn(
-              "absolute top-0.5 h-5.5 w-5.5 rounded-full bg-white shadow-md transition-all duration-300 flex items-center justify-center",
+              "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-all duration-300 flex items-center justify-center",
               theme === 'dark' ? 'translate-x-[24px]' : 'translate-x-0.5'
             )} />
           </button>

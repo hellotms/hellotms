@@ -74,25 +74,33 @@ export function MobileBottomNav() {
         </button>
 
         {/* Companies */}
-        <NavLink
-            to="/companies"
-            className={({ isActive }) => cn(
+        <button
+            onClick={(e) => {
+                e.preventDefault();
+                const lastCompanyId = localStorage.getItem('last_company_id');
+                const isDetail = /^\/companies\/[a-f0-9-]+/i.test(location.pathname);
+                
+                if (isDetail) {
+                    navigate('/companies');
+                } else if (lastCompanyId) {
+                    navigate(`/companies/${lastCompanyId}`);
+                } else {
+                    navigate('/companies');
+                }
+            }}
+            className={cn(
                 'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 relative transition-all min-h-[64px]',
-                isActive ? 'text-primary' : 'text-sidebar-foreground/40 active:text-sidebar-foreground/60'
+                location.pathname.startsWith('/companies') ? 'text-primary' : 'text-sidebar-foreground/40 active:text-sidebar-foreground/60'
             )}
         >
-            {({ isActive }) => (
-                <>
-                <div className={cn(
-                    'flex items-center justify-center rounded-2xl transition-all duration-300',
-                    isActive ? 'bg-primary/15 backdrop-blur-sm border border-primary/20 px-4 py-1.5 shadow-[0_0_12px_rgba(var(--primary),0.15)]' : 'px-0 py-0'
-                )}>
-                    <Building2 className="h-[20px] w-[20px]" strokeWidth={isActive ? 2.5 : 1.8} />
-                </div>
-                <span className={cn('text-[10px] leading-none mt-1', isActive ? 'font-bold' : 'font-medium')}>Companies</span>
-                </>
-            )}
-        </NavLink>
+            <div className={cn(
+                'flex items-center justify-center rounded-2xl transition-all duration-300',
+                location.pathname.startsWith('/companies') ? 'bg-primary/15 backdrop-blur-sm border border-primary/20 px-4 py-1.5 shadow-[0_0_12px_rgba(var(--primary),0.15)]' : 'px-0 py-0'
+            )}>
+                <Building2 className="h-[20px] w-[20px]" strokeWidth={location.pathname.startsWith('/companies') ? 2.5 : 1.8} />
+            </div>
+            <span className={cn('text-[10px] leading-none mt-1', location.pathname.startsWith('/companies') ? 'font-bold' : 'font-medium')}>Companies</span>
+        </button>
 
         {/* Billing - Now a Page */}
         <NavLink

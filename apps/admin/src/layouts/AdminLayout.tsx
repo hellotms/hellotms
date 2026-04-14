@@ -180,11 +180,13 @@ export default function AdminLayout() {
   const lastProjectId = localStorage.getItem('last_project_id');
   const lastInvoiceId = localStorage.getItem('last_invoice_id');
   const lastEstimateId = localStorage.getItem('last_estimate_id');
+  const lastCompanyId = localStorage.getItem('last_company_id');
   
   const lastIds = {
     project: lastProjectId,
     invoice: lastInvoiceId,
-    estimate: lastEstimateId
+    estimate: lastEstimateId,
+    company: lastCompanyId
   };
 
   useEffect(() => {
@@ -213,6 +215,15 @@ export default function AdminLayout() {
            localStorage.setItem('last_estimate_id', match[1]);
        } else if (location.pathname === '/estimates') {
            localStorage.removeItem('last_estimate_id');
+       }
+    }
+
+    if (location.pathname.startsWith('/companies')) {
+       const match = location.pathname.match(/^\/companies\/([a-f0-9-]+)/i);
+       if (match && match[1]) {
+           localStorage.setItem('last_company_id', match[1]);
+       } else if (location.pathname === '/companies') {
+           localStorage.removeItem('last_company_id');
        }
     }
   }, [location.pathname]);
@@ -328,6 +339,56 @@ export default function AdminLayout() {
     await signOut();
     navigate('/login');
   };
+
+  // --- SWIPE NAVIGATION LOGIC ---
+  const mobileRoutes = ['/dashboard', '/projects', '/companies', '/mobile-billing', '/mobile-menu'];
+  
+  const getIntelPath = (route: string) => {
+    if (route === '/projects') {
+      const id = localStorage.getItem('last_project_id');
+      return id ? `/projects/${id}` : '/projects';
+    }
+    if (route === '/companies') {
+      const id = localStorage.getItem('last_company_id');
+      return id ? `/companies/${id}` : '/companies';
+    }
+    return route;
+  };
+
+  const handlePanEnd = (event: any, info: any) => {
+    if (window.innerWidth >= 768) return; // Only mobile
+
+    const threshold = 50;
+    const velocityThreshold = 0.5;
+    const { offset, velocity } = info;
+
+    if (Math.abs(offset.x) > threshold || Math.abs(velocity.x) > velocityThreshold) {
+      // Find current section index
+      let currentIndex = mobileRoutes.findIndex(route => location.pathname.startsWith(route));
+      
+      // Special check for billing children
+      if (currentIndex === -1) {
+        if (location.pathname.startsWith('/estimates') || location.pathname.startsWith('/invoices')) {
+          currentIndex = 3;
+        }
+      }
+
+      if (currentIndex === -1) return;
+
+      if (offset.x > 0) {
+        // Swipe Right (Go to Previous)
+        if (currentIndex > 0) {
+          navigate(getIntelPath(mobileRoutes[currentIndex - 1]));
+        }
+      } else {
+        // Swipe Left (Go to Next)
+        if (currentIndex < mobileRoutes.length - 1) {
+          navigate(getIntelPath(mobileRoutes[currentIndex + 1]));
+        }
+      }
+    }
+  };
+  // ------------------------------
 
   return (
     <div className="flex h-screen bg-background overflow-hidden relative">
@@ -462,7 +523,8 @@ export default function AdminLayout() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -20, opacity: 0 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="p-4 md:p-6 lg:p-8 pb-20 md:pb-8"
+              onPanEnd={handlePanEnd}
+              className="p-4 md:p-6 lg:p-8 pb-20 md:pb-8 touch-pan-y"
             >
               <Outlet />
             </motion.div>

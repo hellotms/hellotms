@@ -129,10 +129,15 @@ export function Navbar() {
 
         {/* Mobile drawer */}
         {isOpen && (
-          <div
-            className="md:hidden pb-4 border-t border-[var(--border)] mt-1 pt-3 space-y-1"
-            onClick={() => setIsOpen(false)}
-          >
+          <>
+            <div 
+              className="fixed inset-0 z-40 bg-black/5 dark:bg-black/10 backdrop-blur-[2px] md:hidden" 
+              onClick={() => setIsOpen(false)} 
+            />
+            <div
+              className="md:hidden absolute right-4 top-18 w-56 p-2 pb-4 rounded-2xl bg-white/40 dark:bg-black/40 backdrop-blur-3xl border border-white/30 dark:border-white/10 shadow-2xl shadow-black/20 animate-in zoom-in-95 slide-in-from-top-2 duration-300 origin-top-right z-50"
+              onClick={() => setIsOpen(false)}
+            >
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
@@ -150,7 +155,8 @@ export function Navbar() {
                 Get a Quote
               </Link>
             </div>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </header>

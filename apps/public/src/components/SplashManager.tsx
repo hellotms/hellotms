@@ -2,9 +2,11 @@
 import { useState, useEffect } from 'react';
 import { SplashScreen } from './SplashScreen';
 
+let hasShownGlobal = false;
+
 export function SplashManager({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(!hasShownGlobal);
 
   useEffect(() => {
     setMounted(true);
@@ -22,6 +24,7 @@ export function SplashManager({ children }: { children: React.ReactNode }) {
 
   const handleComplete = () => {
     setShowSplash(false);
+    hasShownGlobal = true;
   };
 
   // Wait for mounting to avoid hydration mismatch
