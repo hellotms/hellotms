@@ -252,7 +252,8 @@ export default function AdminLayout() {
       const { relaunch } = await import('@tauri-apps/plugin-process');
       await relaunch();
     } catch (err: any) {
-      toast(`Update failed: ${err.message}`, 'error');
+      console.error('[NativeUpdater] Apply failed:', err);
+      toast(`Update failed: ${err.message || JSON.stringify(err) || err}`, 'error');
       setIsUpdating(false);
     }
   };

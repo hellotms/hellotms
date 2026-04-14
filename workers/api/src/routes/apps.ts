@@ -27,7 +27,7 @@ appsRoute.get('/latest/update.json', async (c) => {
 
     // Format for Tauri v2
     return c.json({
-        version: version.version.startsWith('v') ? version.version : `v${version.version}`,
+        version: version.version.startsWith('v') ? version.version.substring(1) : version.version,
         notes: version.changelog || 'Latest performance and security updates.',
         pub_date: version.created_at,
         platforms: {

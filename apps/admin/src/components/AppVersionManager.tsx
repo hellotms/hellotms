@@ -249,8 +249,18 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
                 <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Update Signature (Required for Auto-Update) <span className="text-red-500">*</span></label>
                 <textarea 
                   value={newSignature}
-                  onChange={e => setNewSignature(e.target.value)}
-                  placeholder="PASTE .sig FILE CONTENT HERE"
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val.includes('untrusted comment')) {
+                      const lines = val.split(/\r?\n/);
+                      if (lines.length >= 2) {
+                        setNewSignature(lines[1].trim());
+                        return;
+                      }
+                    }
+                    setNewSignature(val);
+                  }}
+                  placeholder="PASTE .sig FILE CONTENT HERE (Auto-extracts signature)"
                   rows={2}
                   className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20 resize-none font-mono"
                 />
