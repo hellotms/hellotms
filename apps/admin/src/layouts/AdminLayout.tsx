@@ -358,11 +358,14 @@ export default function AdminLayout() {
   const handlePanEnd = (event: any, info: any) => {
     if (window.innerWidth >= 768) return; // Only mobile
 
-    const threshold = 50;
-    const velocityThreshold = 0.5;
+    const threshold = 100; // Increased threshold for more deliberate swipe
+    const velocityThreshold = 0.8; // Increased slightly for better feel
     const { offset, velocity } = info;
 
-    if (Math.abs(offset.x) > threshold || Math.abs(velocity.x) > velocityThreshold) {
+    // Only trigger if horizontal movement is significantly greater than vertical movement
+    const isHorizontal = Math.abs(offset.x) > Math.abs(offset.y) * 1.8;
+
+    if (isHorizontal && (Math.abs(offset.x) > threshold || Math.abs(velocity.x) > velocityThreshold)) {
       // Find current section index
       let currentIndex = mobileRoutes.findIndex(route => location.pathname.startsWith(route));
       
@@ -524,7 +527,7 @@ export default function AdminLayout() {
               exit={{ x: -20, opacity: 0 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               onPanEnd={handlePanEnd}
-              className="p-4 md:p-6 lg:p-8 pb-20 md:pb-8 touch-pan-y"
+              className="p-4 md:p-6 lg:p-8 pb-20 md:pb-8 touch-auto"
             >
               <Outlet />
             </motion.div>
