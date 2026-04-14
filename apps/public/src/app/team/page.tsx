@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   description: 'Meet the expert team behind The Marketing Solution.',
 };
 
+export const revalidate = 0; // Ensure fresh data on every request
+
 export default async function TeamPage() {
   const { data: teamMembers } = await supabase
     .from('team_members')

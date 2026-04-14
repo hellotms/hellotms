@@ -38,6 +38,12 @@ function run() {
             type: 'pkcs8'
         });
 
+        // Load version from tauri.conf.json dynamically
+        const tauriConfPath = path.resolve(__dirname, './src-tauri/tauri.conf.json');
+        const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, 'utf8'));
+        const version = tauriConf.version;
+        console.log(`📦 Targeted Version: ${version}`);
+
         function signFile(filePath) {
             const fullPath = path.resolve(__dirname, filePath);
             if (!fs.existsSync(fullPath)) {
@@ -52,7 +58,7 @@ function run() {
             const signature = crypto.sign(null, content, privateKey);
             
             // 2. Trusted comment
-            const trustedCommentString = `trusted comment: update 0.1.5\n`;
+            const trustedCommentString = `trusted comment: update ${version}\n`;
             const trustedComment = Buffer.from(trustedCommentString);
             
             // 3. Global signature (Signature of (signature + trusted comment))
@@ -71,7 +77,6 @@ function run() {
             console.log(`✅ Success: ${path.basename(sigFilename)} generated.`);
         }
 
-        const version = "0.1.5";
         signFile(`./src-tauri/target/release/bundle/nsis/tms-Portal_${version}_x64-setup.exe`);
         signFile(`./src-tauri/target/release/bundle/msi/tms-Portal_${version}_x64_en-US.msi`);
 

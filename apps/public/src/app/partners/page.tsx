@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   description: 'Trusted by global brands and industry leaders in Bangladesh.',
 };
 
+export const revalidate = 0; // Ensure fresh data on every request
+
 export default async function PartnersPage() {
   const { data: companies } = await supabase
     .from('companies')
