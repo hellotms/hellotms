@@ -140,6 +140,9 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
   // Form validation state
   const isFormDisabled = isUploading || !newVersion || (!editingVersion && !selectedFile) || (platform === 'windows' && !newSignature);
 
+  // Check if signature looks like a Public Key (Common mistake)
+  const isSignaturePublicKey = platform === 'windows' && newSignature.startsWith('UldSC');
+
   return (
     <div className="space-y-6">
       {/* Platform Header */}
@@ -246,24 +249,41 @@ export function AppVersionManager({ platform, disabled }: AppVersionManagerProps
             </div>
             {platform === 'windows' && (
               <div className="md:col-span-2 space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Update Signature (Required for Auto-Update) <span className="text-red-500">*</span></label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center justify-between">
+                  <span>Update Signature (Required for Auto-Update) <span className="text-red-500">*</span></span>
+                  {isSignaturePublicKey && <span className="text-red-500 animate-pulse">⚠️ YOU PASTED THE PUBLIC KEY, NOT THE SIGNATURE!</span>}
+                </label>
                 <textarea 
                   value={newSignature}
                   onChange={e => {
-                    const val = e.target.value;
-                    if (val.includes('untrusted comment')) {
-                      const lines = val.split(/\r?\n/);
-                      if (lines.length >= 2) {
-                        setNewSignature(lines[1].trim());
+                    const val = e.target.value.trim();
+                    // Tauri v2 expects the FULL .sig file content (all 4 lines):
+                    // Line 1: untrusted comment: ...
+                    // Line 2: Base64(KeyID + Signature)
+                    // Line 3: trusted comment: ...
+                    // Line 4: Base64(GlobalSignature)
+                    // We store the entire content as-is, using \n as separator.
+                    if (val.includes('untrusted comment') && val.includes('trusted comment')) {
+                      const lines = val.split(/\r?\n/).filter(l => l.trim());
+                      if (lines.length >= 4) {
+                        // Store all 4 lines joined by \n
+                        setNewSignature(lines.join('\n'));
+                        toast('Full .sig file accepted (4-line Minisign format)', 'success');
                         return;
                       }
                     }
                     setNewSignature(val);
                   }}
-                  placeholder="PASTE .sig FILE CONTENT HERE (Auto-extracts signature)"
-                  rows={2}
-                  className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20 resize-none font-mono"
+                  placeholder="PASTE ENTIRE .sig FILE CONTENT HERE (all 4 lines)"
+                  rows={4}
+                  className={cn(
+                    "w-full bg-background border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20 resize-none font-mono",
+                    isSignaturePublicKey ? "border-red-500 bg-red-50/50" : "border-border"
+                  )}
                 />
+                <p className="text-[9px] text-muted-foreground">
+                  Open your <code className="bg-muted px-1 rounded">.sig</code> file and paste the <strong>ENTIRE</strong> content here (all 4 lines). Tauri v2 requires the full Minisign signature format.
+                </p>
               </div>
             )}
           </div>

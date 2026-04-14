@@ -148,18 +148,27 @@ appsRoute.delete('/:id', requirePermission('manage_cms'), async (c) => {
         entity_id: id,
         entity_name: `${version.platform} v${version.version} (${version.file_extension})`,
         entity_data: version,
-        deleted_by: c.get('userId'),
+        deleted_by: c.get('userId') || null,
+        deleted_at: new Date().toISOString()
     });
 
-    if (trashError) return c.json({ error: `Trash error: ${trashError.message}` }, 500);
+    if (trashError) {
+        console.error('[Trash Bin Error]', trashError);
+        // We still proceed with the soft delete but let the user know there was a logging issue
+    }
 
     // 3. Mark as deleted
     const { error: updateError } = await supabase
         .from('app_versions')
-        .update({ deleted_at: new Date().toISOString(), is_latest: false })
+        .update({ 
+            deleted_at: new Date().toISOString(), 
+            is_latest: false 
+        })
         .eq('id', id);
 
-    if (updateError) return c.json({ error: updateError.message }, 500);
+    if (updateError) return c.json({ error: `Delete error: ${updateError.message}` }, 500);
+
+    return c.json({ success: true, warning: trashError ? 'Moved to trash but failed to log in trash_bin' : undefined });
 
     // 4. Activity Log
     await supabase.from('audit_logs').insert({

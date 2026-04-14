@@ -4,20 +4,20 @@
 > **This file is the ultimate reference for your "Lock and Key" (Public and Private Keys). Do NOT change these unless you intend to break auto-updates for existing users.**
 
 ## 1. Current Golden Keys (Production)
-These keys are currently synchronized with **v0.1.6** onwards.
+These keys are synchronized starting from **v0.1.7** onwards.
 
 - **Public Key (The Lock):** 
-  `UldSC7aU6N7172Ddy5NXIXHPx213AMLcDoSr2mpbw6Jbb770NRV3R70BAA==`
+  `RWSF/+NoH8Q1iRMRDi26SZW2LhBssWWoLbTQaFUNONSZUsasHInsUv0q`
   *(Stored in `apps/admin/src-tauri/tauri.conf.json`)*
 
 - **Private Key Path (The Key):**
   `apps/admin/admin_tauri.key`
 
-- **Key ID:** `0bb694e8def5ef60`
+- **Key ID:** `8935C41F68E3FF85`
 
 ---
 
-## 2. How to Sign New Versions
+## 2. How to Sign & Upload New Versions
 Whenever you release a new version (e.g., 0.1.7), follow these steps:
 
 1. **Build & Sign:**
@@ -25,25 +25,31 @@ Whenever you release a new version (e.g., 0.1.7), follow these steps:
    ```bash
    pnpm run build-signed
    ```
-   This will use the `admin_tauri.key` to generate `.sig` files for your EXE and MSI.
+   This will use `admin_tauri.key` to generate `.sig` files.
 
 2. **Upload to Admin Panel:**
-   - Upload the generated EXE from `src-tauri/target/release/bundle/nsis/`.
-   - Copy the **entire** content of the `.sig` file and paste it into the "Update Signature" field in the Admin Panel.
+   - Upload the generated EXE/MSI.
+   - **IMPORTANT:** Open the `.sig` file in a text editor (it has 4 lines).
+   - **PASTE THE ENTIRE 4-LINE CONTENT** into the "Update Signature" field in the Admin Panel. 
+   - Tauri v2 requires the full Minisign format (untrusted comments and all), not just the base64 string.
 
 ---
 
-## 3. History of Key Changes (Why it broke before)
-- **v0.1.5 and earlier:** Used an old public key (`RWTSF/...`).
-- **April 9, 2026:** Keys were regenerated but not perfectly synchronized.
-- **April 14, 2026 (GOLDEN FIX):** Keys were perfectly synchronized with the `admin_tauri.key`. **User must manually install v0.1.6 to bridge this gap.**
+## 3. History of Key Changes (Why it broke)
+- **v0.1.6:** Was accidentally compiled with an incorrect base64-encoded public key (`UldSC...`). This causes a "Signature decoding" error in the app.
+- **April 14, 2026 (FINAL FIX):** Keys were correctly synchronized with the `admin_tauri.key`. **Users on v0.1.6 MUST manually download and install v0.1.7 (or newer) to receive future auto-updates.**
 
 ---
 
 ## 4. Troubleshooting
-If users see **"Update failed: undefined"**, it usually means:
-1. The **Public Key** in your binary doesn't match the **Signature** on the server.
-2. The **Version** on the server has an unnecessary `v` prefix.
+### Error: "The signature ... could not be decoded"
+This happens when:
+1. The **Public Key** in `tauri.conf.json` is not in the plain `RWSF...` format.
+2. The **Signature** in the Admin Panel is not the full 4-line content of the `.sig` file.
+
+### Error: "Update failed: undefined"
+Usually means the version number on the server (e.g., `0.1.7`) is exactly the same as the installed app version. The updater only triggers if `ServerVersion > LocalVersion`.
 
 > [!CAUTION]
-> If you ever lose `admin_tauri.key`, you will lose the ability to auto-update your current users. Keep a secure backup of this file outside of the project as well.
+> If you ever lose `admin_tauri.key`, you will lose the ability to auto-update your current users. Keep a secure backup of this file outside of the project.
+
