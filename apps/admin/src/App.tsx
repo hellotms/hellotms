@@ -20,6 +20,7 @@ import LeadsPage from '@/pages/LeadsPage';
 import CmsPage from '@/pages/CmsPage';
 import AboutCmsPage from '@/pages/settings/cms/AboutCmsPage';
 import ServicesCmsPage from '@/pages/settings/cms/ServicesCmsPage';
+import OurTeamCmsPage from '@/pages/OurTeamCmsPage';
 import StaffPage from '@/pages/StaffPage';
 import StaffProfilePage from '@/pages/StaffProfilePage';
 
@@ -36,6 +37,8 @@ import SetupPage from '@/pages/SetupPage';
 import DownloadAppPage from '@/pages/DownloadAppPage';
 import { SplashManager } from '@/components/SplashManager';
 import WelcomePage from '@/pages/WelcomePage';
+import MobileMenuPage from '@/pages/MobileMenuPage';
+import MobileBillingPage from '@/pages/MobileBillingPage';
 
 function DynamicFavicon() {
   const { data: settings } = useQuery({
@@ -134,6 +137,7 @@ function AppRoutes() {
         <Route path="cms" element={<PermissionRoute permission="manage_cms"><CmsPage /></PermissionRoute>} />
         <Route path="cms/about" element={<PermissionRoute permission="manage_cms"><AboutCmsPage /></PermissionRoute>} />
         <Route path="cms/services" element={<PermissionRoute permission="manage_cms"><ServicesCmsPage /></PermissionRoute>} />
+        <Route path="cms/our-team" element={<PermissionRoute permission="manage_cms"><OurTeamCmsPage /></PermissionRoute>} />
         <Route path="staff" element={<PermissionRoute permission="view_staff"><StaffPage /></PermissionRoute>} />
         <Route path="staff/:id" element={<PermissionRoute permission="view_staff"><StaffProfilePage /></PermissionRoute>} />
         <Route path="profile" element={<ProfilePage />} />
@@ -145,6 +149,10 @@ function AppRoutes() {
         <Route path="role-management" element={<PermissionRoute permission="manage_roles"><RoleManagementPage /></PermissionRoute>} />
         <Route path="recycle-bin" element={<RecycleBinPage />} />
         <Route path="download-app" element={<DownloadAppPage />} />
+        
+        {/* Mobile Specific Routes */}
+        <Route path="mobile-menu" element={<MobileMenuPage />} />
+        <Route path="mobile-billing" element={<MobileBillingPage />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

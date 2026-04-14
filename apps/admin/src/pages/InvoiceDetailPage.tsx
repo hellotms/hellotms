@@ -135,6 +135,8 @@ export default function InvoiceDetailPage() {
             face_value: values.unit_price,
             entry_date: new Date().toISOString().slice(0, 10),
             paid_status: 'unpaid',
+            paid_amount: 0,
+            due_amount: (values.cost_price || 0) * values.quantity,
             is_external: false,
           })
           .select('id')
@@ -183,7 +185,7 @@ export default function InvoiceDetailPage() {
           .insert({
             project_id: invoice.projects.id, type: 'expense', category: values.description,
             amount: values.cost_price, quantity: values.quantity, face_value: values.unit_price,
-            entry_date: new Date().toISOString().slice(0, 10), paid_status: 'unpaid', is_external: false,
+            entry_date: new Date().toISOString().slice(0, 10), paid_status: 'unpaid', paid_amount: 0, due_amount: values.cost_price, is_external: false,
           })
           .select('id').single();
           if (newLedger) {

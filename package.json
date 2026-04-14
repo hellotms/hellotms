@@ -1,6 +1,6 @@
 {
   "name": "hellotms-marketing-solution",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Marketing Solution - Events Management System for themarketingsolution.com.bd",
   "scripts": {
@@ -41,5 +41,8 @@
       "workerd",
       "@next/swc-win32-x64-msvc"
     ]
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.103.0"
   }
 }

@@ -8,10 +8,12 @@ import type { SiteSettings } from '@hellotms/shared';
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
+  { href: '/team', label: 'Our Team' },
   { href: '/portfolio', label: 'Portfolio' },
+  { href: '/partners', label: 'Valued Partners' },
   { href: '/services', label: 'Services' },
-  { href: '/about', label: 'About' },
   { href: '/contact', label: 'Contact' },
+  { href: '/about', label: 'About' },
 ];
 
 export function Navbar() {

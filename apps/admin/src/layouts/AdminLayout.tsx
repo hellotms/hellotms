@@ -9,9 +9,8 @@ import {
 import { useState, useEffect, useRef } from 'react';
 import IdleScreen from '@/components/IdleScreen';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
-import { MobileBillingSheet } from '@/components/MobileBillingSheet';
-import { MobileProfileDrawer } from '@/components/MobileProfileDrawer';
 import { useQuery } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from 'next-themes';
 import packageJson from '../../package.json';
@@ -34,13 +33,21 @@ if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
   });
 }
 
-const navItems = [
-  { to: '/dashboard', label: 'My Dashboard', icon: LayoutDashboard },
-  { to: '/projects', label: 'Business Portfolio', icon: FolderOpen, permission: 'view_projects' },
-  { to: '/companies', label: 'Companies', icon: Building2, permission: 'manage_companies' },
-  { to: '/estimates', label: 'Estimates', icon: FileText, permission: 'manage_invoices' },
-  { to: '/invoices', label: 'Invoices', icon: Receipt, permission: 'manage_invoices' },
-  { to: '/leads', label: 'Contact Form', icon: MessageSquare, permission: 'view_leads' },
+const getNavItems = (
+  lastIds: { project: string | null, invoice: string | null, estimate: string | null },
+  currentPath: string
+) => {
+  const isProjectsActive = currentPath.startsWith('/projects');
+  const isInvoicesActive = currentPath.startsWith('/invoices');
+  const isEstimatesActive = currentPath.startsWith('/estimates');
+
+  return [
+    { to: '/dashboard', label: 'My Dashboard', icon: LayoutDashboard },
+    { to: isProjectsActive ? '/projects' : (lastIds.project ? `/projects/${lastIds.project}` : '/projects'), label: 'Business Portfolio', icon: FolderOpen, permission: 'view_projects' },
+    { to: '/companies', label: 'Companies', icon: Building2, permission: 'manage_companies' },
+    { to: isEstimatesActive ? '/estimates' : (lastIds.estimate ? `/estimates/${lastIds.estimate}` : '/estimates'), label: 'Estimates', icon: FileText, permission: 'manage_invoices' },
+    { to: isInvoicesActive ? '/invoices' : (lastIds.invoice ? `/invoices/${lastIds.invoice}` : '/invoices'), label: 'Invoices', icon: Receipt, permission: 'manage_invoices' },
+    { to: '/leads', label: 'Contact Form', icon: MessageSquare, permission: 'view_leads' },
   { to: '/notices', label: 'Notice Board', icon: Megaphone, permission: 'view_notices' },
   { to: '/staff', label: 'All Staff', icon: Users, permission: 'view_staff' },
   { to: '/profile', label: 'My Profile', icon: UserCog },
@@ -48,7 +55,8 @@ const navItems = [
   { to: '/work-logs', label: 'Activity Log', icon: ClipboardList, permission: 'view_audit_logs' },
   { to: '/cms', label: 'Core Settings', icon: Globe, permission: 'manage_cms' },
   { to: '/download-app', label: 'Download App', icon: Download },
-];
+  ];
+};
 
 interface SidebarProps {
   mobile?: boolean;
@@ -62,9 +70,13 @@ interface SidebarProps {
   onApplyUpdate?: () => void;
   isUpdating?: boolean;
   appVersion?: string;
+  lastIds?: { project: string | null, invoice: string | null, estimate: string | null };
 }
 
-const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, handleSignOut, can, hasUpdate, onApplyUpdate, isUpdating, appVersion }: SidebarProps) => (
+const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, handleSignOut, can, hasUpdate, onApplyUpdate, isUpdating, appVersion, lastIds }: SidebarProps) => {
+  const location = useLocation();
+  const navItems = getNavItems(lastIds ?? { project: null, invoice: null, estimate: null }, location.pathname);
+  return (
   <div className={cn(
     'flex flex-col h-full bg-sidebar text-sidebar-foreground',
     mobile ? 'w-72' : 'w-64'
@@ -149,21 +161,61 @@ const Sidebar = ({ mobile = false, profile, role, setSidebarOpen, navigate, hand
       </button>
     </div>
   </div>
-);
+  );
+};
 
 export default function AdminLayout() {
   const { profile, role, signOut, can } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [billingOpen, setBillingOpen] = useState(false);
-  const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
   const [hasUpdate, setHasUpdate] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<any>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [appVersion, setAppVersion] = useState<string>(packageJson.version);
+
+  // Persistent Navigation Logic
+  const lastProjectId = localStorage.getItem('last_project_id');
+  const lastInvoiceId = localStorage.getItem('last_invoice_id');
+  const lastEstimateId = localStorage.getItem('last_estimate_id');
+  
+  const lastIds = {
+    project: lastProjectId,
+    invoice: lastInvoiceId,
+    estimate: lastEstimateId
+  };
+
+  useEffect(() => {
+    // Capture IDs from URL or clear them if on the list root
+    if (location.pathname.startsWith('/projects')) {
+       const match = location.pathname.match(/^\/projects\/([a-f0-9-]+)/i);
+       if (match && match[1]) {
+           localStorage.setItem('last_project_id', match[1]);
+       } else if (location.pathname === '/projects') {
+           localStorage.removeItem('last_project_id');
+       }
+    }
+
+    if (location.pathname.startsWith('/invoices')) {
+       const match = location.pathname.match(/^\/invoices\/([a-f0-9-]+)/i);
+       if (match && match[1]) {
+           localStorage.setItem('last_invoice_id', match[1]);
+       } else if (location.pathname === '/invoices') {
+           localStorage.removeItem('last_invoice_id');
+       }
+    }
+
+    if (location.pathname.startsWith('/estimates')) {
+       const match = location.pathname.match(/^\/estimates\/([a-f0-9-]+)/i);
+       if (match && match[1]) {
+           localStorage.setItem('last_estimate_id', match[1]);
+       } else if (location.pathname === '/estimates') {
+           localStorage.removeItem('last_estimate_id');
+       }
+    }
+  }, [location.pathname]);
 
   // Check for updates (PC Apps only - Native Updater)
   useEffect(() => {
@@ -299,6 +351,7 @@ export default function AdminLayout() {
           onApplyUpdate={handleApplyUpdate}
           isUpdating={isUpdating}
           appVersion={appVersion}
+          lastIds={lastIds}
         />
       </aside>
 
@@ -319,6 +372,7 @@ export default function AdminLayout() {
               onApplyUpdate={handleApplyUpdate}
               isUpdating={isUpdating}
               appVersion={appVersion}
+              lastIds={lastIds}
             />
           </div>
         </div>
@@ -399,38 +453,24 @@ export default function AdminLayout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto">
-          <div key={location.pathname} className="p-4 md:p-6 lg:p-8 pb-20 md:pb-8 animate-in fade-in slide-in-from-bottom-2 duration-200">
-            <Outlet />
-          </div>
+        <main className="flex-1 overflow-auto relative">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ x: 20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -20, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="p-4 md:p-6 lg:p-8 pb-20 md:pb-8"
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <MobileBottomNav
-        onBillingOpen={() => setBillingOpen(true)}
-        onProfileOpen={() => setProfileDrawerOpen(true)}
-      />
-
-      {/* Mobile Billing Sheet */}
-      <MobileBillingSheet
-        isOpen={billingOpen}
-        onClose={() => setBillingOpen(false)}
-      />
-
-      {/* Mobile Profile Drawer */}
-      <MobileProfileDrawer
-        isOpen={profileDrawerOpen}
-        onClose={() => setProfileDrawerOpen(false)}
-        profile={profile}
-        role={role}
-        can={can}
-        handleSignOut={handleSignOut}
-        hasUpdate={hasUpdate}
-        onApplyUpdate={handleApplyUpdate}
-        isUpdating={isUpdating}
-        appVersion={appVersion}
-      />
+      <MobileBottomNav />
     </div>
   );
 }

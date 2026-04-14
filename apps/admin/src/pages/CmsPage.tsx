@@ -331,11 +331,13 @@ export default function CmsPage() {
                 <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-primary">Enter Builder <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" /></div>
               </Link>
 
-              <div className="p-6 bg-card border border-border border-dashed rounded-3xl opacity-50 flex flex-col items-center justify-center text-center">
-                <div className="h-12 w-12 rounded-2xl bg-muted text-muted-foreground flex items-center justify-center mb-4"><Database className="h-6 w-6" /></div>
-                <h3 className="text-sm font-black text-foreground mb-1">Portfolios Page</h3>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Coming Soon</p>
-              </div>
+              <Link to="/cms/our-team" className="group p-6 bg-gradient-to-br from-card to-muted/20 border border-border rounded-3xl hover:border-primary/40 transition-all hover:shadow-xl hover:shadow-primary/5 cursor-pointer relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -z-10 transition-transform group-hover:scale-110" />
+                <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6 group-hover:bg-primary group-hover:text-primary-foreground transition-colors"><Users className="h-6 w-6" /></div>
+                <h3 className="text-xl font-black text-foreground mb-2 leading-tight">Team Portfolio<br />Management</h3>
+                <p className="text-xs text-muted-foreground font-medium mb-6">Manage the team members displayed in the "Our Team" section of the site.</p>
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-primary">Manage Team <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" /></div>
+              </Link>
             </div>
           )}
 

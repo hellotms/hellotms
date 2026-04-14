@@ -31,7 +31,7 @@ export default function ClientSlider() {
     <section id="clients" className="py-24 bg-background relative overflow-hidden border-t border-border/40">
       <div className="container px-4 mx-auto mb-16 text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/5 border border-primary/10 text-[10px] font-black tracking-[0.2em] text-primary uppercase mb-4">
-          Partnerships
+          Our Valued Partners
         </div>
         <h2 className="text-2xl md:text-3xl font-black text-foreground tracking-tight max-w-2xl mx-auto leading-tight">
           Trusted by global brands and industry leaders
@@ -47,7 +47,7 @@ export default function ClientSlider() {
           {displayCompanies.map((company, i) => (
             <div
               key={`${company.id}-${i}`}
-              className="flex items-center gap-4 transition-all duration-500 group"
+              className="flex items-center gap-4 transition-transform duration-500 hover:scale-110 group cursor-pointer"
             >
               {company.logo_url ? (
                 <div className="relative h-8 md:h-11 w-24">
@@ -55,7 +55,7 @@ export default function ClientSlider() {
                     src={company.logo_url}
                     alt={company.name}
                     fill
-                    className="object-contain transition-all duration-500 hover:scale-110 drop-shadow-sm"
+                    className="object-contain drop-shadow-sm"
                   />
                 </div>
               ) : (

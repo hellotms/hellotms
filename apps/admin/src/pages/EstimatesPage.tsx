@@ -307,6 +307,8 @@ export default function EstimatesPage() {
                   face_value: item.unit_price,
                   entry_date: new Date().toISOString().slice(0, 10),
                   paid_status: 'unpaid',
+                  paid_amount: 0,
+                  due_amount: (item.costPrice || 0) * item.quantity,
                   is_external: false,
                 })
                 .select('id')

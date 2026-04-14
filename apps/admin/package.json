@@ -1,6 +1,6 @@
 {
   "name": "@hellotms/admin",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "Admin Panel - The Marketing Solution (admin.themarketingsolution.com.bd)",
   "type": "module",
@@ -43,6 +43,7 @@
     "cmdk": "^0.2.1",
     "date-fns": "^3.3.1",
     "date-fns-tz": "^3.2.0",
+    "framer-motion": "^12.38.0",
     "lucide-react": "^0.335.0",
     "next-themes": "^0.4.6",
     "react": "^18.2.0",

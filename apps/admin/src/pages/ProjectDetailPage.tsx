@@ -390,7 +390,20 @@ export default function ProjectDetailPage() {
   }, [watchPaidStatus, watchAmount, ledgerForm]);
 
   const saveLedgerMutation = useMutation({
-    mutationFn: async (values: LedgerEntryInput) => {
+    mutationFn: async (inputValues: LedgerEntryInput) => {
+      const values = { ...inputValues };
+      const amt = Number(values.amount) || 0;
+      if (values.paid_status === 'unpaid') {
+        values.paid_amount = 0;
+        values.due_amount = amt;
+      } else if (values.paid_status === 'paid') {
+        values.paid_amount = amt;
+        values.due_amount = 0;
+      } else if (values.paid_status === 'partial') {
+        values.paid_amount = Number(values.paid_amount) || 0;
+        values.due_amount = Math.max(0, amt - values.paid_amount);
+      }
+
       if (editingEntry) {
         const { error } = await supabase.from('ledger_entries').update(values).eq('id', editingEntry.id);
         if (error) throw error;
@@ -1363,7 +1376,13 @@ export default function ProjectDetailPage() {
               <tr className="bg-muted/50 font-bold border-t-2 border-border">
                 <td colSpan={2} className="px-4 py-3 text-right text-muted-foreground">Total Expenses:</td>
                 <td className="px-4 py-3 text-red-500 font-mono">{formatBDT(expenses)}</td>
-                <td colSpan={5}></td>
+                <td className="px-4 py-3 text-emerald-600 font-mono">
+                  {formatBDT(ledger.filter(e => !e.is_external).reduce((s, e) => s + Number(e.paid_amount ?? (e.paid_status === 'paid' ? e.amount : 0)), 0))}
+                </td>
+                <td className="px-4 py-3 text-orange-600 font-mono">
+                  {formatBDT(vCashDue)}
+                </td>
+                <td colSpan={3}></td>
               </tr>
             )}
           />
@@ -1404,9 +1423,15 @@ export default function ProjectDetailPage() {
             columns={expenseColumns} 
             footerRow={ledger.filter(e => e.is_external).length > 0 && (
               <tr className="bg-muted/50 font-bold border-t-2 border-border">
-                <td colSpan={2} className="px-4 py-3 text-right text-muted-foreground">Total Other Expenses:</td>
+                <td colSpan={2} className="px-4 py-3 text-right text-muted-foreground">Total Others Expenses:</td>
                 <td className="px-4 py-3 text-red-500 font-mono">{formatBDT(otherExpenses)}</td>
-                <td colSpan={5}></td>
+                <td className="px-4 py-3 text-emerald-600 font-mono">
+                  {formatBDT(ledger.filter(e => e.is_external).reduce((s, e) => s + Number(e.paid_amount ?? (e.paid_status === 'paid' ? e.amount : 0)), 0))}
+                </td>
+                <td className="px-4 py-3 text-orange-600 font-mono">
+                  {formatBDT(ledger.filter(e => e.type === 'expense' && e.is_external).reduce((s, e) => s + Number(e.due_amount ?? (e.paid_status === 'paid' ? 0 : e.amount)), 0))}
+                </td>
+                <td colSpan={3}></td>
               </tr>
             )}
           />
@@ -1523,9 +1548,9 @@ export default function ProjectDetailPage() {
             </div>
             {[
               { label: 'Event Duration', value: durations.event_duration_days !== null ? `${durations.event_duration_days} day(s)` : 'N/A' },
-              { label: 'Days Since Started', value: durations.days_since_started !== null ? `${durations.days_since_started} days` : 'N/A' },
-              { label: 'Days Since Ended', value: durations.days_since_ended !== null ? `${durations.days_since_ended} days ago` : 'N/A' },
-              { label: 'Project Completion Time', value: durations.completion_time_days !== null ? `${durations.completion_time_days} days after event end` : 'N/A' },
+              { label: 'Days Since Started', value: durations.days_since_started !== null ? (durations.days_since_started > 0 ? `${durations.days_since_started} days ago` : (durations.days_since_started === 0 ? 'Starts today' : `Starts in ${Math.abs(durations.days_since_started)} days`)) : 'N/A' },
+              { label: 'Days Since Ended', value: durations.days_since_ended !== null ? (durations.days_since_ended > 0 ? `${durations.days_since_ended} days ago` : (durations.days_since_ended === 0 ? 'Ends today' : `Ends in ${Math.abs(durations.days_since_ended)} days`)) : 'N/A' },
+              { label: 'Project Completion Time', value: durations.completion_time_days !== null ? (durations.completion_time_days > 0 ? `${durations.completion_time_days} days after event end` : (durations.completion_time_days === 0 ? 'Completed on end date' : `${Math.abs(durations.completion_time_days)} days before event end`)) : 'N/A' },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
                 <span className="text-sm text-muted-foreground">{label}</span>

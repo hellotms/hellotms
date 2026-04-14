@@ -26,6 +26,11 @@ export const revalidate = 60; // Revalidate every minute
 
 export default async function AboutPage() {
   const { data: settings } = await supabase.from('site_settings').select('*').eq('id', 1).single();
+  const config = settings?.about_page_config as any;
+
+  const mission = config?.mission || {};
+  const values = config?.values?.items || TEAM_VALUES;
+  const milestones = config?.journey?.milestones || MILESTONES;
 
   return (
     <div className="pt-16">
@@ -33,12 +38,12 @@ export default async function AboutPage() {
       <section className="relative py-20 sm:py-28 hero-gradient overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/8 rounded-full blur-3xl" />
         <div className="container relative z-10 text-center">
-          <p className="text-[var(--accent)] text-xs font-bold tracking-widest uppercase mb-3">Our Story</p>
+          <p className="text-[var(--accent)] text-xs font-bold tracking-widest uppercase mb-3">{config?.hero?.badge || 'Our Story'}</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[var(--foreground)] mb-5">
-            About <span className="text-[#d6802b]">The Marketing Solution</span>
+            {config?.hero?.title_primary || 'About'} <span className="text-[#d6802b]">{config?.hero?.title_highlight || 'The Marketing Solution'}</span>
           </h1>
           <p className="text-[var(--muted)] text-lg max-w-2xl mx-auto leading-relaxed">
-            {settings?.hero_subtitle || 'We are Bangladesh\'s premier event management and marketing agency — a team of passionate creatives, strategic planners, and relentless executors.'}
+            {config?.hero?.description || settings?.hero_subtitle || 'We are Bangladesh\'s premier event management and marketing agency — a team of passionate creatives, strategic planners, and relentless executors.'}
           </p>
         </div>
       </section>
@@ -53,7 +58,7 @@ export default async function AboutPage() {
                 <div className="text-center p-8 relative z-10">
                   <div className="text-7xl mb-6 filter drop-shadow-lg transform transition-transform duration-500 group-hover:scale-110">🎯</div>
                   <p className="text-neutral-800 dark:text-white/80 text-lg font-medium italic max-w-xs mx-auto leading-relaxed drop-shadow-sm">
-                    "Our mission is to transform <span className="text-[#d6802b] font-bold">ordinary moments</span> into <span className="text-[#d6802b] font-bold">extraordinary memories</span>."
+                    "{mission.statement || 'Our mission is to transform ordinary moments into extraordinary memories.'}"
                   </p>
                 </div>
                 {/* Decorative glow */}
@@ -62,8 +67,8 @@ export default async function AboutPage() {
               </div>
               {/* Floating card */}
               <div className="absolute -bottom-5 -right-5 bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 shadow-xl">
-                <p className="text-2xl font-black text-[var(--foreground)]">500+</p>
-                <p className="text-xs text-[var(--muted)]">Events Executed</p>
+                <p className="text-2xl font-black text-[var(--foreground)]">{mission.stats_value || '500+'}</p>
+                <p className="text-xs text-[var(--muted)]">{mission.stats_label || 'Events Executed'}</p>
               </div>
             </div>
 
@@ -73,18 +78,27 @@ export default async function AboutPage() {
               <h2 className="text-3xl sm:text-4xl font-black text-[var(--foreground)] mb-5 leading-tight">
                 Transforming Visions Into <span className="text-[#d6802b]">Unforgettable Experiences</span>
               </h2>
-              {settings?.about_content ? (
-                <div className="text-[var(--muted)] leading-relaxed mb-8 whitespace-pre-wrap">
+              {mission.description_p1 ? (
+                <div className="text-[var(--muted)] leading-relaxed mb-4 whitespace-pre-wrap">
+                  {mission.description_p1}
+                </div>
+              ) : settings?.about_content ? (
+                <div className="text-[var(--muted)] leading-relaxed mb-4 whitespace-pre-wrap">
                   {settings.about_content}
                 </div>
               ) : (
-                <p className="text-[var(--muted)] leading-relaxed mb-8">
+                <p className="text-[var(--muted)] leading-relaxed mb-4">
                   Please update the about story in the administrative dashboard to display your content here.
                 </p>
               )}
+              {mission.description_p2 && (
+                <div className="text-[var(--muted)] leading-relaxed mb-8 whitespace-pre-wrap">
+                  {mission.description_p2}
+                </div>
+              )}
               <Link
                 href="/contact"
-                className="inline-flex items-center gap-2 bg-[var(--accent-dark)] hover:bg-[var(--accent)] text-white px-6 py-3 rounded-xl font-semibold transition-all hover:shadow-lg hover:shadow-[var(--accent)]/25"
+                className="inline-flex items-center gap-2 bg-[var(--accent-dark)] hover:bg-[var(--accent)] text-white px-6 py-3 rounded-xl font-semibold transition-all hover:shadow-lg hover:shadow-[var(--accent)]/25 mt-4"
               >
                 Work With Us <ArrowRight className="h-4 w-4" />
               </Link>
@@ -103,13 +117,13 @@ export default async function AboutPage() {
             </h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {TEAM_VALUES.map(({ icon: Icon, title, text }) => (
-              <div key={title} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 card-hover">
+            {values.map((v: any, i: number) => (
+              <div key={i} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 card-hover">
                 <div className="w-12 h-12 rounded-xl bg-[var(--accent)]/10 flex items-center justify-center mb-4">
-                  <Icon className="h-6 w-6 text-[var(--accent)]" />
+                   <Sparkles className="h-6 w-6 text-[var(--accent)]" />
                 </div>
-                <h3 className="font-bold text-[var(--foreground)] mb-2">{title}</h3>
-                <p className="text-sm text-[var(--muted)] leading-relaxed">{text}</p>
+                <h3 className="font-bold text-[var(--foreground)] mb-2">{v.title}</h3>
+                <p className="text-sm text-[var(--muted)] leading-relaxed">{v.text}</p>
               </div>
             ))}
           </div>
@@ -127,8 +141,8 @@ export default async function AboutPage() {
           </div>
           <div className="relative space-y-6">
             <div className="absolute left-8 top-0 bottom-0 w-px bg-[var(--border)] hidden sm:block" />
-            {MILESTONES.map((m) => (
-              <div key={m.year} className="flex gap-5 items-start">
+            {milestones.map((m: any, i: number) => (
+              <div key={i} className="flex gap-5 items-start">
                 <div className="shrink-0 w-16 h-16 rounded-2xl bg-[var(--accent-dark)] flex items-center justify-center text-white text-xs font-black">
                   {m.year}
                 </div>
