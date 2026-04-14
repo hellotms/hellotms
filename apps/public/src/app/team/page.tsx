@@ -38,61 +38,68 @@ export default async function TeamPage() {
 
         {/* Team Grid */}
         {teamMembers && teamMembers.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 md:gap-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             {teamMembers.map((member) => (
               <div 
                 key={member.id} 
-                className="group relative bg-[var(--surface)] hover:bg-[var(--surface-hover)] border border-[var(--border)] rounded-3xl p-6 transition-all duration-500 hover:shadow-2xl hover:shadow-[var(--accent)]/5 overflow-hidden"
+                className="group relative aspect-[3/4] bg-[var(--surface)] border border-[var(--border)] rounded-[2rem] overflow-hidden transition-all duration-700 hover:shadow-2xl hover:shadow-[var(--accent)]/20"
               >
-                {/* Background Highlight on Hover */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--accent)]/5 rounded-bl-full -z-10 translate-x-10 -translate-y-10 group-hover:translate-x-0 group-hover:translate-y-0 transition-transform duration-500" />
-                
-                <div className="relative mb-6 mx-auto w-40 h-40">
+                {/* Full Card Image */}
+                <div className="absolute inset-0 w-full h-full">
                   {member.photo_url ? (
-                    <div className="w-full h-full rounded-2xl overflow-hidden shadow-lg group-hover:shadow-[var(--accent)]/20 transition-all duration-500 border border-[var(--border)] group-hover:border-[var(--accent)]/30">
-                      <Image
-                        src={member.photo_url}
-                        alt={member.name}
-                        fill
-                        className="object-cover transition-transform duration-700 group-hover:scale-110"
-                      />
-                    </div>
+                    <Image
+                      src={member.photo_url}
+                      alt={member.name}
+                      fill
+                      className="object-cover transition-transform duration-1000 ease-out group-hover:scale-110"
+                    />
                   ) : (
-                    <div className="w-full h-full rounded-2xl bg-gradient-to-br from-[var(--accent)]/10 to-[var(--accent)]/30 flex items-center justify-center border border-[var(--border)]">
-                      <span className="text-4xl font-black text-[var(--accent)] opacity-50">
-                        {member.name.charAt(0).toUpperCase()}
+                    <div className="w-full h-full bg-gradient-to-br from-[var(--accent)]/10 to-[var(--accent)]/40 flex items-center justify-center">
+                      <span className="text-5xl font-black text-[var(--accent)] opacity-50 uppercase">
+                        {member.name.charAt(0)}
                       </span>
                     </div>
                   )}
                 </div>
+
+                {/* Glassmorphic Overlay Content */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-60 group-hover:opacity-100 transition-opacity duration-500" />
                 
-                <div className="text-center">
-                  <h3 className="text-xl font-black text-[var(--foreground)] tracking-tight mb-1 group-hover:text-[var(--accent)] transition-colors">
+                <div className="absolute inset-0 flex flex-col justify-end p-8 translate-y-6 group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]">
+                  {/* Designation Badge (Slides in first) */}
+                  <div className="mb-2 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-700 delay-100">
+                    <span className="px-3 py-1 rounded-full bg-[var(--accent)]/20 border border-[var(--accent)]/30 backdrop-blur-md text-[10px] font-black tracking-widest text-[var(--accent)] uppercase">
+                      {member.designation}
+                    </span>
+                  </div>
+
+                  {/* Name (Hidden by default, reveal on hover) */}
+                  <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight mb-4 drop-shadow-lg opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-700 delay-150">
                     {member.name}
                   </h3>
-                  <p className="text-[14px] font-bold text-[var(--muted)] mb-5">
-                    {member.designation}
-                  </p>
                   
-                  {/* Social Links */}
-                  <div className="flex items-center justify-center gap-3">
+                  {/* Social Links (Fade in with extra delay) */}
+                  <div className="flex items-center gap-4 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-700 delay-250">
                     {member.linkedin_url && (
-                      <a href={member.linkedin_url} target="_blank" rel="noopener noreferrer" className="p-2 rounded-full bg-[var(--background)] border border-[var(--border)] text-[var(--muted)] hover:text-[#0077b5] hover:border-[#0077b5]/30 hover:bg-[#0077b5]/5 transition-all">
-                        <Linkedin className="h-4 w-4" />
+                      <a href={member.linkedin_url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-[var(--accent)] hover:border-[var(--accent)] transition-all">
+                        <Linkedin className="h-5 w-5" />
                       </a>
                     )}
                     {member.facebook_url && (
-                      <a href={member.facebook_url} target="_blank" rel="noopener noreferrer" className="p-2 rounded-full bg-[var(--background)] border border-[var(--border)] text-[var(--muted)] hover:text-[#1877f2] hover:border-[#1877f2]/30 hover:bg-[#1877f2]/5 transition-all">
-                        <Facebook className="h-4 w-4" />
+                      <a href={member.facebook_url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-[#1877f2] hover:border-[#1877f2] transition-all">
+                        <Facebook className="h-5 w-5" />
                       </a>
                     )}
                     {member.twitter_url && (
-                      <a href={member.twitter_url} target="_blank" rel="noopener noreferrer" className="p-2 rounded-full bg-[var(--background)] border border-[var(--border)] text-[var(--muted)] hover:text-[#1da1f2] hover:border-[#1da1f2]/30 hover:bg-[#1da1f2]/5 transition-all">
-                        <Twitter className="h-4 w-4" />
+                      <a href={member.twitter_url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-[#000] hover:border-[#333] transition-all">
+                        <Twitter className="h-5 w-5" />
                       </a>
                     )}
                   </div>
                 </div>
+
+                {/* Decorative Accent Line */}
+                <div className="absolute bottom-0 left-0 w-full h-1 bg-[var(--accent)] scale-x-0 group-hover:scale-x-100 transition-transform duration-700 origin-left" />
               </div>
             ))}
           </div>
