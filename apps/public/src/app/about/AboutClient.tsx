@@ -60,7 +60,7 @@ export default function AboutClient() {
         <div className="container relative z-10 text-center">
           <p className="text-[var(--accent)] text-xs font-bold tracking-widest uppercase mb-3">{config?.hero?.badge || 'Our Story'}</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[var(--foreground)] mb-5">
-            {config?.hero?.title_primary || 'Our'} <span className="text-[#d6802b]">{config?.hero?.title_highlight || 'Story'}</span>
+            About <span className="text-[#d6802b]">The Marketing Solution</span>
           </h1>
           <p className="text-[var(--muted)] text-lg max-w-2xl mx-auto leading-relaxed">
             {config?.hero?.description || data?.hero_subtitle || 'We are Bangladesh\'s premier event management and marketing agency — a team of passionate creatives, strategic planners, and relentless executors.'}
