@@ -355,17 +355,39 @@ export default function AdminLayout() {
     return route;
   };
 
+  const canScrollMore = (target: HTMLElement, direction: 'left' | 'right') => {
+    let el: HTMLElement | null = target;
+    while (el && el !== document.body) {
+      const style = window.getComputedStyle(el);
+      const isScrollable = (style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth;
+      
+      if (isScrollable) {
+        if (direction === 'left' && el.scrollLeft > 2) return true; // threshold of 2px for precision
+        if (direction === 'right' && el.scrollLeft + el.clientWidth < el.scrollWidth - 2) return true;
+      }
+      el = el.parentElement;
+    }
+    return false;
+  };
+
   const handlePanEnd = (event: any, info: any) => {
     if (window.innerWidth >= 768) return; // Only mobile
 
-    const threshold = 100; // Increased threshold for more deliberate swipe
-    const velocityThreshold = 0.8; // Increased slightly for better feel
+    const threshold = 80; // Optimized distance for responsiveness
+    const velocityThreshold = 0.5; // Easier to trigger with a natural flick
     const { offset, velocity } = info;
 
     // Only trigger if horizontal movement is significantly greater than vertical movement
-    const isHorizontal = Math.abs(offset.x) > Math.abs(offset.y) * 1.8;
+    const isHorizontal = Math.abs(offset.x) > Math.abs(offset.y) * 1.4;
 
     if (isHorizontal && (Math.abs(offset.x) > threshold || Math.abs(velocity.x) > velocityThreshold)) {
+      const direction = offset.x > 0 ? 'left' : 'right';
+      
+      // Boundary check: If we are swiping over a scrollable element that hasn't reached its edge, do nothing
+      if (event.target && canScrollMore(event.target as HTMLElement, direction)) {
+        return;
+      }
+
       // Find current section index
       let currentIndex = mobileRoutes.findIndex(route => location.pathname.startsWith(route));
       
