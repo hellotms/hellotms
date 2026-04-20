@@ -176,13 +176,19 @@ export default function ProjectDetailPage() {
 
   // Column Definitions for DataTables
   const expenseColumns: ColumnDef<LedgerEntry>[] = [
-    { accessorKey: 'entry_date', header: 'Date', cell: ({ row }) => formatDate(row.original.entry_date) },
-    { accessorKey: 'category', header: 'Category' },
-    { accessorKey: 'amount', header: 'Total Cost', cell: ({ row }) => <span className="font-mono font-bold text-red-500">{formatBDT(row.original.amount)}</span> },
-    { accessorKey: 'paid_amount', header: 'Paid', cell: ({ row }) => <span className="font-mono text-emerald-600">{formatBDT(Number(row.original.paid_amount ?? (row.original.paid_status === 'paid' ? row.original.amount : 0)))}</span> },
-    { accessorKey: 'due_amount', header: 'Due', cell: ({ row }) => <span className="font-mono text-orange-600">{formatBDT(Number(row.original.due_amount ?? (row.original.paid_status === 'paid' ? 0 : row.original.amount)))}</span> },
+    { accessorKey: 'category', header: 'Particular', cell: ({ row }) => <div className="min-w-[250px] whitespace-pre-line break-words">{row.original.category}</div> },
+    { accessorKey: 'quantity', header: 'Qty', cell: ({ row }) => <span>{row.original.quantity || 1}</span> },
+    { accessorKey: 'day_month', header: 'Days/Month', cell: ({ row }) => (
+      <div className="flex items-center gap-1 whitespace-nowrap">
+        <span className="font-medium">{row.original.day_month || 1}</span>
+        <span className="text-[10px] text-muted-foreground uppercase">{row.original.multiplier_label || 'Days'}</span>
+      </div>
+    ) },
+    { accessorKey: 'amount', header: 'Total Cost', cell: ({ row }) => <span className="inline-block min-w-[120px] whitespace-nowrap font-mono font-bold text-red-500">{formatBDT(row.original.amount)}</span> },
+    { accessorKey: 'paid_amount', header: 'Paid', cell: ({ row }) => <span className="inline-block min-w-[120px] whitespace-nowrap font-mono text-emerald-600">{formatBDT(Number(row.original.paid_amount ?? (row.original.paid_status === 'paid' ? row.original.amount : 0)))}</span> },
+    { accessorKey: 'due_amount', header: 'Due', cell: ({ row }) => <span className="inline-block min-w-[120px] whitespace-nowrap font-mono text-orange-600">{formatBDT(Number(row.original.due_amount ?? (row.original.paid_status === 'paid' ? 0 : row.original.amount)))}</span> },
     { accessorKey: 'paid_status', header: 'Status', cell: ({ row }) => <StatusBadge status={row.original.paid_status ?? 'unpaid'} /> },
-    { accessorKey: 'note', header: 'Note', cell: ({ row }) => <span className="max-w-[150px] truncate block" title={row.original.note ?? ''}>{row.original.note || '—'}</span> },
+    { accessorKey: 'note', header: 'Note', cell: ({ row }) => <span className="max-w-[200px] whitespace-pre-line block text-xs opacity-70" title={row.original.note ?? ''}>{row.original.note || '—'}</span> },
     {
       id: 'actions',
       header: '',
@@ -236,7 +242,7 @@ export default function ProjectDetailPage() {
       header: 'Collection Name', 
       cell: ({ row }) => (
         <div className="flex flex-col">
-          <span className="font-bold text-foreground">{row.original.name || `Received ${row.index + 1}`}</span>
+          <span className="font-bold text-foreground whitespace-pre-line">{row.original.name || `Received ${row.index + 1}`}</span>
           <span className="text-[10px] text-muted-foreground">{formatDate(row.original.payment_date)}</span>
         </div>
       ) 
@@ -303,10 +309,10 @@ export default function ProjectDetailPage() {
         </span>
       )
     },
-    { accessorKey: 'ledger_entries.category', header: 'Expense For', cell: ({ row }) => (row.original as any).ledger_entries?.category || '—' },
+    { accessorKey: 'ledger_entries.category', header: 'Expense For', cell: ({ row }) => <span className="whitespace-pre-line">{(row.original as any).ledger_entries?.category || '—'}</span> },
     { accessorKey: 'amount', header: 'Paid Amount', cell: ({ row }) => <span className="font-mono font-bold text-teal-600">{formatBDT(row.original.amount)}</span> },
     { accessorKey: 'method', header: 'Method', cell: ({ row }) => <span className="capitalize">{row.original.method || '—'}</span> },
-    { accessorKey: 'note', header: 'Note', cell: ({ row }) => <span className="max-w-[200px] truncate block">{row.original.note || '—'}</span> },
+    { accessorKey: 'note', header: 'Note', cell: ({ row }) => <span className="max-w-[200px] whitespace-pre-line block text-xs opacity-70">{row.original.note || '—'}</span> },
     {
       id: 'actions',
       header: '',
@@ -369,14 +375,28 @@ export default function ProjectDetailPage() {
       entry_date: new Date().toISOString().split('T')[0],
       paid_amount: 0,
       due_amount: 0,
+      day_month: 1,
+      quantity: 1,
     },
   });
 
   const watchPaidStatus = ledgerForm.watch('paid_status');
-  const watchAmount = ledgerForm.watch('amount');
+  const watchAmountTotal = ledgerForm.watch('amount');
+  const watchQty = ledgerForm.watch('quantity');
+  const watchMultiplier = ledgerForm.watch('day_month');
+  const watchFaceValue = ledgerForm.watch('face_value');
 
   useEffect(() => {
-    const amount = Number(watchAmount) || 0;
+    const qty = Number(watchQty) || 1;
+    const multi = Number(watchMultiplier) || 1;
+    const rate = Number(watchFaceValue) || 0;
+    if (rate > 0) {
+      ledgerForm.setValue('amount', qty * multi * rate);
+    }
+  }, [watchQty, watchMultiplier, watchFaceValue, ledgerForm]);
+
+  useEffect(() => {
+    const amount = Number(watchAmountTotal) || 0;
     if (watchPaidStatus === 'paid') {
       ledgerForm.setValue('paid_amount', amount);
       ledgerForm.setValue('due_amount', 0);
@@ -387,7 +407,7 @@ export default function ProjectDetailPage() {
       const currentPaid = Number(ledgerForm.getValues('paid_amount') || 0);
       ledgerForm.setValue('due_amount', Math.max(0, amount - currentPaid));
     }
-  }, [watchPaidStatus, watchAmount, ledgerForm]);
+  }, [watchPaidStatus, watchAmountTotal, ledgerForm]);
 
   const saveLedgerMutation = useMutation({
     mutationFn: async (inputValues: LedgerEntryInput) => {
@@ -1374,12 +1394,12 @@ export default function ProjectDetailPage() {
             columns={expenseColumns} 
             footerRow={ledger.filter(e => !e.is_external).length > 0 && (
               <tr className="bg-muted/50 font-bold border-t-2 border-border">
-                <td colSpan={2} className="px-4 py-3 text-right text-muted-foreground">Total Expenses:</td>
-                <td className="px-4 py-3 text-red-500 font-mono">{formatBDT(expenses)}</td>
-                <td className="px-4 py-3 text-emerald-600 font-mono">
+                <td colSpan={3} className="px-4 py-3 text-right text-muted-foreground font-bold whitespace-nowrap">Total Expenses:</td>
+                <td className="px-4 py-3 text-red-500 font-mono font-bold whitespace-nowrap">{formatBDT(expenses)}</td>
+                <td className="px-4 py-3 text-emerald-600 font-mono font-bold whitespace-nowrap">
                   {formatBDT(ledger.filter(e => !e.is_external).reduce((s, e) => s + Number(e.paid_amount ?? (e.paid_status === 'paid' ? e.amount : 0)), 0))}
                 </td>
-                <td className="px-4 py-3 text-orange-600 font-mono">
+                <td className="px-4 py-3 text-orange-600 font-mono font-bold whitespace-nowrap">
                   {formatBDT(vCashDue)}
                 </td>
                 <td colSpan={3}></td>
@@ -1841,9 +1861,9 @@ export default function ProjectDetailPage() {
             </div>
           </div>
           {/* Optional invoice-planning fields */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className={`block text-sm font-medium mb-1 ${ledgerForm.watch('is_external') ? 'opacity-50' : ''}`}>Qty <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
+              <label className={`block text-sm font-medium mb-1 ${ledgerForm.watch('is_external') ? 'opacity-50' : ''}`}>Qty</label>
               <input
                 type="number"
                 step="1"
@@ -1854,12 +1874,33 @@ export default function ProjectDetailPage() {
                 className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:bg-muted disabled:cursor-not-allowed ${ledgerForm.formState.errors.quantity ? 'border-red-500' : 'border-border'
                   }`}
               />
-              {ledgerForm.formState.errors.quantity && (
-                <p className="text-xs text-red-500 mt-1">{(ledgerForm.formState.errors.quantity as any)?.message}</p>
-              )}
             </div>
             <div>
-              <label className={`block text-sm font-medium mb-1 ${ledgerForm.watch('is_external') ? 'opacity-50' : ''}`}>Face Value / Sell Price <span className="text-xs text-muted-foreground font-normal">(optional)</span></label>
+              <label className={`block text-sm font-medium mb-1 ${ledgerForm.watch('is_external') ? 'opacity-50' : ''}`}>
+                <select 
+                  {...ledgerForm.register('multiplier_label')}
+                  className="bg-transparent border-none p-0 focus:ring-0 text-sm font-medium cursor-pointer hover:text-primary transition-colors"
+                  disabled={ledgerForm.watch('is_external')}
+                >
+                  <option value="Day">Day</option>
+                  <option value="Days">Days</option>
+                  <option value="Month">Month</option>
+                  <option value="Day/Month">Day/Month</option>
+                </select>
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.1"
+                placeholder="1"
+                disabled={ledgerForm.watch('is_external')}
+                {...ledgerForm.register('day_month', { valueAsNumber: true })}
+                className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:bg-muted disabled:cursor-not-allowed ${ledgerForm.formState.errors.day_month ? 'border-red-500' : 'border-border'
+                  }`}
+              />
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${ledgerForm.watch('is_external') ? 'opacity-50' : ''}`}>Unit Price / Rate</label>
               <input
                 type="number"
                 step="0.01"
@@ -1870,9 +1911,6 @@ export default function ProjectDetailPage() {
                 className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:bg-muted disabled:cursor-not-allowed ${ledgerForm.formState.errors.face_value ? 'border-red-500' : 'border-border'
                   }`}
               />
-              {ledgerForm.formState.errors.face_value && (
-                <p className="text-xs text-red-500 mt-1">{(ledgerForm.formState.errors.face_value as any)?.message}</p>
-              )}
             </div>
           </div>
           <div className="flex items-center gap-2 bg-card p-3 rounded-lg border border-border">

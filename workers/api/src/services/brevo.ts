@@ -157,13 +157,14 @@ export function buildInvoiceEmailHtml(params: {
   totalPaid: string;
   dueAmount: string;
   dueAmountNumber: number;
-  items: { description: string; qty: number; unitPrice: string; total: string; isSl?: number }[];
+  items: { description: string; qty: number; dayMonth: number; unitPrice: string; total: string; isSl?: number }[];
   collections: { date: string; method: string; amount: string }[];
   downloadUrl: string;
   companyName?: string;
   companyUrl?: string;
   companyEmail?: string;
   type?: string;
+  multiplierLabel?: string;
 }): string {
   const companyName = params.companyName || 'The Marketing Solution';
   const companyUrl = params.companyUrl || 'themarketingsolution.com.bd';
@@ -177,7 +178,7 @@ export function buildInvoiceEmailHtml(params: {
     <tr style="border-bottom:1px solid #e2e8f0;background:${i % 2 === 0 ? '#f8fafc' : '#ffffff'}">
       <td style="padding:10px;color:#475569;font-size:13px">${i + 1}</td>
       <td style="padding:10px;color:#1e293b;font-size:13px">${item.description}</td>
-      <td style="padding:10px;color:#1e293b;font-size:13px;text-align:center">${item.qty}</td>
+      <td style="padding:10px;color:#1e293b;font-size:13px;text-align:center">${item.qty} / ${item.dayMonth}</td>
       <td style="padding:10px;color:#1e293b;font-size:13px;text-align:right">${item.unitPrice}</td>
       <td style="padding:10px;color:#1e293b;font-size:13px;font-weight:bold;text-align:right">${item.total}</td>
     </tr>
@@ -248,7 +249,7 @@ export function buildInvoiceEmailHtml(params: {
           <tr>
             <th style="padding:12px 10px;text-align:left;font-size:11px;color:#ffffff;width:40px">SL</th>
             <th style="padding:12px 10px;text-align:left;font-size:11px;color:#ffffff">Description</th>
-            <th style="padding:12px 10px;text-align:center;font-size:11px;color:#ffffff;width:60px">Qty</th>
+            <th style="padding:12px 10px;text-align:center;font-size:11px;color:#ffffff;width:80px">Qty / ${params.multiplierLabel || 'Days'}</th>
             <th style="padding:12px 10px;text-align:right;font-size:11px;color:#ffffff;width:100px">Unit Price</th>
             <th style="padding:12px 10px;text-align:right;font-size:11px;color:#ffffff;width:120px">Total</th>
           </tr>
@@ -309,7 +310,7 @@ export function buildInvoiceEmailHtml(params: {
         </tr>
       </table>
       <p style="margin:12px 0 0;font-size:10px;color:#94a3b8;font-style:italic;text-align:right">
-        * This is a computer generated invoice, no signature is required.
+        * This is a computer generated ${labelPrefix.toLowerCase()}, no signature is required.
       </p>
     </div>
 

@@ -40,9 +40,9 @@ export default function EstimateDetailPage() {
   const [isEditingDate, setIsEditingDate] = useState(false);
   const [dateDraft, setDateDraft] = useState('');
 
-  const sendForm = useForm({ defaultValues: { recipient_email: '', recipient_name: '' } });
-  const newItemForm = useForm({ defaultValues: { description: '', cost_price: 0, quantity: 1, unit_price: 0 } });
-  const editItemForm = useForm({ defaultValues: { description: '', cost_price: 0, quantity: 1, unit_price: 0 } });
+  const sendForm = useForm({ defaultValues: { recipients: [{ name: '', email: '' }] } });
+  const newItemForm = useForm({ defaultValues: { description: '', cost_price: 0, day_month: 1, quantity: 1, unit_price: 0 } });
+  const editItemForm = useForm({ defaultValues: { description: '', cost_price: 0, day_month: 1, quantity: 1, unit_price: 0 } });
 
   const { data: estimate, isLoading } = useQuery<InvoiceWithRelations>({
     queryKey: ['estimate', id],
@@ -73,13 +73,27 @@ export default function EstimateDetailPage() {
     mutationFn: async (patch: Partial<Invoice>) => {
       const { error } = await supabase.from('invoices').update(patch).eq('id', id!);
       if (error) throw error;
+
+      // If multiplier_label is updated, sync it to all linked ledger entries
+      if (patch.multiplier_label && estimate?.invoice_items) {
+        const ledgerIds = estimate.invoice_items
+          .map(item => item.ledger_id)
+          .filter(Boolean) as string[];
+        
+        if (ledgerIds.length > 0) {
+          await supabase
+            .from('ledger_entries')
+            .update({ multiplier_label: patch.multiplier_label })
+            .in('id', ledgerIds);
+        }
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['estimate', id] }),
   });
 
   const sendMutation = useMutation({
-    mutationFn: async (values: { recipient_email: string; recipient_name: string }) => {
-      const result = await invoicesApi.send(id!, values.recipient_email, values.recipient_name) as { success: boolean; error?: string };
+    mutationFn: async (values: { recipients: { name: string; email: string }[] }) => {
+      const result = await invoicesApi.send(id!, values.recipients) as { success: boolean; error?: string };
       if (!result.success) throw new Error(result.error ?? 'Failed to send estimate');
       return result;
     },
@@ -91,11 +105,39 @@ export default function EstimateDetailPage() {
   });
 
   const addItemMutation = useMutation({
-    mutationFn: async (values: { description: string; cost_price: number; quantity: number; unit_price: number }) => {
-      const amount = values.quantity * values.unit_price;
+    mutationFn: async (values: { description: string; cost_price: number; day_month: number; quantity: number; unit_price: number }) => {
+      const amount = values.quantity * values.day_month * values.unit_price;
+      let finalLedgerId = null;
+
+      // Sync with project ledger if it's a real project
+      if (estimate?.projects?.id) {
+        const { data: newLedger, error: ledgerErr } = await supabase
+          .from('ledger_entries')
+          .insert({
+            project_id: estimate.projects.id,
+            type: 'expense',
+            category: values.description || 'Estimate Item Cost',
+            amount: (values.cost_price || 0) * values.quantity * values.day_month,
+            quantity: values.quantity,
+            day_month: values.day_month,
+            face_value: values.unit_price,
+            entry_date: new Date().toISOString().slice(0, 10),
+            paid_status: 'unpaid',
+            paid_amount: 0,
+            due_amount: (values.cost_price || 0) * values.quantity * values.day_month,
+            is_external: false,
+          })
+          .select('id')
+          .single();
+        if (!ledgerErr && newLedger) {
+          finalLedgerId = newLedger.id;
+        }
+      }
+
       const { error } = await supabase.from('invoice_items').insert({
         ...values,
         amount,
+        ledger_id: finalLedgerId,
         invoice_id: id
       });
       if (error) throw error;
@@ -106,16 +148,42 @@ export default function EstimateDetailPage() {
     onSuccess: (_, values) => {
       queryClient.invalidateQueries({ queryKey: ['estimate', id] });
       setIsAddingItem(false);
-      newItemForm.reset({ description: '', cost_price: 0, quantity: 1, unit_price: 0 });
+      newItemForm.reset({ description: '', cost_price: 0, day_month: 1, quantity: 1, unit_price: 0 });
       auditApi.log({ action: 'add_estimate_item', entity_type: 'invoice', entity_id: id, after: values });
     },
   });
 
   const editItemMutation = useMutation({
-    mutationFn: async ({ itemId, values }: { itemId: string; values: { description: string; cost_price: number; quantity: number; unit_price: number } }) => {
-      const amount = values.quantity * values.unit_price;
+    mutationFn: async ({ itemId, ledgerId, values }: { itemId: string; ledgerId?: string | null; values: { description: string; cost_price: number; day_month: number; quantity: number; unit_price: number } }) => {
+      const amount = values.quantity * values.day_month * values.unit_price;
       const { error } = await supabase.from('invoice_items').update({ ...values, amount }).eq('id', itemId);
       if (error) throw error;
+
+      // Sync with project ledger
+      if (ledgerId) {
+        await supabase.from('ledger_entries').update({
+          quantity: values.quantity,
+          day_month: values.day_month,
+          face_value: values.unit_price,
+          amount: values.cost_price * values.quantity * values.day_month,
+          category: values.description,
+          due_amount: values.cost_price * values.quantity * values.day_month,
+        }).eq('id', ledgerId);
+      } else if (values.cost_price > 0 && estimate?.projects?.id) {
+        const { data: newLedger } = await supabase
+          .from('ledger_entries')
+          .insert({
+            project_id: estimate.projects.id, type: 'expense', category: values.description,
+            amount: values.cost_price * values.quantity * values.day_month,
+            quantity: values.quantity, day_month: values.day_month, face_value: values.unit_price,
+            entry_date: new Date().toISOString().slice(0, 10), paid_status: 'unpaid', paid_amount: 0,
+            due_amount: values.cost_price * values.quantity * values.day_month, is_external: false,
+          })
+          .select('id').single();
+        if (newLedger) {
+          await supabase.from('invoice_items').update({ ledger_id: newLedger.id }).eq('id', itemId);
+        }
+      }
 
       const { data: items } = await supabase.from('invoice_items').select('amount').eq('invoice_id', id!);
       const newTotal = (items ?? []).reduce((s: number, i: { amount: number }) => s + i.amount, 0);
@@ -309,6 +377,22 @@ export default function EstimateDetailPage() {
                     <th className="text-left px-4 py-3 text-xs font-semibold">Description</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold w-24">Cost</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold w-20">Qty</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold w-20">
+                       {isDraft ? (
+                         <select 
+                           value={estimate.multiplier_label || 'Days'} 
+                           onChange={(e) => updateFieldMutation.mutate({ multiplier_label: e.target.value })}
+                           className="bg-transparent border-none focus:ring-0 cursor-pointer hover:text-primary transition-colors p-0 font-semibold"
+                         >
+                           <option value="Day">Day</option>
+                           <option value="Days">Days</option>
+                           <option value="Month">Month</option>
+                           <option value="Day/Month">Day/Month</option>
+                         </select>
+                       ) : (
+                         estimate.multiplier_label || 'Days'
+                       )}
+                     </th>
                     <th className="text-left px-4 py-3 text-xs font-semibold w-32">Sell Price (৳)</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold w-28">Total (৳)</th>
                     {isDraft && <th className="w-20" />}
@@ -318,13 +402,14 @@ export default function EstimateDetailPage() {
                   {estimate.invoice_items.map((item, idx) => (
                     <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
                       {isEditingItem === item.id ? (
-                        <td colSpan={isDraft ? 7 : 6} className="px-4 py-2">
-                          <form onSubmit={editItemForm.handleSubmit(v => editItemMutation.mutate({ itemId: item.id, values: v }))} className="flex gap-2 items-center">
+                        <td colSpan={isDraft ? 8 : 7} className="px-4 py-2">
+                          <form onSubmit={editItemForm.handleSubmit(v => editItemMutation.mutate({ itemId: item.id, ledgerId: item.ledger_id, values: v }))} className="flex gap-2 items-center">
                             <span className="text-muted-foreground text-xs w-6">{idx + 1}</span>
-                            <input {...editItemForm.register('description')} className="flex-1 border border-border rounded px-2 py-1 text-xs" />
-                            <input type="number" {...editItemForm.register('cost_price', { valueAsNumber: true })} className="w-20 border border-border rounded px-2 py-1 text-xs" />
-                            <input type="number" {...editItemForm.register('quantity', { valueAsNumber: true })} className="w-16 border border-border rounded px-2 py-1 text-xs" />
-                            <input type="number" {...editItemForm.register('unit_price', { valueAsNumber: true })} className="w-24 border border-border rounded px-2 py-1 text-xs" />
+                            <textarea {...editItemForm.register('description')} rows={2} className="flex-1 border border-border rounded px-2 py-1 text-xs bg-transparent resize-none" />
+                            <input type="number" {...editItemForm.register('cost_price', { valueAsNumber: true })} className="w-20 border border-border rounded px-2 py-1 text-xs bg-transparent" />
+                            <input type="number" {...editItemForm.register('quantity', { valueAsNumber: true })} className="w-14 border border-border rounded px-2 py-1 text-xs bg-transparent" />
+                            <input type="number" {...editItemForm.register('day_month', { valueAsNumber: true })} defaultValue={item.day_month || 1} className="w-14 border border-border rounded px-2 py-1 text-xs bg-transparent" />
+                            <input type="number" {...editItemForm.register('unit_price', { valueAsNumber: true })} className="w-24 border border-border rounded px-2 py-1 text-xs bg-transparent" />
                             <button type="submit" className="text-primary"><Save className="h-4 w-4" /></button>
                             <button type="button" onClick={() => setIsEditingItem(null)} className="text-muted-foreground"><X className="h-4 w-4" /></button>
                           </form>
@@ -332,15 +417,16 @@ export default function EstimateDetailPage() {
                       ) : (
                         <>
                           <td className="px-4 py-3 text-muted-foreground text-xs">{idx + 1}</td>
-                          <td className="px-4 py-3">{item.description}</td>
+                          <td className="px-4 py-3 whitespace-pre-line text-[11px] leading-relaxed text-muted-foreground italic">{item.description}</td>
                           <td className="px-4 py-3"><span className="text-[11px] font-mono opacity-60">{item.cost_price ? formatBDT(item.cost_price) : '—'}</span></td>
                           <td className="px-4 py-3 text-center">{item.quantity}</td>
+                          <td className="px-4 py-3 text-center">{item.day_month || 1}</td>
                           <td className="px-4 py-3">{formatBDT(item.unit_price)}</td>
                           <td className="px-4 py-3 font-semibold">{formatBDT(item.amount)}</td>
                           {isDraft && (
                             <td className="px-4 py-3">
                               <div className="flex gap-2">
-                                <button onClick={() => { setIsEditingItem(item.id); editItemForm.reset(item as any); }} className="text-muted-foreground hover:text-primary"><Edit className="h-4 w-4" /></button>
+                                <button onClick={() => { setIsEditingItem(item.id); editItemForm.reset({ ...item, day_month: item.day_month || 1 } as any); }} className="text-muted-foreground hover:text-primary"><Edit className="h-4 w-4" /></button>
                                 <button onClick={() => setDeleteItemId(item.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
                               </div>
                             </td>
@@ -349,14 +435,15 @@ export default function EstimateDetailPage() {
                       )}
                     </tr>
                   ))}
-                  {isAddingItem && (
+                   {isAddingItem && (
                     <tr className="border-b border-border bg-muted/20">
-                      <td colSpan={isDraft ? 7 : 6} className="px-4 py-2">
+                      <td colSpan={isDraft ? 8 : 7} className="px-4 py-2">
                         <form onSubmit={newItemForm.handleSubmit(v => addItemMutation.mutate(v))} className="flex gap-2 items-center">
-                          <input autoFocus {...newItemForm.register('description', { required: true })} placeholder="Item details..." className="flex-1 border border-border rounded px-2 py-1 text-xs" />
-                          <input type="number" {...newItemForm.register('cost_price', { valueAsNumber: true })} placeholder="0" className="w-20 border border-border rounded px-2 py-1 text-xs" />
-                          <input type="number" min="1" {...newItemForm.register('quantity', { valueAsNumber: true })} className="w-16 border border-border rounded px-2 py-1 text-xs" />
-                          <input type="number" {...newItemForm.register('unit_price', { valueAsNumber: true })} placeholder="0" className="w-24 border border-border rounded px-2 py-1 text-xs" />
+                          <textarea autoFocus {...newItemForm.register('description', { required: true })} placeholder="Item details..." rows={2} className="flex-1 border border-border rounded px-2 py-1 text-xs bg-transparent resize-none" />
+                          <input type="number" {...newItemForm.register('cost_price', { valueAsNumber: true })} placeholder="0" className="w-20 border border-border rounded px-2 py-1 text-xs bg-transparent" />
+                          <input type="number" min="1" {...newItemForm.register('quantity', { valueAsNumber: true })} className="w-14 border border-border rounded px-2 py-1 text-xs bg-transparent" />
+                          <input type="number" min="1" {...newItemForm.register('day_month', { valueAsNumber: true })} className="w-14 border border-border rounded px-2 py-1 text-xs bg-transparent" />
+                          <input type="number" {...newItemForm.register('unit_price', { valueAsNumber: true })} placeholder="0" className="w-24 border border-border rounded px-2 py-1 text-xs bg-transparent" />
                           <button type="submit" className="text-primary text-xs font-medium">Add</button>
                           <button type="button" onClick={() => setIsAddingItem(false)} className="text-muted-foreground"><X className="h-4 w-4" /></button>
                         </form>
@@ -437,12 +524,57 @@ export default function EstimateDetailPage() {
           </div>
         ) : (
           <form onSubmit={sendForm.handleSubmit(v => sendMutation.mutate(v))} className="space-y-4">
-            <input {...sendForm.register('recipient_name', { required: true })} placeholder="Recipient Name" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            <input type="email" {...sendForm.register('recipient_email', { required: true })} placeholder="Recipient Email" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+             <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                {sendForm.watch('recipients').map((_, index) => (
+                  <div key={index} className="p-3 border border-border rounded-lg bg-muted/20 relative group">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <input 
+                         {...sendForm.register(`recipients.${index}.name` as const, { required: true })} 
+                         placeholder="Recipient Name" 
+                         className="w-full border border-border rounded px-2.5 py-1.5 text-sm bg-card"
+                      />
+                      <input 
+                         type="email" 
+                         {...sendForm.register(`recipients.${index}.email` as const, { required: true })} 
+                         placeholder="email@example.com" 
+                         className="w-full border border-border rounded px-2.5 py-1.5 text-sm bg-card" 
+                      />
+                    </div>
+                    {sendForm.watch('recipients').length > 1 && (
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          const current = sendForm.getValues('recipients');
+                          sendForm.setValue('recipients', current.filter((_, i) => i !== index));
+                        }}
+                        className="absolute -top-2 -right-2 p-1 bg-destructive text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+             </div>
+
+             <button 
+                type="button" 
+                onClick={() => {
+                  const current = sendForm.getValues('recipients');
+                  sendForm.setValue('recipients', [...current, { name: '', email: '' }]);
+                }}
+                className="flex items-center gap-2 text-xs font-bold text-primary hover:bg-primary/5 px-2 py-1 rounded"
+             >
+                <Plus className="h-3 w-3" /> Add Recipient
+             </button>
+
             {sendError && <p className="text-sm text-destructive">{sendError}</p>}
-            <button type="submit" disabled={sendMutation.isPending} className="w-full py-2 bg-primary text-white rounded-lg text-sm font-medium">
-              {sendMutation.isPending ? 'Sending...' : 'Send Estimate'}
-            </button>
+            
+            <div className="flex justify-end gap-3 pt-4 border-t border-border mt-4">
+              <button type="button" onClick={() => setIsSendOpen(false)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
+              <button type="submit" disabled={sendMutation.isPending} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
+                {sendMutation.isPending ? 'Sending...' : `Send to ${sendForm.watch('recipients').length} Recipients`}
+              </button>
+            </div>
           </form>
         )}
       </Modal>

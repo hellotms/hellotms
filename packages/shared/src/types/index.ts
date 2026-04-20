@@ -75,6 +75,7 @@ export interface LedgerEntry {
   category: string;
   amount: number;
   quantity?: number | null;
+  day_month: number;
   face_value?: number | null;
   entry_date: string; // ISO date
   paid_status?: PaidStatus | null;
@@ -83,6 +84,7 @@ export interface LedgerEntry {
   note?: string | null;
   attachment_url?: string | null;
   is_external: boolean;
+  multiplier_label?: string;
   deleted_at?: string | null;
   created_at: string;
 }
@@ -134,6 +136,7 @@ export interface Invoice {
   sent_at?: string | null;
   paid_at?: string | null;
   pdf_url?: string | null;
+  multiplier_label?: string;
   created_by?: string | null;
   created_at: string;
   items?: InvoiceItem[];
@@ -145,6 +148,7 @@ export interface InvoiceItem {
   ledger_id?: string | null;
   description: string;
   quantity: number;
+  day_month: number;
   unit_price: number;
   amount: number;
   cost_price?: number;

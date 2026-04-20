@@ -123,10 +123,10 @@ export const staffApi = {
 
 // ─── Invoices ────────────────────────────────────────────────────────────────
 export const invoicesApi = {
-  send: (id: string, recipientEmail: string, recipientName: string, force = false) =>
+  send: (id: string, recipients: { name: string; email: string }[]) =>
     apiFetch(`/invoices/${id}/send`, {
       method: 'POST',
-      body: JSON.stringify({ recipientEmail, recipientName, force })
+      body: JSON.stringify({ recipients })
     }),
   getPdf: (id: string, force = false) =>
     apiFetch<{ pdfUrl: string | null }>(`/invoices/${id}/pdf${force ? '?force=true' : ''}`),

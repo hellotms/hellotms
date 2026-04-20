@@ -40,9 +40,9 @@ export default function InvoiceDetailPage() {
   const [isEditingDate, setIsEditingDate] = useState(false);
   const [dateDraft, setDateDraft] = useState('');
 
-  const sendForm = useForm({ defaultValues: { recipient_email: '', recipient_name: '' } });
-  const newItemForm = useForm({ defaultValues: { description: '', cost_price: 0, quantity: 1, unit_price: 0 } });
-  const editItemForm = useForm({ defaultValues: { description: '', cost_price: 0, quantity: 1, unit_price: 0 } });
+  const sendForm = useForm({ defaultValues: { recipients: [{ name: '', email: '' }] } });
+  const newItemForm = useForm({ defaultValues: { description: '', cost_price: 0, day_month: 1, quantity: 1, unit_price: 0 } });
+  const editItemForm = useForm({ defaultValues: { description: '', cost_price: 0, day_month: 1, quantity: 1, unit_price: 0 } });
 
   const { data: invoice, isLoading } = useQuery<InvoiceWithRelations>({
     queryKey: ['invoice', id],
@@ -101,13 +101,27 @@ export default function InvoiceDetailPage() {
     mutationFn: async (patch: Partial<Invoice>) => {
       const { error } = await supabase.from('invoices').update(patch).eq('id', id!);
       if (error) throw error;
+
+      // If multiplier_label is updated, sync it to all linked ledger entries
+      if (patch.multiplier_label && invoice?.invoice_items) {
+        const ledgerIds = invoice.invoice_items
+          .map(item => item.ledger_id)
+          .filter(Boolean) as string[];
+        
+        if (ledgerIds.length > 0) {
+          await supabase
+            .from('ledger_entries')
+            .update({ multiplier_label: patch.multiplier_label })
+            .in('id', ledgerIds);
+        }
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['invoice', id] }),
   });
 
   const sendMutation = useMutation({
-    mutationFn: async (values: { recipient_email: string; recipient_name: string }) => {
-      const result = await invoicesApi.send(id!, values.recipient_email, values.recipient_name) as { success: boolean; error?: string };
+    mutationFn: async (values: { recipients: { name: string; email: string }[] }) => {
+      const result = await invoicesApi.send(id!, values.recipients) as { success: boolean; error?: string };
       if (!result.success) throw new Error(result.error ?? 'Failed to send invoice');
       return result;
     },
@@ -119,8 +133,8 @@ export default function InvoiceDetailPage() {
   });
 
   const addItemMutation = useMutation({
-    mutationFn: async (values: { description: string; cost_price: number; quantity: number; unit_price: number }) => {
-      const amount = values.quantity * values.unit_price;
+    mutationFn: async (values: { description: string; cost_price: number; day_month: number; quantity: number; unit_price: number }) => {
+      const amount = values.quantity * values.day_month * values.unit_price;
       let finalLedgerId = null;
 
       if (invoice?.type === 'invoice' && invoice?.projects?.id) {
@@ -130,13 +144,14 @@ export default function InvoiceDetailPage() {
             project_id: invoice.projects.id,
             type: 'expense',
             category: values.description || 'Invoice Item Cost',
-            amount: (values.cost_price || 0) * values.quantity,
+            amount: (values.cost_price || 0) * values.quantity * (values.day_month || 1),
             quantity: values.quantity,
+            day_month: values.day_month || 1,
             face_value: values.unit_price,
             entry_date: new Date().toISOString().slice(0, 10),
             paid_status: 'unpaid',
             paid_amount: 0,
-            due_amount: (values.cost_price || 0) * values.quantity,
+            due_amount: (values.cost_price || 0) * values.quantity * (values.day_month || 1),
             is_external: false,
           })
           .select('id')
@@ -159,14 +174,14 @@ export default function InvoiceDetailPage() {
     onSuccess: (_, values) => {
       queryClient.invalidateQueries({ queryKey: ['invoice', id] });
       setIsAddingItem(false);
-      newItemForm.reset({ description: '', cost_price: 0, quantity: 1, unit_price: 0 });
+      newItemForm.reset({ description: '', cost_price: 0, day_month: 1, quantity: 1, unit_price: 0 });
       auditApi.log({ action: 'add_invoice_item', entity_type: 'invoice', entity_id: id, after: values });
     },
   });
 
   const editItemMutation = useMutation({
-    mutationFn: async ({ itemId, ledgerId, values }: { itemId: string; ledgerId?: string | null; values: { description: string; cost_price: number; quantity: number; unit_price: number } }) => {
-      const amount = values.quantity * values.unit_price;
+    mutationFn: async ({ itemId, ledgerId, values }: { itemId: string; ledgerId?: string | null; values: { description: string; cost_price: number; day_month: number; quantity: number; unit_price: number } }) => {
+      const amount = values.quantity * values.day_month * values.unit_price;
       const { error } = await supabase.from('invoice_items').update({ ...values, amount }).eq('id', itemId);
       if (error) throw error;
 
@@ -174,8 +189,9 @@ export default function InvoiceDetailPage() {
         if (ledgerId) {
           await supabase.from('ledger_entries').update({
             quantity: values.quantity,
+            day_month: values.day_month,
             face_value: values.unit_price,
-            amount: values.cost_price,
+            amount: values.cost_price * values.quantity * values.day_month,
             category: values.description,
           }).eq('id', ledgerId);
         } else if (values.cost_price > 0 && invoice?.projects?.id) {
@@ -184,8 +200,10 @@ export default function InvoiceDetailPage() {
           .from('ledger_entries')
           .insert({
             project_id: invoice.projects.id, type: 'expense', category: values.description,
-            amount: values.cost_price, quantity: values.quantity, face_value: values.unit_price,
-            entry_date: new Date().toISOString().slice(0, 10), paid_status: 'unpaid', paid_amount: 0, due_amount: values.cost_price, is_external: false,
+            amount: values.cost_price * values.quantity * values.day_month, 
+            quantity: values.quantity, day_month: values.day_month, face_value: values.unit_price,
+            entry_date: new Date().toISOString().slice(0, 10), paid_status: 'unpaid', paid_amount: 0, 
+            due_amount: values.cost_price * values.quantity * values.day_month, is_external: false,
           })
           .select('id').single();
           if (newLedger) {
@@ -441,6 +459,22 @@ export default function InvoiceDetailPage() {
                       <span className="ml-1 text-[10px] bg-amber-100 dark:bg-amber-500/20 text-amber-900 px-1 py-0.5 rounded font-normal">admin only</span>
                     </th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-white w-20">Qty</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-white w-20">
+                       {isDraft ? (
+                         <select 
+                           value={invoice.multiplier_label || 'Days'} 
+                           onChange={(e) => updateFieldMutation.mutate({ multiplier_label: e.target.value })}
+                           className="bg-transparent border-none focus:ring-0 cursor-pointer hover:text-white transition-colors p-0 font-semibold"
+                         >
+                           <option value="Day" className="text-foreground">Day</option>
+                           <option value="Days" className="text-foreground">Days</option>
+                           <option value="Month" className="text-foreground">Month</option>
+                           <option value="Day/Month" className="text-foreground">Day/Month</option>
+                         </select>
+                       ) : (
+                         invoice.multiplier_label || 'Days'
+                       )}
+                     </th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-white w-32">Sell Price (৳)</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-white w-28">Total (৳)</th>
                     {isDraft && <th className="w-20" />}
@@ -450,12 +484,13 @@ export default function InvoiceDetailPage() {
                   {invoice.invoice_items.map((item, idx) => (
                     <tr key={item.id} className={`border-b border-border last:border-0 hover:bg-muted/20 transition-colors ${item.ledger_id ? 'bg-primary/5' : ''}`}>
                       {isEditingItem === item.id ? (
-                        <td colSpan={isDraft ? 7 : 6} className="px-4 py-2">
+                        <td colSpan={isDraft ? 8 : 7} className="px-4 py-2">
                           <form onSubmit={editItemForm.handleSubmit(v => editItemMutation.mutate({ itemId: item.id, ledgerId: item.ledger_id, values: v }))} className="flex gap-2 items-center">
                             <span className="text-muted-foreground text-xs w-6">{idx + 1}</span>
-                            <input {...editItemForm.register('description')} defaultValue={item.description} placeholder="Description" className="flex-1 border border-border rounded px-2 py-1 text-xs bg-transparent" />
+                            <textarea {...editItemForm.register('description')} defaultValue={item.description} placeholder="Description" rows={2} className="flex-1 border border-border rounded px-2 py-1 text-xs bg-transparent resize-none" />
                             <input type="number" {...editItemForm.register('cost_price', { valueAsNumber: true })} defaultValue={item.cost_price || 0} disabled={!!item.ledger_id} placeholder="0" className="w-20 border border-border rounded px-2 py-1 text-xs bg-transparent disabled:opacity-60" title={item.ledger_id ? "Sourced from ledger, cannot edit cost here" : "Enter cost price"} />
-                            <input type="number" {...editItemForm.register('quantity', { valueAsNumber: true })} defaultValue={item.quantity} className="w-16 border border-border rounded px-2 py-1 text-xs bg-transparent" />
+                            <input type="number" {...editItemForm.register('quantity', { valueAsNumber: true })} defaultValue={item.quantity} className="w-14 border border-border rounded px-2 py-1 text-xs bg-transparent" />
+                            <input type="number" {...editItemForm.register('day_month', { valueAsNumber: true })} defaultValue={item.day_month || 1} className="w-14 border border-border rounded px-2 py-1 text-xs bg-transparent" />
                             <input type="number" {...editItemForm.register('unit_price', { valueAsNumber: true })} defaultValue={item.unit_price} className="w-24 border border-border rounded px-2 py-1 text-xs bg-transparent" />
                             <button type="submit" className="text-primary"><Save className="h-4 w-4" /></button>
                             <button type="button" onClick={() => setIsEditingItem(null)} className="text-muted-foreground"><X className="h-4 w-4" /></button>
@@ -464,13 +499,14 @@ export default function InvoiceDetailPage() {
                       ) : (
                         <>
                           <td className="px-4 py-3 text-muted-foreground text-xs">{idx + 1}</td>
-                          <td className="px-4 py-3">{item.description}</td>
+                          <td className="px-4 py-3 whitespace-pre-line text-[11px] leading-relaxed text-muted-foreground italic">{item.description}</td>
                           <td className="px-4 py-3">
                             <span className="inline-flex items-center px-2 py-1 rounded bg-muted text-muted-foreground font-mono text-[11px]">
                               {item.cost_price && item.cost_price > 0 ? formatBDT(item.cost_price) : '—'}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center">{item.quantity}</td>
+                          <td className="px-4 py-3 text-center">{item.day_month || 1}</td>
                           <td className="px-4 py-3">{formatBDT(item.unit_price)}</td>
                           <td className="px-4 py-3 font-semibold">{formatBDT(item.amount)}</td>
                           {isDraft && (
@@ -487,11 +523,12 @@ export default function InvoiceDetailPage() {
                   ))}
                   {isAddingItem && (
                     <tr className="border-b border-border bg-muted/20">
-                      <td colSpan={isDraft ? 7 : 6} className="px-4 py-2">
+                      <td colSpan={isDraft ? 8 : 7} className="px-4 py-2">
                         <form onSubmit={newItemForm.handleSubmit(v => addItemMutation.mutate(v))} className="flex gap-2 items-center">
-                          <input autoFocus {...newItemForm.register('description', { required: true })} placeholder="Item details..." className="flex-1 border border-border rounded px-2 py-1 text-xs bg-transparent" />
+                          <textarea autoFocus {...newItemForm.register('description', { required: true })} placeholder="Item details..." rows={2} className="flex-1 border border-border rounded px-2 py-1 text-xs bg-transparent resize-none" />
                           <input type="number" {...newItemForm.register('cost_price', { valueAsNumber: true })} placeholder="0" className="w-20 border border-border rounded px-2 py-1 text-xs bg-transparent" />
-                          <input type="number" min="1" {...newItemForm.register('quantity', { valueAsNumber: true })} className="w-16 border border-border rounded px-2 py-1 text-xs bg-transparent" />
+                          <input type="number" min="1" {...newItemForm.register('quantity', { valueAsNumber: true })} className="w-14 border border-border rounded px-2 py-1 text-xs bg-transparent" />
+                          <input type="number" min="1" {...newItemForm.register('day_month', { valueAsNumber: true })} className="w-14 border border-border rounded px-2 py-1 text-xs bg-transparent" />
                           <input type="number" {...newItemForm.register('unit_price', { valueAsNumber: true })} placeholder="0" className="w-24 border border-border rounded px-2 py-1 text-xs bg-transparent" />
                           <button type="submit" className="text-primary text-xs font-medium">Add</button>
                           <button type="button" onClick={() => setIsAddingItem(false)} className="text-muted-foreground"><X className="h-4 w-4" /></button>
@@ -677,20 +714,62 @@ export default function InvoiceDetailPage() {
           </div>
         ) : (
           <form onSubmit={sendForm.handleSubmit(v => sendMutation.mutate(v))} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Recipient Name *</label>
-              <input {...sendForm.register('recipient_name', { required: true })} placeholder="e.g. Rahim Ahmed" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Recipient Email *</label>
-              <input type="email" {...sendForm.register('recipient_email', { required: true })} placeholder="client@example.com" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            </div>
+             <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                {sendForm.watch('recipients').map((field, index) => (
+                  <div key={index} className="p-3 border border-border rounded-lg bg-muted/20 relative group">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold text-muted-foreground mb-1">Name</label>
+                        <input 
+                           {...sendForm.register(`recipients.${index}.name` as const, { required: true })} 
+                           placeholder="Recipient Name" 
+                           className="w-full border border-border rounded px-2.5 py-1.5 text-sm bg-card"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold text-muted-foreground mb-1">Email</label>
+                        <input 
+                           type="email" 
+                           {...sendForm.register(`recipients.${index}.email` as const, { required: true })} 
+                           placeholder="email@example.com" 
+                           className="w-full border border-border rounded px-2.5 py-1.5 text-sm bg-card" 
+                        />
+                      </div>
+                    </div>
+                    {sendForm.watch('recipients').length > 1 && (
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          const current = sendForm.getValues('recipients');
+                          sendForm.setValue('recipients', current.filter((_, i) => i !== index));
+                        }}
+                        className="absolute -top-2 -right-2 p-1 bg-destructive text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+             </div>
+
+             <button 
+                type="button" 
+                onClick={() => {
+                  const current = sendForm.getValues('recipients');
+                  sendForm.setValue('recipients', [...current, { name: '', email: '' }]);
+                }}
+                className="flex items-center gap-2 text-xs font-bold text-primary hover:bg-primary/5 px-2 py-1 rounded"
+             >
+                <Plus className="h-3 w-3" /> Add Recipient
+             </button>
+
             {sendError && <p className="text-sm text-destructive">{sendError}</p>}
-            <div className="flex justify-end gap-3">
+            
+            <div className="flex justify-end gap-3 pt-4 border-t border-border mt-4">
               <button type="button" onClick={() => setIsSendOpen(false)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
               <button type="submit" disabled={sendMutation.isPending} className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
                 {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {sendMutation.isPending ? 'Sending...' : `Send ${invoice.type === 'estimate' ? 'Estimate' : 'Invoice'}`}
+                {sendMutation.isPending ? 'Sending...' : `Send to ${sendForm.watch('recipients').length} Recipients`}
               </button>
             </div>
           </form>

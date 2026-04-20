@@ -133,10 +133,12 @@ async function buildAndStorePdf(
       items: (invoice.invoice_items ?? []).map((item: any) => ({
         description: item.description,
         quantity: item.quantity,
+        dayMonth: item.day_month ?? 1,
         unitPrice: item.unit_price,
         amount: item.amount,
       })),
       totalAmount: invoice.total_amount,
+      multiplierLabel: invoice.multiplier_label ?? undefined,
       discountType: invoice.discount_type ?? 'flat',
       discountValue: invoice.discount_value ?? 0,
       advanceReceived: invoice.projects?.advance_received ?? 0,
@@ -169,10 +171,10 @@ async function buildAndStorePdf(
     };
     const pdfBase64 = toBase64(pdfBytes);
 
-    const shortId = id.slice(0, 8);
+    const versionHash = Math.random().toString(36).slice(2, 8);
     const typeLabel = (invoice.type === 'estimate') ? 'Estimate' : 'Invoice';
     const safeNumber = invoice.invoice_number.replace(/[^a-zA-Z0-9]/g, '-');
-    const storagePath = `invoices/${typeLabel}_${safeNumber}_${shortId}.pdf`;
+    const storagePath = `invoices/${typeLabel}_${safeNumber}_${versionHash}.pdf`;
 
     await env.MEDIA_BUCKET.put(storagePath, pdfBytes, {
       httpMetadata: { 
@@ -228,51 +230,60 @@ invoicesRoute.post('/estimate/send', requirePermission('manage_invoices'), async
     const fmt = (num: number) => `৳ ${Number(num).toLocaleString('en-IN')}`;
     const cleanStr = (str: string | undefined | null) => str ? str.replace(/[^\x20-\x7E]/g, '') : '';
     
-    const html = buildInvoiceEmailHtml({
-      recipientName: data.company.name,
-      clientName: data.company.name,
-      invoiceNumber: data.invoiceNumber,
-      invoiceDate: data.invoiceDate,
-      subject: cleanStr(data.subject || `Estimate for ${data.project.title}`),
-      companyAddress: cleanStr(data.company.address),
-      projectTitle: data.project.title,
-      subtotal: fmt(data.totalAmount),
-      discount: data.discountValue > 0 ? fmt(data.discountValue) : '',
-      totalPayable: fmt(data.totalAmount - (data.discountType === 'percent' ? (data.totalAmount * data.discountValue / 100) : data.discountValue)),
-      totalPaid: '৳ 0',
-      dueAmount: fmt(data.totalAmount),
-      dueAmountNumber: data.totalAmount,
-      items: data.items.map((i: any) => ({
-        description: cleanStr(i.description),
-        qty: i.quantity,
-        unitPrice: fmt(i.unitPrice),
-        total: fmt(i.amount),
-      })),
-      collections: [],
-      downloadUrl: pdfUrl,
-      companyName: 'The Marketing Solution',
-      companyUrl: settings?.public_site_url,
-      companyEmail: (settings?.contact_info as any)?.email,
-      type: 'estimate'
-    });
+    const recipients = data.recipients || [{ email: data.company.email, name: data.company.name }];
+    const multiplierLabel = data.multiplierLabel || data.multiplier_label;
+    const emailResults = [];
 
-    const emailResult = await sendEmail(
-      c.env.BREVO_API_KEY,
-      c.env.BREVO_SENDER_EMAIL,
-      c.env.BREVO_SENDER_NAME,
-      {
-        to: [{ email: data.company.email, name: data.company.name }],
-        subject: `Estimate ${data.invoiceNumber} from The Marketing Solution`,
-        htmlContent: html,
-        attachments: [{ name: `${data.invoiceNumber}.pdf`, content: pdfBase64, contentType: 'application/pdf' }],
-      }
-    );
+    for (const rec of recipients) {
+      const html = buildInvoiceEmailHtml({
+        recipientName: rec.name || data.company.name || 'Client',
+        clientName: data.company.name,
+        invoiceNumber: data.invoiceNumber,
+        invoiceDate: data.invoiceDate,
+        subject: cleanStr(data.subject || `Estimate for ${data.project.title}`),
+        companyAddress: cleanStr(data.company.address),
+        projectTitle: data.project.title,
+        subtotal: fmt(data.totalAmount),
+        discount: data.discountValue > 0 ? fmt(data.discountValue) : '',
+        totalPayable: fmt(data.totalAmount - (data.discountType === 'percent' ? (data.totalAmount * data.discountValue / 100) : data.discountValue)),
+        totalPaid: '৳ 0',
+        dueAmount: fmt(data.totalAmount),
+        dueAmountNumber: data.totalAmount,
+        items: data.items.map((i: any) => ({
+          description: cleanStr(i.description),
+          qty: i.quantity,
+          dayMonth: i.day_month ?? 1,
+          unitPrice: fmt(i.unitPrice),
+          total: fmt(i.amount),
+        })),
+        collections: [],
+        downloadUrl: pdfUrl,
+        companyName: 'The Marketing Solution',
+        companyUrl: settings?.public_site_url,
+        companyEmail: (settings?.contact_info as any)?.email,
+        type: 'estimate',
+        multiplierLabel
+      });
+
+      const res = await sendEmail(
+        c.env.BREVO_API_KEY,
+        c.env.BREVO_SENDER_EMAIL,
+        c.env.BREVO_SENDER_NAME,
+        {
+          to: [{ email: rec.email, name: rec.name }],
+          subject: `Estimate ${data.invoiceNumber} from The Marketing Solution`,
+          htmlContent: html,
+          attachments: [{ name: `${data.invoiceNumber}.pdf`, content: pdfBase64, contentType: 'application/pdf' }],
+        }
+      );
+      emailResults.push(res);
+    }
 
     return c.json({
       success: true,
       message: 'Estimate sent successfully',
       pdfUrl,
-      emailSent: emailResult.success,
+      emailSent: emailResults.every(r => r.success),
     });
   } catch (err: any) {
     console.error('[invoices] POST estimate/send error:', err);
@@ -302,9 +313,17 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
   const { id } = c.req.param();
   try {
     const payload = await c.req.json().catch(() => ({}));
-    const { recipientEmail, recipientName, force } = payload;
+    const { recipientEmail, recipientName, recipients: recipientsInput, force } = payload;
 
-    if (!recipientEmail) return c.json({ error: 'recipientEmail is required' }, 400);
+    // Handle both single recipient (legacy) and multiple recipients
+    let recipients: { name: string; email: string }[] = [];
+    if (recipientsInput && Array.isArray(recipientsInput)) {
+      recipients = recipientsInput;
+    } else if (recipientEmail) {
+      recipients = [{ email: recipientEmail, name: recipientName || 'Client' }];
+    }
+
+    if (recipients.length === 0) return c.json({ error: 'At least one recipient is required' }, 400);
 
     const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
     const pdfResult = await buildAndStorePdf(id, c.env, !!force);
@@ -322,7 +341,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
 
     const { data: invoice } = await (supabase as any)
       .from('invoices')
-      .select('invoice_number, invoice_date, subject, total_amount, due_date, discount_value, discount_type, type, companies(name, address), projects(id, title, location, advance_received), invoice_items(description, quantity, unit_price, amount)')
+      .select('invoice_number, invoice_date, subject, total_amount, due_date, discount_value, discount_type, type, multiplier_label, companies(name, address), projects(id, title, location, advance_received), invoice_items(description, quantity, day_month, unit_price, amount)')
       .eq('id', id)
       .single();
 
@@ -376,6 +395,7 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       items: (invoice.invoice_items || []).map((i: any) => ({
         description: cleanStr(i.description),
         qty: i.quantity || 0,
+        dayMonth: i.day_month || 1,
         unitPrice: fmt(i.unit_price || 0),
         total: fmt(i.amount || 0),
       })),
@@ -388,20 +408,60 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       companyName: 'The Marketing Solution',
       companyUrl: settings?.public_site_url,
       companyEmail: (settings?.contact_info as any)?.email,
-      type: invoice.type
+      type: invoice.type,
+      multiplierLabel: invoice.multiplier_label
     });
 
-    const emailResult = await sendEmail(
-      c.env.BREVO_API_KEY,
-      c.env.BREVO_SENDER_EMAIL,
-      c.env.BREVO_SENDER_NAME,
-      {
-        to: [{ email: recipientEmail, name: recipientName }],
-        subject: `${invoice.type === 'estimate' ? 'Estimate' : 'Invoice'} ${invoice.invoice_number} from The Marketing Solution`,
-        htmlContent: html,
-        attachments: [{ name: `${invoice.invoice_number}.pdf`, content: pdfResult.pdfBase64 || '', contentType: 'application/pdf' }],
-      }
-    );
+
+    const emailResults = [];
+    for (const rec of recipients) {
+      const personalizedHtml = buildInvoiceEmailHtml({
+        recipientName: rec.name || (invoice.companies as any)?.name || 'Client',
+        clientName: (invoice.companies as any)?.name ?? 'Client',
+        invoiceNumber: invoice.invoice_number,
+        invoiceDate: invoice.invoice_date || new Date().toISOString().slice(0, 10),
+        subject: cleanStr(subjectPrefix),
+        companyAddress: cleanStr((invoice.companies as any)?.address),
+        projectTitle: (invoice.projects as any)?.title ?? 'Project',
+        subtotal: fmt(rawSubtotal),
+        discount: discountAmt > 0 ? fmt(discountAmt) : '',
+        totalPayable: fmt(totalPayable),
+        totalPaid: fmt(totalPaid),
+        dueAmount: fmt(dueAmountNum),
+        dueAmountNumber: dueAmountNum,
+        items: (invoice.invoice_items || []).map((i: any) => ({
+          description: cleanStr(i.description),
+          qty: i.quantity || 0,
+          dayMonth: i.day_month || 1,
+          unitPrice: fmt(i.unit_price || 0),
+          total: fmt(i.amount || 0),
+        })),
+        collections: collections.map((c: any) => ({
+          date: c.payment_date || '',
+          method: cleanStr(c.method),
+          amount: fmt(c.amount || 0),
+        })),
+        downloadUrl: pdfResult.pdfUrl,
+        companyName: 'The Marketing Solution',
+        companyUrl: settings?.public_site_url,
+        companyEmail: (settings?.contact_info as any)?.email,
+        type: invoice.type,
+        multiplierLabel: invoice.multiplier_label
+      });
+
+      const res = await sendEmail(
+        c.env.BREVO_API_KEY,
+        c.env.BREVO_SENDER_EMAIL,
+        c.env.BREVO_SENDER_NAME,
+        {
+          to: [{ email: rec.email, name: rec.name }],
+          subject: `${invoice.type === 'estimate' ? 'Estimate' : 'Invoice'} ${invoice.invoice_number} from The Marketing Solution`,
+          htmlContent: personalizedHtml,
+          attachments: [{ name: `${invoice.invoice_number}.pdf`, content: pdfResult.pdfBase64 || '', contentType: 'application/pdf' }],
+        }
+      );
+      emailResults.push(res);
+    }
 
     // Audit log
     await supabase.from('audit_logs').insert({
@@ -409,14 +469,14 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       action: 'invoice_sent',
       entity_type: 'invoice',
       entity_id: id,
-      after: { recipientEmail, sentAt: new Date().toISOString() },
+      after: { recipients, sentAt: new Date().toISOString() },
     });
 
     return c.json({
       success: true,
       message: 'Invoice sent successfully',
       pdfUrl: pdfResult.pdfUrl,
-      emailSent: emailResult.success,
+      emailSent: emailResults.every(r => r.success),
     });
   } catch (err: any) {
     console.error('[invoices] POST send error:', err);

@@ -23,6 +23,7 @@ type InvoiceLineItem = {
   description: string;
   costPrice: number; // admin-only, NOT saved to DB or PDF
   quantity: number;
+  day_month: number;
   unit_price: number;
   amount: number;
   ledger_id?: string; // Optional: link to project ledger entry
@@ -49,6 +50,7 @@ export default function InvoicesPage() {
   const invoiceType = 'invoice';
   const [invoiceStatus, setInvoiceStatus] = useState('draft');
   const [dueDate, setDueDate] = useState('');
+  const [multiplierLabel, setMultiplierLabel] = useState('Days');
   const [discountType, setDiscountType] = useState<'flat' | 'percent'>('flat');
   const [discountValue, setDiscountValue] = useState(0);
   const [notes, setNotes] = useState('');
@@ -182,8 +184,9 @@ export default function InvoicesPage() {
             description: desc,
             costPrice: Number(e.amount),
             quantity: qty,
+            day_month: Number(e.day_month ?? 1),
             unit_price: sellPrice,
-            amount: qty * sellPrice,
+            amount: qty * Number(e.day_month ?? 1) * sellPrice,
             ledger_id: e.id,
           };
         }));
@@ -255,14 +258,14 @@ export default function InvoicesPage() {
     setLineItems(prev => prev.map((item, i) => {
       if (i !== idx) return item;
       const updated = { ...item, [field]: value };
-      updated.amount = Number(updated.quantity) * Number(updated.unit_price);
+      updated.amount = Number(updated.quantity) * Number(updated.day_month || 1) * Number(updated.unit_price);
       return updated;
     }));
   };
 
   const removeItem = (idx: number) => setLineItems(prev => prev.filter((_, i) => i !== idx));
 
-  const addBlankItem = () => setLineItems(prev => [...prev, { description: '', costPrice: 0, quantity: 1, unit_price: 0, amount: 0 }]);
+  const addBlankItem = () => setLineItems(prev => [...prev, { description: '', costPrice: 0, quantity: 1, day_month: 1, unit_price: 0, amount: 0 }]);
 
   const subtotal = lineItems.reduce((s, item) => s + item.amount, 0);
   const totalStdCost = lineItems.reduce((s, item) => s + (item.costPrice * item.quantity), 0);
@@ -325,12 +328,14 @@ export default function InvoicesPage() {
                 project_id: selectedProjectId,
                 type: 'expense',
                 category: i.description || 'Invoice Item Cost',
-                amount: (i.costPrice || 0) * i.quantity,
+                amount: (i.costPrice || 0) * i.quantity * (i.day_month || 1),
                 quantity: i.quantity,
+                day_month: i.day_month || 1,
                 face_value: i.unit_price,
                 entry_date: new Date().toISOString().slice(0, 10),
                 paid_status: 'unpaid',
                 is_external: false,
+                multiplier_label: multiplierLabel,
               })
               .select('id')
               .single();
@@ -347,6 +352,7 @@ export default function InvoicesPage() {
         return {
           description: i.description,
           quantity: i.quantity,
+          day_month: i.day_month,
           unit_price: i.unit_price,
           amount: i.amount,
           cost_price: i.costPrice,
@@ -377,6 +383,7 @@ export default function InvoicesPage() {
             discount_type: discountType,
             discount_value: discountAmt,
             notes: notes || null,
+            multiplier_label: multiplierLabel,
           })
           .select()
           .single();
@@ -413,6 +420,7 @@ export default function InvoicesPage() {
             .from('ledger_entries')
             .update({
               quantity: item.quantity,
+              day_month: item.day_month,
               face_value: item.unit_price,
             })
             .eq('id', item.ledger_id!)
@@ -675,6 +683,18 @@ export default function InvoicesPage() {
                       <span className="ml-1 text-[10px] bg-amber-100 dark:bg-amber-500/20 text-amber-700 px-1 py-0.5 rounded font-normal">admin only</span>
                     </th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">Qty <span className="text-red-500">*</span></th>
+                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">
+                      <select 
+                        value={multiplierLabel} 
+                        onChange={(e) => setMultiplierLabel(e.target.value)}
+                        className="bg-transparent border-none focus:ring-0 cursor-pointer hover:text-primary transition-colors font-semibold"
+                      >
+                        <option value="Day">Day</option>
+                        <option value="Days">Days</option>
+                        <option value="Month">Month</option>
+                        <option value="Day/Month">Day/Month</option>
+                      </select>
+                    </th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-28">Sell Price (৳) <span className="text-red-500">*</span></th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">Total</th>
                     <th className="w-8"></th>
@@ -710,6 +730,16 @@ export default function InvoicesPage() {
                           value={item.quantity}
                           onChange={e => updateItem(i, 'quantity', Number(e.target.value))}
                           min={1}
+                          className="w-full border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring bg-transparent text-center"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          value={item.day_month || 1}
+                          onChange={e => updateItem(i, 'day_month', Number(e.target.value))}
+                          step="0.01"
+                          min="0.01"
                           className="w-full border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring bg-transparent text-center"
                         />
                       </td>

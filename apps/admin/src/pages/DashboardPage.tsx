@@ -692,7 +692,7 @@ export default function DashboardPage() {
                   {transactions?.map((t) => (
                     <tr key={t.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-2.5 font-medium">{formatDate(t.date)}</td>
-                      <td className="px-4 py-2.5 font-semibold text-foreground truncate max-w-[200px]" title={t.title}>{t.title}</td>
+                      <td className="px-4 py-2.5 font-semibold text-foreground whitespace-pre-line max-w-[200px]" title={t.title}>{t.title}</td>
                       <td className="px-4 py-2.5">
                         <span className={cn(
                           "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-tighter",
@@ -709,7 +709,7 @@ export default function DashboardPage() {
                         {t.type === 'Collection' ? '+' : '-'}{formatBDT(t.amount)}
                       </td>
                       <td className="px-4 py-2.5 opacity-70">{t.method}</td>
-                      <td className="px-4 py-2.5 truncate max-w-[150px] opacity-60 italic" title={t.note}>{t.note}</td>
+                      <td className="px-4 py-2.5 whitespace-pre-line max-w-[150px] opacity-60 italic text-[10px]" title={t.note}>{t.note}</td>
                     </tr>
                   ))}
                   {!transactions?.length && (

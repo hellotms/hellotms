@@ -23,6 +23,7 @@ type InvoiceLineItem = {
   description: string;
   costPrice: number; // admin-only, NOT saved to DB or PDF
   quantity: number;
+  day_month: number;
   unit_price: number;
   amount: number;
   ledger_id?: string; // Optional: link to project ledger entry
@@ -52,6 +53,7 @@ export default function EstimatesPage() {
   const [discountType, setDiscountType] = useState<'flat' | 'percent'>('flat');
   const [discountValue, setDiscountValue] = useState(0);
   const [notes, setNotes] = useState('');
+  const [multiplierLabel, setMultiplierLabel] = useState('Days');
   const [otherCompanyName, setOtherCompanyName] = useState('');
   const [otherProjectName, setOtherProjectName] = useState('');
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
@@ -210,14 +212,14 @@ export default function EstimatesPage() {
     setLineItems(prev => prev.map((item, i) => {
       if (i !== idx) return item;
       const updated = { ...item, [field]: value };
-      updated.amount = Number(updated.quantity) * Number(updated.unit_price);
+      updated.amount = Number(updated.quantity) * Number(updated.day_month || 1) * Number(updated.unit_price);
       return updated;
     }));
   };
 
   const removeItem = (idx: number) => setLineItems(prev => prev.filter((_, i) => i !== idx));
 
-  const addBlankItem = () => setLineItems(prev => [...prev, { description: '', costPrice: 0, quantity: 1, unit_price: 0, amount: 0 }]);
+  const addBlankItem = () => setLineItems(prev => [...prev, { description: '', costPrice: 0, quantity: 1, day_month: 1, unit_price: 0, amount: 0 }]);
 
   const subtotal = lineItems.reduce((s, item) => s + item.amount, 0);
   const discountAmt = discountType === 'percent'
@@ -260,6 +262,7 @@ export default function EstimatesPage() {
             discount_type: discountType,
             discount_value: discountAmt,
             notes: notes || null,
+            multiplier_label: multiplierLabel,
           })
           .select()
           .single();
@@ -302,14 +305,16 @@ export default function EstimatesPage() {
                   project_id: selectedProjectId,
                   type: 'expense',
                   category: item.description || 'Estimate Item',
-                  amount: (item.costPrice || 0) * item.quantity,
+                  amount: (item.costPrice || 0) * item.quantity * (item.day_month || 1),
                   quantity: item.quantity,
+                  day_month: item.day_month || 1,
                   face_value: item.unit_price,
                   entry_date: new Date().toISOString().slice(0, 10),
                   paid_status: 'unpaid',
                   paid_amount: 0,
-                  due_amount: (item.costPrice || 0) * item.quantity,
+                  due_amount: (item.costPrice || 0) * item.quantity * (item.day_month || 1),
                   is_external: false,
+                  multiplier_label: multiplierLabel,
                 })
                 .select('id')
                 .single();
@@ -325,6 +330,7 @@ export default function EstimatesPage() {
           itemsToInsert.push({
             description: item.description,
             quantity: item.quantity,
+            day_month: item.day_month,
             unit_price: item.unit_price,
             amount: item.amount,
             cost_price: item.costPrice,
@@ -574,6 +580,18 @@ export default function EstimatesPage() {
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold">Description <span className="text-red-500">*</span></th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">Cost (admin)</th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">Qty <span className="text-red-500">*</span></th>
+                    <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">
+                      <select 
+                        value={multiplierLabel} 
+                        onChange={(e) => setMultiplierLabel(e.target.value)}
+                        className="bg-transparent border-none focus:ring-0 cursor-pointer hover:text-primary transition-colors font-semibold"
+                      >
+                        <option value="Day">Day</option>
+                        <option value="Days">Days</option>
+                        <option value="Month">Month</option>
+                        <option value="Day/Month">Day/Month</option>
+                      </select>
+                    </th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-28">Sell Price (৳) <span className="text-red-500">*</span></th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-semibold w-24">Total</th>
                     <th className="w-8"></th>
@@ -607,6 +625,16 @@ export default function EstimatesPage() {
                           onChange={e => updateItem(i, 'quantity', Number(e.target.value))}
                           min={1}
                           className="w-full border border-border rounded px-2 py-1 text-xs bg-transparent text-center"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          value={item.day_month || 1}
+                          onChange={e => updateItem(i, 'day_month', Number(e.target.value))}
+                          step="0.01"
+                          min="0.01"
+                          className="w-full border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring bg-transparent text-center"
                         />
                       </td>
                       <td className="px-3 py-2">

@@ -10,7 +10,7 @@ import { useState, useEffect, useRef } from 'react';
 import IdleScreen from '@/components/IdleScreen';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { useQuery } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from 'next-themes';
 import packageJson from '../../package.json';
@@ -340,9 +340,54 @@ export default function AdminLayout() {
     navigate('/login');
   };
 
-  // --- SWIPE NAVIGATION LOGIC ---
+  // --- SWIPE & DIRECTIONAL NAVIGATION LOGIC ---
   const mobileRoutes = ['/dashboard', '/projects', '/companies', '/mobile-billing', '/mobile-menu'];
   
+  // Route priority for determining transition direction
+  const routePriority: Record<string, number> = {
+    '/dashboard': 0,
+    '/projects': 1,
+    '/companies': 2,
+    '/estimates': 3,
+    '/invoices': 3,
+    '/mobile-billing': 3,
+    '/mobile-menu': 4,
+    '/profile': 5,
+    '/notices': 6,
+    '/staff': 7,
+  };
+
+  const [direction, setDirection] = useState(0); 
+  const prevPathRef = useRef(location.pathname);
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const getBase = (p: string) => {
+      const parts = p.split('/');
+      return parts.length > 2 ? `/${parts[1]}` : p;
+    };
+    
+    const prevBase = getBase(prevPathRef.current);
+    const currBase = getBase(location.pathname);
+    
+    if (prevBase !== currBase) {
+      const prevIdx = routePriority[prevBase] ?? 99;
+      const currIdx = routePriority[currBase] ?? 99;
+      setDirection(currIdx >= prevIdx ? 1 : -1);
+    }
+    prevPathRef.current = location.pathname;
+  }, [location.pathname]);
+
+  const swipeX = useMotionValue(0);
+  const swipeOpacity = useTransform(swipeX, [-150, 0, 150], [0.5, 1, 0.5]);
+  const swipeScale = useTransform(swipeX, [-150, 0, 150], [0.98, 1, 0.98]);
+
   const getIntelPath = (route: string) => {
     if (route === '/projects') {
       const id = localStorage.getItem('last_project_id');
@@ -355,65 +400,92 @@ export default function AdminLayout() {
     return route;
   };
 
-  const canScrollMore = (target: HTMLElement, direction: 'left' | 'right') => {
+  const canScrollMore = (target: HTMLElement, dir: 'left' | 'right') => {
     let el: HTMLElement | null = target;
     while (el && el !== document.body) {
       const style = window.getComputedStyle(el);
       const isScrollable = (style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth;
       
       if (isScrollable) {
-        if (direction === 'left' && el.scrollLeft > 2) return true; // threshold of 2px for precision
-        if (direction === 'right' && el.scrollLeft + el.clientWidth < el.scrollWidth - 2) return true;
+        if (dir === 'left' && el.scrollLeft > 2) return true;
+        if (dir === 'right' && el.scrollLeft + el.clientWidth < el.scrollWidth - 2) return true;
       }
       el = el.parentElement;
     }
     return false;
   };
 
+  const handlePan = (_: any, info: any) => {
+    if (isDesktop) return;
+    
+    const isHorizontal = Math.abs(info.offset.x) > Math.abs(info.offset.y) * 1.2;
+    if (!isHorizontal) {
+      swipeX.set(0);
+      return;
+    }
+
+    const dir = info.offset.x > 0 ? 'left' : 'right';
+    if (canScrollMore(_.target as HTMLElement, dir)) {
+      swipeX.set(0);
+      return;
+    }
+
+    swipeX.set(info.offset.x);
+  };
+
   const handlePanEnd = (event: any, info: any) => {
-    if (window.innerWidth >= 768) return; // Only mobile
+    const xOffset = info.offset.x;
+    const velocity = info.velocity.x;
+    swipeX.set(0);
 
-    const threshold = 80; // Optimized distance for responsiveness
-    const velocityThreshold = 0.5; // Easier to trigger with a natural flick
-    const { offset, velocity } = info;
+    if (isDesktop) return;
 
-    // Only trigger if horizontal movement is significantly greater than vertical movement
-    const isHorizontal = Math.abs(offset.x) > Math.abs(offset.y) * 1.4;
+    const threshold = 100;
+    const velocityThreshold = 0.5;
+    const isHorizontal = Math.abs(xOffset) > Math.abs(info.offset.y) * 1.4;
 
-    if (isHorizontal && (Math.abs(offset.x) > threshold || Math.abs(velocity.x) > velocityThreshold)) {
-      const direction = offset.x > 0 ? 'left' : 'right';
-      
-      // Boundary check: If we are swiping over a scrollable element that hasn't reached its edge, do nothing
-      if (event.target && canScrollMore(event.target as HTMLElement, direction)) {
-        return;
-      }
+    if (isHorizontal && (Math.abs(xOffset) > threshold || Math.abs(velocity) > velocityThreshold)) {
+      const dir = xOffset > 0 ? 'left' : 'right';
+      if (event.target && canScrollMore(event.target as HTMLElement, dir)) return;
 
-      // Find current section index
       let currentIndex = mobileRoutes.findIndex(route => location.pathname.startsWith(route));
-      
-      // Special check for billing children
-      if (currentIndex === -1) {
-        if (location.pathname.startsWith('/estimates') || location.pathname.startsWith('/invoices')) {
-          currentIndex = 3;
-        }
+      if (currentIndex === -1 && (location.pathname.startsWith('/estimates') || location.pathname.startsWith('/invoices'))) {
+        currentIndex = 3;
       }
 
       if (currentIndex === -1) return;
 
-      if (offset.x > 0) {
-        // Swipe Right (Go to Previous)
+      if (xOffset > 0) {
         if (currentIndex > 0) {
+          setDirection(-1);
           navigate(getIntelPath(mobileRoutes[currentIndex - 1]));
         }
       } else {
-        // Swipe Left (Go to Next)
         if (currentIndex < mobileRoutes.length - 1) {
+          setDirection(1);
           navigate(getIntelPath(mobileRoutes[currentIndex + 1]));
         }
       }
     }
   };
-  // ------------------------------
+
+  const pageVariants = {
+    enter: (d: number) => ({
+      x: isDesktop ? 0 : (d > 0 ? 100 : -100),
+      opacity: 0,
+      filter: isDesktop ? "blur(0px)" : "blur(10px)"
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+      filter: "blur(0px)"
+    },
+    exit: (d: number) => ({
+      x: isDesktop ? 0 : (d > 0 ? -100 : 100),
+      opacity: 0,
+      filter: isDesktop ? "blur(0px)" : "blur(10px)"
+    })
+  };
 
   return (
     <div className="flex h-screen bg-background overflow-hidden relative">
@@ -540,20 +612,30 @@ export default function AdminLayout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto relative">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ x: 20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: -20, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              onPanEnd={handlePanEnd}
-              className="p-4 md:p-6 lg:p-8 pb-20 md:pb-8 touch-auto"
-            >
+        <main className="flex-1 overflow-auto relative overflow-x-hidden">
+          {isDesktop ? (
+            <div className="p-4 md:p-6 lg:p-8 pb-20 md:pb-8">
               <Outlet />
-            </motion.div>
-          </AnimatePresence>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait" custom={direction}>
+              <motion.div
+                key={location.pathname}
+                custom={direction}
+                variants={pageVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                style={{ x: swipeX, opacity: swipeOpacity, scale: swipeScale }}
+                transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+                onPan={handlePan}
+                onPanEnd={handlePanEnd}
+                className="p-4 md:p-6 lg:p-8 pb-20 md:pb-8 touch-auto will-change-transform"
+              >
+                <Outlet />
+              </motion.div>
+            </AnimatePresence>
+          )}
         </main>
       </div>
 

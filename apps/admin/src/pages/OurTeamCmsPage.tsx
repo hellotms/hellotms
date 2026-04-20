@@ -7,6 +7,7 @@ import { Modal, ConfirmModal } from '@/components/Modal';
 import { toast } from '@/components/Toast';
 import { Plus, Users, Edit, Trash2, GripVertical, Image as ImageIcon, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { Reorder } from 'framer-motion';
 
 type TeamMember = {
   id: string;
@@ -22,6 +23,7 @@ type TeamMember = {
 
 export default function OurTeamCmsPage() {
   const queryClient = useQueryClient();
+  const [items, setItems] = useState<TeamMember[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<TeamMember | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export default function OurTeamCmsPage() {
 
   const { register, handleSubmit, reset, setValue } = useForm<Partial<TeamMember>>();
 
-  const { data: members = [], isLoading } = useQuery<TeamMember[]>({
+  const { isLoading } = useQuery<TeamMember[]>({
     queryKey: ['team-members'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -40,7 +42,9 @@ export default function OurTeamCmsPage() {
         .order('display_order', { ascending: true })
         .order('created_at', { ascending: true });
       if (error) throw error;
-      return (data || []) as TeamMember[];
+      const members = (data || []) as TeamMember[];
+      setItems(members);
+      return members;
     }
   });
 
@@ -58,7 +62,7 @@ export default function OurTeamCmsPage() {
         linkedin_url: '', 
         twitter_url: '', 
         is_published: true, 
-        display_order: members.length 
+        display_order: items.length 
       });
     }
     setSelectedFile(null);
@@ -109,13 +113,32 @@ export default function OurTeamCmsPage() {
       const { error } = await supabase.from('team_members').update({ deleted_at: new Date().toISOString() }).eq('id', deleteId);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['team-members'] });
-      setDeleteId(null);
-      toast('Team member removed', 'success');
-    }
   });
   
+  const reorderMutation = useMutation({
+    mutationFn: async (newItems: TeamMember[]) => {
+      const updates = newItems.map((item, idx) => ({
+        id: item.id,
+        display_order: idx
+      }));
+      
+      // Update locally first for optimistic UI response
+      setItems(newItems);
+
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('team_members')
+          .update({ display_order: update.display_order })
+          .eq('id', update.id);
+        if (error) console.error('Failed to update order for', update.id, error);
+      }
+    },
+    onSuccess: () => {
+      // Invalidate but don't force a re-fetch immediately to avoid jitter
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+    }
+  });
+
   const togglePublishMutation = useMutation({
     mutationFn: async ({ id, is_published }: { id: string, is_published: boolean }) => {
       const { error } = await supabase.from('team_members').update({ is_published }).eq('id', id);
@@ -137,12 +160,12 @@ export default function OurTeamCmsPage() {
       />
 
       <div className="bg-card border border-border rounded-xl mt-6">
-        {isLoading ? (
+        {isLoading && items.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground flex flex-col items-center gap-3">
              <Loader2 className="h-6 w-6 animate-spin text-primary" />
              Loading team members...
           </div>
-        ) : members.length === 0 ? (
+        ) : items.length === 0 ? (
            <div className="py-24 text-center">
              <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="h-8 w-8 text-primary" />
@@ -152,15 +175,19 @@ export default function OurTeamCmsPage() {
              <button onClick={() => openForm()} className="bg-primary/10 text-primary px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-primary/20">Add First Member</button>
            </div>
         ) : (
-          <div className="divide-y divide-border">
-            {members.map((member) => (
-              <div key={member.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 hover:bg-muted/30 transition-colors">
-                <div className="cursor-move text-muted-foreground/40 hover:text-foreground">
+          <Reorder.Group axis="y" values={items} onReorder={reorderMutation.mutate} className="divide-y divide-border">
+            {items.map((member) => (
+              <Reorder.Item 
+                key={member.id} 
+                value={member}
+                className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 hover:bg-muted/30 transition-colors bg-card"
+              >
+                <div className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-foreground">
                   <GripVertical className="h-5 w-5" />
                 </div>
                 
                 {member.photo_url ? (
-                  <img src={member.photo_url} alt={member.name} className="h-16 w-16 rounded-xl object-cover border border-border bg-muted/50 shrink-0" />
+                  <img src={member.photo_url} alt={member.name} className="h-16 w-16 rounded-xl object-cover border border-border bg-muted/50 shrink-0 pointer-events-none" />
                 ) : (
                   <div className="h-16 w-16 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
                     <Users className="h-6 w-6 text-muted-foreground/50" />
@@ -196,9 +223,9 @@ export default function OurTeamCmsPage() {
                      </button>
                    </div>
                 </div>
-              </div>
+              </Reorder.Item>
             ))}
-          </div>
+          </Reorder.Group>
         )}
       </div>
 

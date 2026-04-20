@@ -52,8 +52,10 @@ export const ledgerEntrySchema = z.object({
   note: z.string().max(500).optional().nullable(),
   attachment_url: z.string().url().optional().nullable(),
   quantity: z.preprocess((val) => (val === "" || val === null || (typeof val === 'number' && isNaN(val)) ? undefined : Number(val)), z.number().positive().optional().nullable()),
+  day_month: z.preprocess((val) => (val === "" || val === null || (typeof val === 'number' && isNaN(val)) ? undefined : Number(val)), z.number().positive().default(1)),
   face_value: z.preprocess((val) => (val === "" || val === null || (typeof val === 'number' && isNaN(val)) ? undefined : Number(val)), z.number().nonnegative().optional().nullable()),
   is_external: z.boolean().default(false),
+  multiplier_label: z.string().optional(),
 });
 
 export type LedgerEntryInput = z.infer<typeof ledgerEntrySchema>;
@@ -87,6 +89,7 @@ export type LedgerPaymentInput = z.infer<typeof ledgerPaymentSchema>;
 export const invoiceItemSchema = z.object({
   description: z.string().min(1).max(200),
   quantity: z.number().positive(),
+  day_month: z.number().positive().default(1),
   unit_price: z.number().nonnegative(),
   amount: z.number().nonnegative(),
 });

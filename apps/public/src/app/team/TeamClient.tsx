@@ -1,8 +1,10 @@
-'use client';
-import { supabase } from '@/lib/supabase';
-import Image from 'next/image';
+"use client";
+
 import { Facebook, Linkedin, Twitter, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import Image from 'next/image';
+import { supabase } from '@/lib/supabase';
 
 export default function TeamClient() {
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
@@ -46,78 +48,47 @@ export default function TeamClient() {
           </p>
         </div>
 
-        {/* Team Grid */}
+        {/* Team Section */}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <Loader2 className="h-10 w-10 animate-spin text-[var(--accent)]" />
             <p className="text-[var(--muted)] animate-pulse">Our team is assembling...</p>
           </div>
         ) : teamMembers.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {teamMembers.map((member) => (
-              <div 
-                key={member.id} 
-                className="group relative aspect-[3/4] bg-[var(--surface)] border border-[var(--border)] rounded-[2rem] overflow-hidden transition-all duration-700 hover:shadow-2xl hover:shadow-[var(--accent)]/20"
-              >
-                {/* Full Card Image */}
-                <div className="absolute inset-0 w-full h-full">
-                  {member.photo_url ? (
-                    <Image
-                      src={member.photo_url}
-                      alt={member.name}
-                      fill
-                      className="object-cover transition-transform duration-1000 ease-out group-hover:scale-110"
+          <>
+            {/* Desktop Grid (Hidden on Mobile) */}
+            <div className="hidden lg:grid lg:grid-cols-3 xl:grid-cols-4 gap-8">
+              {teamMembers.map((member) => (
+                <TeamMemberCard key={member.id} member={member} />
+              ))}
+            </div>
+
+            {/* Mobile/Tablet Slider (Visible on small/medium screens) */}
+            <div className="lg:hidden relative">
+               <motion.div 
+                 className="flex gap-6 overflow-x-auto pb-12 pt-4 px-2 scrollbar-none snap-x snap-mandatory"
+                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+               >
+                 {teamMembers.map((member) => (
+                   <div key={member.id} className="min-w-[280px] sm:min-w-[340px] snap-center">
+                     <TeamMemberCard member={member} isAlwaysVisible />
+                   </div>
+                 ))}
+               </motion.div>
+               
+               {/* Mobile Instruction */}
+               <div className="flex items-center justify-center gap-2 mt-4 text-[var(--muted)] lg:hidden">
+                 <div className="w-8 h-1 bg-[var(--accent)]/20 rounded-full overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-[var(--accent)]"
+                      animate={{ x: [-32, 32] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                     />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-[var(--accent)]/10 to-[var(--accent)]/40 flex items-center justify-center">
-                      <span className="text-5xl font-black text-[var(--accent)] opacity-50 uppercase">
-                        {member.name.charAt(0)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Glassmorphic Overlay Content */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-60 group-hover:opacity-100 transition-opacity duration-500" />
-                
-                <div className="absolute inset-0 flex flex-col justify-end p-8 translate-y-6 group-hover:translate-y-0 transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]">
-                  {/* Designation Badge */}
-                  <div className="mb-2 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-700 delay-100">
-                    <span className="px-3 py-1 rounded-full bg-[var(--accent)]/20 border border-[var(--accent)]/30 backdrop-blur-md text-[10px] font-black tracking-widest text-[var(--accent)] uppercase">
-                      {member.designation}
-                    </span>
-                  </div>
-
-                  {/* Name (Hidden by default, reveal on hover) */}
-                  <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight mb-4 drop-shadow-lg opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-700 delay-150">
-                    {member.name}
-                  </h3>
-                  
-                  {/* Social Links */}
-                  <div className="flex items-center gap-4 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-700 delay-250">
-                    {member.linkedin_url && (
-                      <a href={member.linkedin_url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-[var(--accent)] hover:border-[var(--accent)] transition-all">
-                        <Linkedin className="h-5 w-5" />
-                      </a>
-                    )}
-                    {member.facebook_url && (
-                      <a href={member.facebook_url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-[#1877f2] hover:border-[#1877f2] transition-all">
-                        <Facebook className="h-5 w-5" />
-                      </a>
-                    )}
-                    {member.twitter_url && (
-                      <a href={member.twitter_url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-[#000] hover:border-[#333] transition-all">
-                        <Twitter className="h-5 w-5" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                {/* Decorative Accent Line */}
-                <div className="absolute bottom-0 left-0 w-full h-1 bg-[var(--accent)] scale-x-0 group-hover:scale-x-100 transition-transform duration-700 origin-left" />
-              </div>
-            ))}
-          </div>
+                 </div>
+                 <span className="text-[10px] font-bold uppercase tracking-widest">Swipe to Explore</span>
+               </div>
+            </div>
+          </>
         ) : (
           <div className="text-center py-24 bg-[var(--surface)] rounded-3xl border border-[var(--border)]">
             <h3 className="text-xl font-bold text-[var(--foreground)] mb-2">Our team is growing</h3>
@@ -126,5 +97,70 @@ export default function TeamClient() {
         )}
       </div>
     </main>
+  );
+}
+
+function TeamMemberCard({ member, isAlwaysVisible = false }: { member: any, isAlwaysVisible?: boolean }) {
+  return (
+    <div 
+      className={`group relative aspect-[3/4] bg-[var(--surface)] border border-[var(--border)] rounded-[2rem] overflow-hidden transition-all duration-700 hover:shadow-2xl hover:shadow-[var(--accent)]/20 ${isAlwaysVisible ? 'shadow-lg' : ''}`}
+    >
+      {/* Full Card Image */}
+      <div className="absolute inset-0 w-full h-full">
+        {member.photo_url ? (
+          <Image
+            src={member.photo_url}
+            alt={member.name}
+            fill
+            className={`object-cover transition-transform duration-1000 ease-out group-hover:scale-110 ${isAlwaysVisible ? '' : ''}`}
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-[var(--accent)]/10 to-[var(--accent)]/40 flex items-center justify-center">
+            <span className="text-5xl font-black text-[var(--accent)] opacity-50 uppercase">
+              {member.name.charAt(0)}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Glassmorphic Overlay Content */}
+      <div className={`absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent transition-opacity duration-500 ${isAlwaysVisible ? 'opacity-80' : 'opacity-60 group-hover:opacity-100'}`} />
+      
+      <div className={`absolute inset-0 flex flex-col justify-end p-8 transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${isAlwaysVisible ? 'translate-y-0' : 'translate-y-6 group-hover:translate-y-0'}`}>
+        {/* Designation Badge */}
+        <div className={`mb-2 transition-all duration-700 delay-100 ${isAlwaysVisible ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0'}`}>
+          <span className="px-3 py-1 rounded-full bg-[var(--accent)]/20 border border-[var(--accent)]/30 backdrop-blur-md text-[10px] font-black tracking-widest text-[var(--accent)] uppercase">
+            {member.designation}
+          </span>
+        </div>
+
+        {/* Name */}
+        <h3 className={`text-2xl md:text-3xl font-black text-white tracking-tight mb-4 drop-shadow-lg transition-all duration-700 delay-150 ${isAlwaysVisible ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0'}`}>
+          {member.name}
+        </h3>
+        
+        {/* Social Links */}
+        <div className={`flex items-center gap-4 transition-all duration-700 delay-250 ${isAlwaysVisible ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0'}`}>
+          {member.linkedin_url && (
+            <a href={member.linkedin_url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-[var(--accent)] hover:border-[var(--accent)] transition-all">
+              <Linkedin className="h-5 w-5" />
+            </a>
+          )}
+          {member.facebook_url && (
+            <a href={member.facebook_url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-[#1877f2] hover:border-[#1877f2] transition-all">
+              <Facebook className="h-5 w-5" />
+            </a>
+          )}
+          {member.twitter_url && (
+            <a href={member.twitter_url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-[#000] hover:border-[#333] transition-all">
+              <Twitter className="h-5 w-5" />
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* Decorative Accent Line */}
+      <div className={`absolute bottom-0 left-0 w-full h-1 bg-[var(--accent)] transition-transform duration-700 origin-left ${isAlwaysVisible ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'}`} />
+    </div>
   );
 }

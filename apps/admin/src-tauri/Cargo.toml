@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.1.7"
+version = "0.1.8"
 authors = ["The Marketing Solution <info@themarketingsolution.com.bd>"]
 description = "Official Admin Desktop Application for The Marketing Solution (TMS)"
 repository = "https://github.com/themarketingsolution/hellotms"
