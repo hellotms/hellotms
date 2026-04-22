@@ -10,6 +10,57 @@ export const invoicesRoute = new Hono<{ Bindings: Env; Variables: Variables }>()
 
 invoicesRoute.use('*', authMiddleware);
 
+// ─── Document History Endpoints ───────────
+
+// GET /invoices/:id/documents — fetch history
+invoicesRoute.get('/:id/documents', requirePermission('manage_invoices'), async (c) => {
+  const { id } = c.req.param();
+  const showDeleted = c.req.query('deleted') === 'true';
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+  
+  let query = (supabase as any)
+    .from('document_history')
+    .select('*')
+    .eq('parent_id', id)
+    .order('created_at', { ascending: false });
+
+  if (!showDeleted) {
+    query = query.is('deleted_at', null);
+  }
+
+  const { data, error } = await query;
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json(data || []);
+});
+
+// DELETE /invoices/documents/:docId — soft delete
+invoicesRoute.delete('/documents/:docId', requirePermission('manage_invoices'), async (c) => {
+  const { docId } = c.req.param();
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+  
+  const { error } = await (supabase as any)
+    .from('document_history')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', docId);
+
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ success: true });
+});
+
+// POST /invoices/documents/restore/:docId — restore
+invoicesRoute.post('/documents/restore/:docId', requirePermission('manage_invoices'), async (c) => {
+  const { docId } = c.req.param();
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
+  
+  const { error } = await (supabase as any)
+    .from('document_history')
+    .update({ deleted_at: null })
+    .eq('id', docId);
+
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ success: true });
+});
+
 // ─── Shared helper: fetch invoice, generate PDF, store in /generated-invoices/<id>.pdf ──
 async function buildPdfFromData(
   data: InvoicePdfData,
@@ -185,7 +236,33 @@ async function buildAndStorePdf(
 
     const pdfUrl = `${env.R2_PUBLIC_URL}/${storagePath}`;
 
-    // Update DB
+    // Get current version count to name it
+    const { count } = await (supabase as any)
+      .from('document_history')
+      .select('*', { count: 'exact', head: true })
+      .eq('parent_id', id);
+    
+    const versionNum = (count ?? 0) + 1;
+    const versionName = `${typeLabel} - Version ${versionNum}`;
+
+    // Record in history
+    const { error: historyError } = await (supabase as any)
+      .from('document_history')
+      .insert({
+        parent_id: id,
+        parent_type: invoice.type,
+        file_name: versionName,
+        pdf_url: pdfUrl,
+        is_sent: false,
+        created_at: new Date().toISOString()
+      });
+
+    if (historyError) {
+      console.error('[invoices] document_history insert error:', historyError);
+      throw new Error(`Failed to record document history: ${historyError.message}`);
+    }
+
+    // Update DB for quick reference (Latest version)
     const { error: updateError } = await (supabase as any)
       .from('invoices')
       .update({ pdf_url: pdfUrl })
@@ -469,8 +546,19 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
       action: 'invoice_sent',
       entity_type: 'invoice',
       entity_id: id,
-      after: { recipients, sentAt: new Date().toISOString() },
+      after: { recipients, sentAt: new Date().toISOString(), pdfUrl: pdfResult.pdfUrl },
     });
+
+    // Mark the document version as sent
+    await (supabase as any)
+      .from('document_history')
+      .update({ 
+        is_sent: true, 
+        sent_at: new Date().toISOString(),
+        sent_to: recipients
+      })
+      .eq('parent_id', id)
+      .eq('pdf_url', pdfResult.pdfUrl);
 
     return c.json({
       success: true,

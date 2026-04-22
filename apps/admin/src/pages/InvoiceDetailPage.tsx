@@ -14,6 +14,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from '@/components/Toast';
 
 import { useAuth } from '@/context/AuthContext';
+import { DocumentHistory } from '@/components/DocumentHistory';
 
 type InvoiceWithRelations = Invoice & {
   companies: { id: string; name: string; email: string; phone: string; address: string } | null;
@@ -683,21 +684,9 @@ export default function InvoiceDetailPage() {
             </div>
           )}
 
-          {invoice.pdf_url && (
-            <div className="bg-card border border-border rounded-xl p-5">
-              <h3 className="font-semibold mb-3">Last PDF</h3>
-              <a href={invoice.pdf_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline">
-                <Download className="h-4 w-4" /> Download PDF
-              </a>
-            </div>
-          )}
-
-          {invoice.sent_at && (
-            <div className="bg-card border border-border rounded-xl p-5">
-              <h3 className="font-semibold mb-2 text-sm">Sent</h3>
-              <p className="text-xs text-muted-foreground">{formatDateTime(invoice.sent_at)}</p>
-            </div>
-          )}
+          <div className="bg-card border border-border rounded-xl p-5">
+            <DocumentHistory parentId={id!} type="invoice" />
+          </div>
         </div>
       </div>
 

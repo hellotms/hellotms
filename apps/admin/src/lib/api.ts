@@ -135,6 +135,12 @@ export const invoicesApi = {
       method: 'POST',
       body: JSON.stringify(payload)
     }),
+  getDocuments: (id: string, showDeleted = false) =>
+    apiFetch<any[]>(`/invoices/${id}/documents${showDeleted ? '?deleted=true' : ''}`),
+  deleteDocument: (docId: string) =>
+    apiFetch<{ success: boolean }>(`/invoices/documents/${docId}`, { method: 'DELETE' }),
+  restoreDocument: (docId: string) =>
+    apiFetch<{ success: boolean }>(`/invoices/documents/restore/${docId}`, { method: 'POST' }),
 };
 
 // ─── Media ───────────────────────────────────────────────────────────────────

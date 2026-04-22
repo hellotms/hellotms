@@ -14,6 +14,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from '@/components/Toast';
 
 import { useAuth } from '@/context/AuthContext';
+import { DocumentHistory } from '@/components/DocumentHistory';
 
 type InvoiceWithRelations = Invoice & {
   companies: { id: string; name: string; email: string; phone: string; address: string } | null;
@@ -502,14 +503,9 @@ export default function EstimateDetailPage() {
             <h3 className="font-semibold mb-2 text-sm">Estimate Total</h3>
             <p className="text-2xl font-bold text-primary">{formatBDT(estimateNetPayable)}</p>
           </div>
-          {estimate.pdf_url && (
-            <div className="bg-card border border-border rounded-xl p-5">
-              <h3 className="font-semibold mb-3">Last PDF</h3>
-              <a href={estimate.pdf_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline">
-                <Download className="h-4 w-4" /> Download PDF
-              </a>
-            </div>
-          )}
+          <div className="bg-card border border-border rounded-xl p-5">
+            <DocumentHistory parentId={id!} type="estimate" />
+          </div>
         </div>
       </div>
 
