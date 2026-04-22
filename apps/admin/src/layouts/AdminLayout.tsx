@@ -546,8 +546,10 @@ export default function AdminLayout() {
               initialSlide={activeIndex === -1 ? 0 : activeIndex}
               onSlideChange={handleSlideChange}
               speed={400}
-              touchAngle={45}
+              touchAngle={30}
               threshold={15}
+              noSwiping={true}
+              noSwipingSelector=".overflow-x-auto, table, .scroll-x, .swiper-no-swiping"
               resistanceRatio={0.7}
               className="h-full w-full"
             >
