@@ -25,6 +25,11 @@ appsRoute.get('/latest/update.json', async (c) => {
         return c.json({ error: 'No signed update found' }, 404);
     }
 
+    // Force no cache to prevent stale signatures
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    c.header('Pragma', 'no-cache');
+    c.header('Expires', '0');
+
     // Format for Tauri v2
     return c.json({
         version: version.version.startsWith('v') ? version.version.substring(1) : version.version,
@@ -32,7 +37,9 @@ appsRoute.get('/latest/update.json', async (c) => {
         pub_date: version.created_at,
         platforms: {
             'windows-x86_64': {
-                signature: version.signature,
+                signature: version.signature?.includes('\n') 
+                    ? version.signature.split('\n')[1].trim() 
+                    : version.signature?.trim(),
                 url: version.url
             }
         }

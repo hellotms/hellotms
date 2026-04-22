@@ -539,6 +539,10 @@ export default function AdminLayout() {
             <div className="h-full overflow-auto p-4 md:p-6 lg:p-8 pb-20 md:pb-8">
               <Outlet />
             </div>
+          ) : activeIndex === -1 ? (
+            <div className="h-full overflow-auto pt-4 px-4 pb-20">
+              <Outlet />
+            </div>
           ) : (
             <Swiper
               modules={[Controller]}
@@ -546,10 +550,11 @@ export default function AdminLayout() {
               initialSlide={activeIndex === -1 ? 0 : activeIndex}
               onSlideChange={handleSlideChange}
               speed={400}
-              touchAngle={30}
-              threshold={15}
+              touchAngle={20}
+              threshold={30}
+              touchReleaseOnEdges={true}
               noSwiping={true}
-              noSwipingSelector=".overflow-x-auto, table, .scroll-x, .swiper-no-swiping"
+              noSwipingSelector=".overflow-x-auto, .scroll-x, .swiper-no-swiping"
               resistanceRatio={0.7}
               className="h-full w-full"
             >
