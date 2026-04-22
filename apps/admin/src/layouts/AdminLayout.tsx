@@ -354,7 +354,7 @@ export default function AdminLayout() {
 
   // Route to index mapping for Swiper
   const getRouteIndex = (path: string) => {
-    if (path.startsWith('/dashboard')) return 0;
+    if (path === '/' || path.startsWith('/dashboard')) return 0;
     if (path.startsWith('/projects')) return 1;
     if (path.startsWith('/companies')) return 2;
     if (path.startsWith('/estimates') || path.startsWith('/invoices') || path === '/mobile-billing') return 3;
