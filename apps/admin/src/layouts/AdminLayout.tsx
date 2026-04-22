@@ -547,7 +547,7 @@ export default function AdminLayout() {
             <Swiper
               modules={[Controller]}
               onSwiper={setSwiper}
-              initialSlide={activeIndex === -1 ? 0 : activeIndex}
+              initialSlide={activeIndex}
               onSlideChange={handleSlideChange}
               speed={400}
               touchAngle={20}
