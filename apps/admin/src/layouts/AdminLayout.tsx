@@ -4,13 +4,16 @@ import { cn, getInitials } from '@/lib/utils';
 import {
   LayoutDashboard, Building2, FolderOpen, Receipt, Users,
   Globe, UserCog, Settings, LogOut, Menu, X, Bell, ChevronRight,
-  MessageSquare, ClipboardList, Megaphone, Trash2, Sun, Moon, FileText, Download
+  MessageSquare, ClipboardList, Megaphone, Trash2, Sun, Moon, FileText, Download, RotateCw
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import IdleScreen from '@/components/IdleScreen';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
-import { useQuery } from '@tanstack/react-query';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { Controller } from 'swiper/modules';
+import type { Swiper as SwiperClass } from 'swiper';
+import 'swiper/css';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from 'next-themes';
 import packageJson from '../../package.json';
@@ -340,25 +343,28 @@ export default function AdminLayout() {
     navigate('/login');
   };
 
-  // --- SWIPE & DIRECTIONAL NAVIGATION LOGIC ---
-  const mobileRoutes = ['/dashboard', '/projects', '/companies', '/mobile-billing', '/mobile-menu'];
-  
-  // Route priority for determining transition direction
-  const routePriority: Record<string, number> = {
-    '/dashboard': 0,
-    '/projects': 1,
-    '/companies': 2,
-    '/estimates': 3,
-    '/invoices': 3,
-    '/mobile-billing': 3,
-    '/mobile-menu': 4,
-    '/profile': 5,
-    '/notices': 6,
-    '/staff': 7,
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await queryClient.invalidateQueries();
+    // Keep spinning for at least 600ms for visual feedback
+    setTimeout(() => setRefreshing(false), 600);
   };
 
-  const [direction, setDirection] = useState(0); 
-  const prevPathRef = useRef(location.pathname);
+  // Route to index mapping for Swiper
+  const getRouteIndex = (path: string) => {
+    if (path.startsWith('/dashboard')) return 0;
+    if (path.startsWith('/projects')) return 1;
+    if (path.startsWith('/companies')) return 2;
+    if (path.startsWith('/estimates') || path.startsWith('/invoices') || path === '/mobile-billing') return 3;
+    if (path.startsWith('/mobile-menu')) return 4;
+    return -1;
+  };
+
+  const [swiper, setSwiper] = useState<SwiperClass | null>(null);
+  const activeIndex = getRouteIndex(location.pathname);
+  const mobileRoutes = ['/dashboard', '/projects', '/companies', '/mobile-billing', '/mobile-menu'];
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
 
   useEffect(() => {
@@ -367,26 +373,22 @@ export default function AdminLayout() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Sync Slider with URL
   useEffect(() => {
-    const getBase = (p: string) => {
-      const parts = p.split('/');
-      return parts.length > 2 ? `/${parts[1]}` : p;
-    };
-    
-    const prevBase = getBase(prevPathRef.current);
-    const currBase = getBase(location.pathname);
-    
-    if (prevBase !== currBase) {
-      const prevIdx = routePriority[prevBase] ?? 99;
-      const currIdx = routePriority[currBase] ?? 99;
-      setDirection(currIdx >= prevIdx ? 1 : -1);
+    if (swiper && activeIndex !== -1 && swiper.activeIndex !== activeIndex) {
+      swiper.slideTo(activeIndex);
     }
-    prevPathRef.current = location.pathname;
-  }, [location.pathname]);
+  }, [location.pathname, swiper, activeIndex]);
 
-  const swipeX = useMotionValue(0);
-  const swipeOpacity = useTransform(swipeX, [-150, 0, 150], [0.5, 1, 0.5]);
-  const swipeScale = useTransform(swipeX, [-150, 0, 150], [0.98, 1, 0.98]);
+  const handleSlideChange = (s: SwiperClass) => {
+    const newIdx = s.activeIndex;
+    if (newIdx === activeIndex) return;
+    
+    const targetPath = mobileRoutes[newIdx];
+    if (targetPath) {
+      navigate(getIntelPath(targetPath));
+    }
+  };
 
   const getIntelPath = (route: string) => {
     if (route === '/projects') {
@@ -398,93 +400,6 @@ export default function AdminLayout() {
       return id ? `/companies/${id}` : '/companies';
     }
     return route;
-  };
-
-  const canScrollMore = (target: HTMLElement, dir: 'left' | 'right') => {
-    let el: HTMLElement | null = target;
-    while (el && el !== document.body) {
-      const style = window.getComputedStyle(el);
-      const isScrollable = (style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth;
-      
-      if (isScrollable) {
-        if (dir === 'left' && el.scrollLeft > 2) return true;
-        if (dir === 'right' && el.scrollLeft + el.clientWidth < el.scrollWidth - 2) return true;
-      }
-      el = el.parentElement;
-    }
-    return false;
-  };
-
-  const handlePan = (_: any, info: any) => {
-    if (isDesktop) return;
-    
-    const isHorizontal = Math.abs(info.offset.x) > Math.abs(info.offset.y) * 1.2;
-    if (!isHorizontal) {
-      swipeX.set(0);
-      return;
-    }
-
-    const dir = info.offset.x > 0 ? 'left' : 'right';
-    if (canScrollMore(_.target as HTMLElement, dir)) {
-      swipeX.set(0);
-      return;
-    }
-
-    swipeX.set(info.offset.x);
-  };
-
-  const handlePanEnd = (event: any, info: any) => {
-    const xOffset = info.offset.x;
-    const velocity = info.velocity.x;
-    swipeX.set(0);
-
-    if (isDesktop) return;
-
-    const threshold = 100;
-    const velocityThreshold = 0.5;
-    const isHorizontal = Math.abs(xOffset) > Math.abs(info.offset.y) * 1.4;
-
-    if (isHorizontal && (Math.abs(xOffset) > threshold || Math.abs(velocity) > velocityThreshold)) {
-      const dir = xOffset > 0 ? 'left' : 'right';
-      if (event.target && canScrollMore(event.target as HTMLElement, dir)) return;
-
-      let currentIndex = mobileRoutes.findIndex(route => location.pathname.startsWith(route));
-      if (currentIndex === -1 && (location.pathname.startsWith('/estimates') || location.pathname.startsWith('/invoices'))) {
-        currentIndex = 3;
-      }
-
-      if (currentIndex === -1) return;
-
-      if (xOffset > 0) {
-        if (currentIndex > 0) {
-          setDirection(-1);
-          navigate(getIntelPath(mobileRoutes[currentIndex - 1]));
-        }
-      } else {
-        if (currentIndex < mobileRoutes.length - 1) {
-          setDirection(1);
-          navigate(getIntelPath(mobileRoutes[currentIndex + 1]));
-        }
-      }
-    }
-  };
-
-  const pageVariants = {
-    enter: (d: number) => ({
-      x: isDesktop ? 0 : (d > 0 ? 100 : -100),
-      opacity: 0,
-      filter: isDesktop ? "blur(0px)" : "blur(10px)"
-    }),
-    center: {
-      x: 0,
-      opacity: 1,
-      filter: "blur(0px)"
-    },
-    exit: (d: number) => ({
-      x: isDesktop ? 0 : (d > 0 ? -100 : 100),
-      opacity: 0,
-      filter: isDesktop ? "blur(0px)" : "blur(10px)"
-    })
   };
 
   return (
@@ -595,6 +510,14 @@ export default function AdminLayout() {
                 </span>
               )}
             </button>
+            
+            <button
+              onClick={handleRefresh}
+              className="p-2 rounded-md hover:bg-muted transition-colors relative text-muted-foreground"
+              title="Refresh Data"
+            >
+              <RotateCw className={cn("h-5 w-5", refreshing && "animate-spin")} />
+            </button>
 
             {/* Theme toggle - Always visible */}
             <button
@@ -611,30 +534,29 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-auto relative overflow-x-hidden">
+        <main className="flex-1 overflow-hidden relative">
           {isDesktop ? (
-            <div className="p-4 md:p-6 lg:p-8 pb-20 md:pb-8">
+            <div className="h-full overflow-auto p-4 md:p-6 lg:p-8 pb-20 md:pb-8">
               <Outlet />
             </div>
           ) : (
-            <AnimatePresence mode="wait" custom={direction}>
-              <motion.div
-                key={location.pathname}
-                custom={direction}
-                variants={pageVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                style={{ x: swipeX, opacity: swipeOpacity, scale: swipeScale }}
-                transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
-                onPan={handlePan}
-                onPanEnd={handlePanEnd}
-                className="p-4 md:p-6 lg:p-8 pb-20 md:pb-8 touch-auto will-change-transform"
-              >
-                <Outlet />
-              </motion.div>
-            </AnimatePresence>
+            <Swiper
+              modules={[Controller]}
+              onSwiper={setSwiper}
+              initialSlide={activeIndex === -1 ? 0 : activeIndex}
+              onSlideChange={handleSlideChange}
+              speed={400}
+              touchAngle={45}
+              threshold={15}
+              resistanceRatio={0.7}
+              className="h-full w-full"
+            >
+              {[0, 1, 2, 3, 4].map((idx) => (
+                <SwiperSlide key={idx} className="h-full w-full overflow-auto pt-4 px-4 pb-20">
+                  {activeIndex === idx ? <Outlet /> : <div className="h-full w-full" />}
+                </SwiperSlide>
+              ))}
+            </Swiper>
           )}
         </main>
       </div>
