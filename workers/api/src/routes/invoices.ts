@@ -26,6 +26,8 @@ invoicesRoute.get('/:id/documents', requirePermission('manage_invoices'), async 
 
   if (!showDeleted) {
     query = query.is('deleted_at', null);
+  } else {
+    query = query.not('deleted_at', 'is', null);
   }
 
   const { data, error } = await query;
@@ -43,7 +45,10 @@ invoicesRoute.delete('/documents/:docId', requirePermission('manage_invoices'), 
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', docId);
 
-  if (error) return c.json({ error: error.message }, 500);
+  if (error) {
+    console.error('[invoices] document_history delete error:', error);
+    return c.json({ error: error.message }, 500);
+  }
   return c.json({ success: true });
 });
 
@@ -57,7 +62,10 @@ invoicesRoute.post('/documents/restore/:docId', requirePermission('manage_invoic
     .update({ deleted_at: null })
     .eq('id', docId);
 
-  if (error) return c.json({ error: error.message }, 500);
+  if (error) {
+    console.error('[invoices] document_history restore error:', error);
+    return c.json({ error: error.message }, 500);
+  }
   return c.json({ success: true });
 });
 

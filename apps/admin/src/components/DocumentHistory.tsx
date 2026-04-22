@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoicesApi } from '@/lib/api';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDate, formatDateTime, cn } from '@/lib/utils';
 import { Download, Trash2, RotateCcw, Send, History, Mail, AlertTriangle, FilePlus, Loader2 } from 'lucide-react';
 import { toast } from '@/components/Toast';
 import { ConfirmModal } from '@/components/Modal';
@@ -107,9 +107,14 @@ export function DocumentHistory({ parentId, type }: DocumentHistoryProps) {
           </button>
           <button
             onClick={() => setShowDeleted(!showDeleted)}
-            className="text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/5 px-2 py-1.5 rounded-lg border border-primary/20 transition-colors"
+            className={cn(
+              "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all shadow-sm",
+              showDeleted 
+                ? "bg-primary text-white border-primary" 
+                : "bg-background text-primary border-primary/20 hover:bg-primary/5"
+            )}
           >
-            {showDeleted ? 'Active' : 'Trash'}
+            {showDeleted ? 'Exit Trash' : 'View Trash'}
           </button>
         </div>
       </div>
@@ -171,7 +176,7 @@ export function DocumentHistory({ parentId, type }: DocumentHistoryProps) {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-1.5">
                       {!doc.deleted_at ? (
                         <>
                           <a
