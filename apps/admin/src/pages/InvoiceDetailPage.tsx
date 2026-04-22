@@ -263,6 +263,7 @@ export default function InvoiceDetailPage() {
       const result = await invoicesApi.getPdf(id!, true) as { pdfUrl?: string | null; error?: string };
       if (result.pdfUrl) {
         queryClient.invalidateQueries({ queryKey: ['invoice', id] });
+        queryClient.invalidateQueries({ queryKey: ['document-history', id] });
         toast('PDF Regenerated successfully', 'success');
       } else {
         toast(result.error ?? 'Failed to regenerate PDF', 'error');
@@ -318,10 +319,6 @@ export default function InvoiceDetailPage() {
             <button onClick={handleRegeneratePdf} disabled={pdfLoading} className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted disabled:opacity-60" title="Regenerate PDF file">
               {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Generate
-            </button>
-            <button onClick={handleDownloadPdf} disabled={pdfLoading} className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted disabled:opacity-60" title="Download/View Current PDF">
-              {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Download
             </button>
             <button onClick={() => { setSendSuccess(false); setSendError(''); setIsSendOpen(true); }} className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90">
               <Send className="h-4 w-4" /> Send to Client

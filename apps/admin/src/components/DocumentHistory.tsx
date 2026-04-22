@@ -52,14 +52,6 @@ export function DocumentHistory({ parentId, type }: DocumentHistoryProps) {
     },
   });
 
-  const generateMutation = useMutation({
-    mutationFn: () => invoicesApi.getPdf(parentId, true),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['document-history', parentId] });
-      toast('New PDF version generated', 'success');
-    },
-  });
-
   const selectedDocForDelete = documents.find(d => d.id === deleteId);
 
   if (isLoading && documents.length === 0) {
@@ -96,15 +88,6 @@ export function DocumentHistory({ parentId, type }: DocumentHistoryProps) {
           Document History
         </h3>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => generateMutation.mutate()}
-            disabled={generateMutation.isPending}
-            className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white bg-primary hover:bg-primary/90 px-3 py-1.5 rounded-lg shadow-sm disabled:opacity-50 transition-all"
-            title="Generate a fresh PDF of the current data"
-          >
-            {generateMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-            New Version
-          </button>
           <button
             onClick={() => setShowDeleted(!showDeleted)}
             className={cn(

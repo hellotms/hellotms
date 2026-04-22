@@ -17,7 +17,7 @@ invoicesRoute.get('/:id/documents', requirePermission('manage_invoices'), async 
   const { id } = c.req.param();
   const showDeleted = c.req.query('deleted') === 'true';
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
-  
+
   let query = (supabase as any)
     .from('document_history')
     .select('*')
@@ -39,7 +39,55 @@ invoicesRoute.get('/:id/documents', requirePermission('manage_invoices'), async 
 invoicesRoute.delete('/documents/:docId', requirePermission('manage_invoices'), async (c) => {
   const { docId } = c.req.param();
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
-  
+  const userId = c.get('userId');
+
+  // 1. Fetch document details
+  const { data: doc } = await (supabase as any)
+    .from('document_history')
+    .select('*')
+    .eq('id', docId)
+    .single();
+
+  if (!doc) return c.json({ error: 'Document not found' }, 404);
+
+  // 2. Fetch project title separately to ensure reliability
+  const { data: invoiceData } = await (supabase as any)
+    .from('invoices')
+    .select('projects!project_id (title)')
+    .eq('id', doc.parent_id)
+    .single();
+
+  const projectTitle = invoiceData?.projects?.title || 'Unknown Project';
+
+  // 3. Insert into trash_bin for global recycle bin visibility
+  const { error: trashError } = await (supabase as any)
+    .from('trash_bin')
+    .insert({
+      entity_type: 'document_history',
+      entity_id: doc.id,
+      entity_name: `PDF Version: ${doc.file_name} (${projectTitle})`,
+      entity_data: {
+        ...doc,
+        project_title: projectTitle // Add specifically for easier UI access
+      },
+      deleted_by: userId,
+    });
+
+  if (trashError) {
+    console.error('[invoices] trash_bin insertion error:', trashError);
+    return c.json({ error: trashError.message }, 500);
+  }
+
+  // 3. Log to audit_logs for Activity Log (Work Logs) visibility
+  await (supabase as any).from('audit_logs').insert({
+    user_id: userId,
+    action: 'delete_document_history',
+    entity_type: 'document_history',
+    entity_id: doc.id,
+    before: doc,
+  });
+
+  // 4. Soft delete in original table
   const { error } = await (supabase as any)
     .from('document_history')
     .update({ deleted_at: new Date().toISOString() })
@@ -56,7 +104,18 @@ invoicesRoute.delete('/documents/:docId', requirePermission('manage_invoices'), 
 invoicesRoute.post('/documents/restore/:docId', requirePermission('manage_invoices'), async (c) => {
   const { docId } = c.req.param();
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
-  
+  const userId = c.get('userId');
+
+  // 1. Fetch document for audit metadata
+  const { data: doc } = await (supabase as any)
+    .from('document_history')
+    .select('*')
+    .eq('id', docId)
+    .single();
+
+  if (!doc) return c.json({ error: 'Document not found' }, 404);
+
+  // 2. Clear deleted_at in original table
   const { error } = await (supabase as any)
     .from('document_history')
     .update({ deleted_at: null })
@@ -66,6 +125,23 @@ invoicesRoute.post('/documents/restore/:docId', requirePermission('manage_invoic
     console.error('[invoices] document_history restore error:', error);
     return c.json({ error: error.message }, 500);
   }
+
+  // 3. Remove from trash_bin
+  await (supabase as any)
+    .from('trash_bin')
+    .delete()
+    .eq('entity_type', 'document_history')
+    .eq('entity_id', docId);
+
+  // 4. Log to audit_logs
+  await (supabase as any).from('audit_logs').insert({
+    user_id: userId,
+    action: 'restore_document_history',
+    entity_type: 'document_history',
+    entity_id: doc.id,
+    after: { ...doc, deleted_at: null },
+  });
+
   return c.json({ success: true });
 });
 
@@ -99,6 +175,7 @@ async function buildPdfFromData(
 async function buildAndStorePdf(
   id: string,
   env: Env,
+  userId: string,
   force = false
 ): Promise<{ pdfUrl: string; pdfBytes?: Uint8Array; pdfBase64?: string; companyName?: string; companyUrl?: string; companyEmail?: string; type?: string; } | { error: string }> {
   try {
@@ -236,7 +313,7 @@ async function buildAndStorePdf(
     const storagePath = `invoices/${typeLabel}_${safeNumber}_${versionHash}.pdf`;
 
     await env.MEDIA_BUCKET.put(storagePath, pdfBytes, {
-      httpMetadata: { 
+      httpMetadata: {
         contentType: 'application/pdf',
         contentDisposition: `inline; filename="${typeLabel}_${safeNumber}.pdf"`
       },
@@ -249,7 +326,7 @@ async function buildAndStorePdf(
       .from('document_history')
       .select('*', { count: 'exact', head: true })
       .eq('parent_id', id);
-    
+
     const versionNum = (count ?? 0) + 1;
     const versionName = `${typeLabel} - Version ${versionNum}`;
 
@@ -280,6 +357,20 @@ async function buildAndStorePdf(
       console.error('[invoices] DB update error for pdf_url:', updateError);
     }
 
+    // ── Log to audit_logs ────────────────────────────────────────────────────
+    await (supabase as any).from('audit_logs').insert({
+      user_id: userId,
+      action: 'generate_pdf_version',
+      entity_type: 'document_history',
+      entity_id: id,
+      after: {
+        file_name: versionName,
+        pdf_url: pdfUrl,
+        parent_id: id,
+        parent_type: invoice.type
+      }
+    });
+
     return { pdfUrl, pdfBytes, pdfBase64 };
   } catch (err: any) {
     console.error('[invoices] buildAndStorePdf error:', err);
@@ -292,7 +383,7 @@ invoicesRoute.post('/estimate/send', requirePermission('manage_invoices'), async
   try {
     const data = await c.req.json();
     const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
-    
+
     // Fetch branding from site_settings
     const { data: settings } = await supabase
       .from('site_settings')
@@ -314,7 +405,7 @@ invoicesRoute.post('/estimate/send', requirePermission('manage_invoices'), async
     // Build email HTML using the same branding
     const fmt = (num: number) => `৳ ${Number(num).toLocaleString('en-IN')}`;
     const cleanStr = (str: string | undefined | null) => str ? str.replace(/[^\x20-\x7E]/g, '') : '';
-    
+
     const recipients = data.recipients || [{ email: data.company.email, name: data.company.name }];
     const multiplierLabel = data.multiplierLabel || data.multiplier_label;
     const emailResults = [];
@@ -380,8 +471,9 @@ invoicesRoute.post('/estimate/send', requirePermission('manage_invoices'), async
 invoicesRoute.get('/:id/pdf', requirePermission('manage_invoices'), async (c) => {
   const { id } = c.req.param();
   const force = c.req.query('force') === 'true';
+  const userId = c.get('userId');
   try {
-    const result = await buildAndStorePdf(id, c.env, force);
+    const result = await buildAndStorePdf(id, c.env, userId, force);
 
     if ('error' in result) {
       return c.json({ error: result.error }, result.error === 'Invoice not found' ? 404 : 500);
@@ -411,7 +503,8 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
     if (recipients.length === 0) return c.json({ error: 'At least one recipient is required' }, 400);
 
     const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_KEY);
-    const pdfResult = await buildAndStorePdf(id, c.env, !!force);
+    const userId = c.get('userId');
+    const pdfResult = await buildAndStorePdf(id, c.env, userId, !!force);
 
     if ('error' in pdfResult) {
       return c.json({ error: pdfResult.error }, pdfResult.error === 'Invoice not found' ? 404 : 500);
@@ -560,8 +653,8 @@ invoicesRoute.post('/:id/send', requirePermission('send_invoice'), async (c) => 
     // Mark the document version as sent
     await (supabase as any)
       .from('document_history')
-      .update({ 
-        is_sent: true, 
+      .update({
+        is_sent: true,
         sent_at: new Date().toISOString(),
         sent_to: recipients
       })

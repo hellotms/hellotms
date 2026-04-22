@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import {
     ClipboardList, Search, RefreshCw, User, Filter,
     ShieldCheck, Pencil, Trash2, UserPlus, LogIn, LogOut,
-    Image, FileText, AlertCircle, ChevronDown
+    Image, FileText, AlertCircle, ChevronDown, RotateCcw, FilePlus
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { getInitials, cn } from '@/lib/utils';
@@ -31,6 +31,9 @@ const ACTION_CONFIG: Record<string, { label: string; icon: React.ElementType; co
     project_updated: { label: 'Project Updated', icon: Pencil, color: 'text-amber-400 bg-amber-400/10' },
     invoice_sent: { label: 'Invoice Sent', icon: FileText, color: 'text-teal-400 bg-teal-400/10' },
     media_uploaded: { label: 'Media Uploaded', icon: Image, color: 'text-orange-400 bg-orange-400/10' },
+    generate_pdf_version: { label: 'PDF Generated', icon: FilePlus, color: 'text-emerald-400 bg-emerald-400/10' },
+    delete_document_history: { label: 'PDF Deleted', icon: Trash2, color: 'text-red-400 bg-red-400/10' },
+    restore_document_history: { label: 'PDF Restored', icon: RotateCcw, color: 'text-sky-400 bg-sky-400/10' },
 };
 
 const getConfig = (action: string) => ACTION_CONFIG[action] ?? { label: action.replace(/_/g, ' '), icon: AlertCircle, color: 'text-muted-foreground bg-muted/50' };

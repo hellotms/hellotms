@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { toast } from '@/components/Toast';
 import { formatBDT, formatDate } from '@/lib/utils';
-import { Trash2, RotateCcw, Building2, FolderOpen, Receipt, Clock, DollarSign, MessageSquare, Monitor } from 'lucide-react';
+import { Trash2, RotateCcw, Building2, FolderOpen, Receipt, Clock, DollarSign, MessageSquare, Monitor, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { Modal, ConfirmModal } from '@/components/Modal';
 
@@ -51,7 +51,8 @@ export default function RecycleBinPage() {
                         item.entity_type === 'project' ? 'projects' :
                             item.entity_type === 'invoice' ? 'invoices' :
                                 item.entity_type === 'app_version' ? 'app_versions' : 
-                                    item.entity_type === 'ledger' ? 'ledger_entries' : 'collections';
+                                    item.entity_type === 'ledger' ? 'ledger_entries' : 
+                                        item.entity_type === 'document_history' ? 'document_history' : 'collections';
 
                 // 1. Restore the main entity
                 const { error: mainError } = await supabase
@@ -157,6 +158,8 @@ export default function RecycleBinPage() {
                 await mediaApi.delete(item.entity_data.path);
             } else if (item.entity_type === 'app_version') {
                 await cleanupFile(item.entity_data?.url);
+            } else if (item.entity_type === 'document_history') {
+                await cleanupFile(item.entity_data?.pdf_url);
             }
 
             // Finally, Hard Delete from DB
@@ -197,6 +200,7 @@ export default function RecycleBinPage() {
             case 'ledger': return Receipt;
             case 'lead': return MessageSquare;
             case 'app_version': return Monitor;
+            case 'document_history': return FileText;
             default: return Clock;
         }
     };
@@ -248,13 +252,22 @@ export default function RecycleBinPage() {
                                                             item.entity_type === 'ledger' ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400' :
                                                             item.entity_type === 'collection' ? 'bg-teal-100 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400' :
                                                             item.entity_type === 'app_version' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400' :
+                                                            item.entity_type === 'document_history' ? 'bg-sky-100 dark:bg-sky-500/20 text-sky-600 dark:text-sky-400' :
                                                             'bg-gray-100 text-muted-foreground'
                                                         }`}>
                                                         <Icon className="h-5 w-5" />
                                                     </div>
                                                     <div className="min-w-0">
                                                         <h4 className="font-bold text-foreground truncate">{item.entity_name || 'Unnamed Item'}</h4>
-                                                        <p className="text-xs text-muted-foreground capitalize">{item.entity_type}</p>
+                                                        <p className="text-xs text-muted-foreground capitalize">
+                                                            {item.entity_type === 'document_history'
+                                                                ? (item.entity_data?.project_title 
+                                                                    ? `PDF Version • ${item.entity_data.project_title}`
+                                                                    : (item.entity_data?.invoices?.projects?.title 
+                                                                        ? `PDF Version • ${item.entity_data.invoices.projects.title}`
+                                                                        : 'PDF Version'))
+                                                                : item.entity_type}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </td>

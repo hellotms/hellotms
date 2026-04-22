@@ -10,6 +10,8 @@ export function formatAuditLogMessage(log: any) {
         entityName = data.category || data.type || (data.amount ? `৳${data.amount}` : '');
     } else if (entity_type === 'staff' || entity_type === 'user' || entity_type === 'profile') {
         entityName = data.name || data.email || '';
+    } else if (entity_type === 'document_history') {
+        entityName = data.file_name || '';
     }
 
     const renderName = (name: string) => <span className="font-semibold text-foreground">"{name}"</span>;
@@ -49,6 +51,8 @@ export function formatAuditLogMessage(log: any) {
         typeStr = 'collection';
     } else if (entity_type === 'lead') {
         typeStr = 'contact form';
+    } else if (entity_type === 'document_history') {
+        typeStr = 'pdf version';
     }
 
     if (entityName) {
