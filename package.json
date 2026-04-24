@@ -23,11 +23,11 @@
     "clean": "pnpm run --parallel clean && rimraf node_modules"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
+    "@types/node": "^20.19.39",
     "cross-env": "^10.1.0",
-    "prettier": "^3.2.5",
-    "rimraf": "^5.0.5",
-    "typescript": "^5.3.3"
+    "prettier": "^3.8.3",
+    "rimraf": "^5.0.10",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=20.0.0",
@@ -43,6 +43,6 @@
     ]
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.103.0"
+    "@supabase/supabase-js": "^2.104.1"
   }
 }

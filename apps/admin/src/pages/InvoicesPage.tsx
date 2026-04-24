@@ -689,7 +689,6 @@ export default function InvoicesPage() {
                         onChange={(e) => setMultiplierLabel(e.target.value)}
                         className="bg-transparent border-none focus:ring-0 cursor-pointer hover:text-primary transition-colors font-semibold"
                       >
-                        <option value="Day">Day</option>
                         <option value="Days">Days</option>
                         <option value="Month">Month</option>
                         <option value="Day/Month">Day/Month</option>

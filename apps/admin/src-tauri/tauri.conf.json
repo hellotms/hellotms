@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "tms-Portal",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "identifier": "bd.com.themarketingsolution.admin",
   "build": {
     "frontendDist": "../dist",
@@ -31,7 +31,7 @@
       "endpoints": [
         "https://api.themarketingsolution.com.bd/apps/latest/update.json"
       ],
-      "pubkey": "RWSF/+NoH8Q1iRMRDi26SZW2LhBssWWoLbTQaFUNONSZUsasHInsUv0q"
+      "pubkey": "RWRBMd9rS549GhaILXJ6PMEDI7ZX4yD/jFxtFsEDfbhw2GUzb+YhDvwg"
     }
   },
   "bundle": {

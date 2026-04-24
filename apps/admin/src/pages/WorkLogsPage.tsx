@@ -9,6 +9,8 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { getInitials, cn } from '@/lib/utils';
 import { formatAuditLogMessage } from '@/components/AuditLogFormatter';
 
+import { useQuery } from '@tanstack/react-query';
+
 interface AuditLog {
     id: string;
     user_id: string;
@@ -39,39 +41,35 @@ const ACTION_CONFIG: Record<string, { label: string; icon: React.ElementType; co
 const getConfig = (action: string) => ACTION_CONFIG[action] ?? { label: action.replace(/_/g, ' '), icon: AlertCircle, color: 'text-muted-foreground bg-muted/50' };
 
 export default function WorkLogsPage() {
-    const [logs, setLogs] = useState<AuditLog[]>([]);
-    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [actionFilter, setActionFilter] = useState('all');
     const [expanded, setExpanded] = useState<string | null>(null);
-    const [rolesMap, setRolesMap] = useState<Record<string, string>>({});
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        const { data: logsData } = await supabase
-            .from('audit_logs')
-            .select('*, profiles(name, email, avatar_url)')
-            .order('created_at', { ascending: false })
-            .limit(200);
-
-        const { data: rolesData } = await supabase.from('roles').select('id, label');
-        if (rolesData) {
-            const rMap: Record<string, string> = {};
-            rolesData.forEach(r => rMap[r.id] = r.label);
-            setRolesMap(rMap);
+    const { data: logsData = [], isLoading: logsLoading } = useQuery({
+        queryKey: ['audit-logs'],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('audit_logs')
+                .select('*, profiles(name, email, avatar_url)')
+                .order('created_at', { ascending: false })
+                .limit(200);
+            return (data ?? []) as AuditLog[];
         }
+    });
 
-        setLogs(logsData ?? []);
-        setLoading(false);
-    }, []);
+    const { data: rolesMap = {} } = useQuery({
+        queryKey: ['roles-map'],
+        queryFn: async () => {
+            const { data } = await supabase.from('roles').select('id, label');
+            const rMap: Record<string, string> = {};
+            data?.forEach(r => rMap[r.id] = r.label);
+            return rMap;
+        }
+    });
 
-    useEffect(() => {
-        load();
-    }, [load]);
+    const actionTypes = ['all', ...Array.from(new Set(logsData.map(l => l.action)))];
 
-    const actionTypes = ['all', ...Array.from(new Set(logs.map(l => l.action)))];
-
-    const filtered = logs.filter(l => {
+    const filtered = logsData.filter(l => {
         if (actionFilter !== 'all' && l.action !== actionFilter) return false;
         if (search) {
             const q = search.toLowerCase();
@@ -89,9 +87,6 @@ export default function WorkLogsPage() {
                     <h1 className="text-2xl font-bold text-foreground">Activity Log</h1>
                     <p className="text-muted-foreground text-sm mt-1">Full audit trail of all admin activity</p>
                 </div>
-                <button onClick={load} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:bg-muted text-sm transition-colors">
-                    <RefreshCw className="h-4 w-4" /> Refresh
-                </button>
             </div>
 
             {/* Filters */}
@@ -112,7 +107,7 @@ export default function WorkLogsPage() {
             </div>
 
             {/* Log list */}
-            {loading ? (
+            {logsLoading ? (
                 <div className="flex items-center justify-center h-48"><div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent animate-spin" /></div>
             ) : filtered.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 text-center">

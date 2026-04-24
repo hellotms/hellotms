@@ -519,10 +519,10 @@ export default function AdminLayout() {
               <RotateCw className={cn("h-5 w-5", refreshing && "animate-spin")} />
             </button>
 
-            {/* Theme toggle - Always visible */}
+            {/* Theme toggle - Hidden on mobile, visible on sm+ */}
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="p-2 rounded-md hover:bg-muted transition-colors relative text-muted-foreground"
+              className="hidden sm:flex p-2 rounded-md hover:bg-muted transition-colors relative text-muted-foreground"
               title="Toggle theme"
             >
               {mounted ? (

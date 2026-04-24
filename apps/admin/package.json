@@ -1,6 +1,6 @@
 {
   "name": "@hellotms/admin",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "description": "Admin Panel - The Marketing Solution (admin.themarketingsolution.com.bd)",
   "type": "module",
@@ -13,7 +13,7 @@
     "tauri": "tauri",
     "build-win": "node build-win.cjs",
     "sign-win": "node sign_pure_node.cjs",
-    "build-signed": "pnpm tauri build --bundles nsis,msi && node sign_pure_node.cjs"
+    "build-signed": "node build_signed.cjs"
   },
   "dependencies": {
     "@hellotms/shared": "workspace:*",

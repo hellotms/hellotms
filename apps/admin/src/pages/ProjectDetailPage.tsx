@@ -176,6 +176,7 @@ export default function ProjectDetailPage() {
 
   // Column Definitions for DataTables
   const expenseColumns: ColumnDef<LedgerEntry>[] = [
+    { accessorKey: 'entry_date', header: 'Date', cell: ({ row }) => <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDate(row.original.entry_date)}</span> },
     { accessorKey: 'category', header: 'Particular', cell: ({ row }) => <div className="min-w-[250px] whitespace-pre-line break-words">{row.original.category}</div> },
     { accessorKey: 'quantity', header: 'Qty', cell: ({ row }) => <span>{row.original.quantity || 1}</span> },
     { accessorKey: 'day_month', header: 'Days/Month', cell: ({ row }) => (

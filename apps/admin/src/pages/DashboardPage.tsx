@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -331,7 +332,9 @@ export default function DashboardPage() {
           netProfit,
           margin,
           turnoverDays,
-          payment_status: p.payment_status
+          payment_status: p.payment_status,
+          event_start_date: p.event_start_date,
+          project_completed_at: p.project_completed_at
         };
       }).sort((a, b) => b.netProfit - a.netProfit);
     }
@@ -417,6 +420,17 @@ export default function DashboardPage() {
 
       return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }
+  });
+
+  const [txFilter, setTxFilter] = useState('all');
+
+  const filteredTransactions = transactions.filter(t => {
+    if (txFilter === 'all') return true;
+    if (txFilter === 'standard') return t.type === 'Standard Expense';
+    if (txFilter === 'others') return t.type === 'Others Expense';
+    if (txFilter === 'collection') return t.type === 'Collection';
+    if (txFilter === 'payment') return t.type === 'Payment';
+    return true;
   });
 
   return (
@@ -552,6 +566,8 @@ export default function DashboardPage() {
                 <th className="px-4 py-3 font-semibold text-foreground text-right">Profit Ratio</th>
                 <th className="px-4 py-3 font-semibold text-foreground text-right">Turn Over Days</th>
                 <th className="px-4 py-3 font-semibold text-foreground">Status</th>
+                <th className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">Project Date</th>
+                <th className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">Completed Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -583,6 +599,8 @@ export default function DashboardPage() {
                       {p.payment_status === 'paid' ? 'Received' : 'Pending'}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-[10px] text-muted-foreground whitespace-nowrap">{formatDate((p as any).event_start_date)}</td>
+                  <td className="px-4 py-3 text-[10px] text-muted-foreground whitespace-nowrap">{formatDate((p as any).project_completed_at)}</td>
                 </tr>
               ))}
               {!projectPnL?.length && (
@@ -669,31 +687,52 @@ export default function DashboardPage() {
       {/* Recent Activity & Transactions */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Transactions Table */}
-        <div className="xl:col-span-2 bg-card border border-border rounded-xl p-6 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-foreground">Transactions Log</h3>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{formatDate(fromISO)} — {formatDate(toISO)}</p>
+        <div className="xl:col-span-2 bg-card border border-border rounded-xl p-6 flex flex-col h-[500px]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-foreground">Transactions Log</h3>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{formatDate(fromISO)} — {formatDate(toISO)}</p>
+            </div>
+            
+            {/* Filter Buttons */}
+            <div className="flex bg-muted/50 p-1 rounded-lg self-start flex-wrap">
+              {['all', 'standard', 'others', 'collection', 'payment'].map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setTxFilter(f)}
+                  className={cn(
+                    "px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all",
+                    txFilter === f 
+                      ? "bg-background text-primary shadow-sm" 
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {f === 'standard' ? 'Standard Exp' : f === 'others' ? 'Others Exp' : f}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="overflow-x-auto -mx-6 sm:mx-0">
-            <div className="inline-block min-w-full align-middle">
-              <table className="min-w-full text-left text-xs whitespace-nowrap">
+
+          <div className="overflow-x-auto overflow-y-auto -mx-6 sm:mx-0 flex-1 custom-scrollbar pr-2">
+            <div className="inline-block min-w-full align-middle h-full">
+              <table className="min-w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-muted/30 border-y border-border">
-                    <th className="px-4 py-3 font-semibold text-foreground">Date</th>
-                    <th className="px-4 py-3 font-semibold text-foreground">Title</th>
-                    <th className="px-4 py-3 font-semibold text-foreground">Type</th>
-                    <th className="px-4 py-3 font-semibold text-foreground">Project Name</th>
-                    <th className="px-4 py-3 font-semibold text-foreground text-right">Amount</th>
-                    <th className="px-4 py-3 font-semibold text-foreground">Method</th>
-                    <th className="px-4 py-3 font-semibold text-foreground">Note</th>
+                    <th className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">Date</th>
+                    <th className="px-4 py-3 font-semibold text-foreground min-w-[200px]">Title</th>
+                    <th className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">Type</th>
+                    <th className="px-4 py-3 font-semibold text-foreground min-w-[150px]">Project Name</th>
+                    <th className="px-4 py-3 font-semibold text-foreground text-right whitespace-nowrap">Amount</th>
+                    <th className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">Method</th>
+                    <th className="px-4 py-3 font-semibold text-foreground min-w-[200px]">Note</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {transactions?.map((t) => (
+                  {filteredTransactions?.map((t) => (
                     <tr key={t.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-2.5 font-medium">{formatDate(t.date)}</td>
-                      <td className="px-4 py-2.5 font-semibold text-foreground whitespace-pre-line max-w-[200px]" title={t.title}>{t.title}</td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-3 font-medium whitespace-nowrap">{formatDate(t.date)}</td>
+                      <td className="px-4 py-3 font-semibold text-foreground whitespace-pre-line leading-relaxed" title={t.title}>{t.title}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <span className={cn(
                           "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-tighter",
                           t.type === 'Standard Expense' && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
@@ -704,17 +743,17 @@ export default function DashboardPage() {
                           {t.type}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 truncate max-w-[150px] opacity-70" title={t.project}>{t.project}</td>
-                      <td className={cn("px-4 py-2.5 text-right font-mono font-bold", t.color)}>
+                      <td className="px-4 py-3 whitespace-pre-line leading-relaxed opacity-70" title={t.project}>{t.project}</td>
+                      <td className={cn("px-4 py-3 text-right font-mono font-bold whitespace-nowrap", t.color)}>
                         {t.type === 'Collection' ? '+' : '-'}{formatBDT(t.amount)}
                       </td>
-                      <td className="px-4 py-2.5 opacity-70">{t.method}</td>
-                      <td className="px-4 py-2.5 whitespace-pre-line max-w-[150px] opacity-60 italic text-[10px]" title={t.note}>{t.note}</td>
+                      <td className="px-4 py-3 opacity-70 whitespace-nowrap">{t.method}</td>
+                      <td className="px-4 py-3 whitespace-pre-line opacity-60 italic text-[10px] leading-relaxed" title={t.note}>{t.note}</td>
                     </tr>
                   ))}
-                  {!transactions?.length && (
+                  {!filteredTransactions?.length && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground italic">No transactions in this period.</td>
+                      <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground italic h-full flex items-center justify-center">No transactions in this period.</td>
                     </tr>
                   )}
                 </tbody>
@@ -724,9 +763,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-card border border-border rounded-xl p-6">
+        <div className="bg-card border border-border rounded-xl p-6 flex flex-col h-[500px]">
           <h3 className="text-base font-semibold text-foreground mb-4">Recent Activity</h3>
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-y-auto flex-1 pr-2 custom-scrollbar">
             {auditLogs?.map((log) => {
               const p = log.profiles as unknown as { name: string; avatar_url?: string | null } | null;
               return (
@@ -739,7 +778,7 @@ export default function DashboardPage() {
                     </div>
                   )}
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-foreground text-sm truncate">
+                    <span className="text-foreground text-sm leading-relaxed">
                       <span className="font-semibold">{p?.name ?? 'System'}</span>{' '}
                       {formatAuditLogMessage(log)}
                     </span>

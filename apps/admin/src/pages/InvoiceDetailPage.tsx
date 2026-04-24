@@ -464,7 +464,7 @@ export default function InvoiceDetailPage() {
                            onChange={(e) => updateFieldMutation.mutate({ multiplier_label: e.target.value })}
                            className="bg-transparent border-none focus:ring-0 cursor-pointer hover:text-white transition-colors p-0 font-semibold"
                          >
-                           <option value="Day" className="text-foreground">Day</option>
+                           
                            <option value="Days" className="text-foreground">Days</option>
                            <option value="Month" className="text-foreground">Month</option>
                            <option value="Day/Month" className="text-foreground">Day/Month</option>

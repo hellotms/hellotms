@@ -25,8 +25,10 @@ appsRoute.get('/latest/update.json', async (c) => {
         return c.json({ error: 'No signed update found' }, 404);
     }
 
-    // Force no cache to prevent stale signatures
-    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    // Force NO CACHE at every possible layer (Cloudflare, Browser, Local Client)
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    c.header('CDN-Cache-Control', 'no-store');
+    c.header('Surrogate-Control', 'no-store');
     c.header('Pragma', 'no-cache');
     c.header('Expires', '0');
 
@@ -37,9 +39,7 @@ appsRoute.get('/latest/update.json', async (c) => {
         pub_date: version.created_at,
         platforms: {
             'windows-x86_64': {
-                signature: version.signature?.includes('\n') 
-                    ? version.signature.split('\n')[1].trim() 
-                    : version.signature?.trim(),
+                signature: version.signature,
                 url: version.url
             }
         }
