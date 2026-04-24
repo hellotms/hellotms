@@ -4,18 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [0.1.9] - 2026-04-24
 
-### Added
-- **Dashboard UI Improvements**:
-    - Added 'Project Date' (Event Start) and 'Completed Date' columns to the Project Information table.
-    - Implemented 5-category transaction filtering: All, Standard Expense, Others Expense, Collection, Payment.
-    - Added vertical scrolling to 'Recent Activity' and 'Transactions Log' with fixed card heights (500px).
-    - Improved 'Transactions Log' layout with better spacing and multiline support for Title and Note fields.
-- **Data Integrity**:
-    - Fixed an issue where project dates were not displaying in the Dashboard summary table.
-
-### Upgraded
-- System dependencies updated via pnpm.
-- Application version bumped from 0.1.8 to 0.1.9 in `package.json`, `Cargo.toml`, and `tauri.conf.json`.
+- Fixed: Standard and Other Expense entries now maintain their correct chronological order (latest first) even on the same date.
+- Fixed: Estimate items now maintain their exact entry order (the sequence they were added in the popup).
+- Improved: Automated the auto-update signing process to prevent future signature errors.
+- Added: Support for 'sort_order' in estimate items for better data integrity.
+- Dashboard: Implemented project date filters and improved transaction log layout.
+- UI: Added scrolling to recent activity and fixed project information display.
 
 ---
 
