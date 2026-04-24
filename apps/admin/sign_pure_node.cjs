@@ -24,7 +24,7 @@ const path = require('path');
 function run() {
     console.log("🚀 Starting Pure Node Signing (Fixed Minisign Method)...");
 
-    const keyPath = path.resolve(__dirname, 'admin_tauri.key');
+    const keyPath = path.resolve(__dirname, 'admin_tauri_clean.key');
     if (!fs.existsSync(keyPath)) {
         console.error("❌ Error: admin_tauri.key not found at", keyPath);
         return;

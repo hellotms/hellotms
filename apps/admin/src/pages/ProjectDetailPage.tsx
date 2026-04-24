@@ -87,7 +87,7 @@ export default function ProjectDetailPage() {
   const { data: ledger = [] } = useQuery<LedgerEntry[]>({
     queryKey: ['ledger', id],
     queryFn: async () => {
-      const { data } = await supabase.from('ledger_entries').select('*').eq('project_id', id!).is('deleted_at', null).order('entry_date', { ascending: false });
+      const { data } = await supabase.from('ledger_entries').select('*').eq('project_id', id!).is('deleted_at', null).order('entry_date', { ascending: false }).order('created_at', { ascending: false });
       return (data ?? []) as LedgerEntry[];
     },
     enabled: !!id,

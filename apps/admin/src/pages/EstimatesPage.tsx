@@ -293,7 +293,7 @@ export default function EstimatesPage() {
         const isRealProject = !isOtherProject && selectedProjectId;
 
         const itemsToInsert = [];
-        for (const item of lineItems) {
+        for (const [i, item] of lineItems.entries()) {
           let ledgerId: string | null = null;
 
           // If a real project is selected, create a ledger entry for EVERY item
@@ -336,6 +336,7 @@ export default function EstimatesPage() {
             cost_price: item.costPrice,
             ledger_id: ledgerId,
             invoice_id: finalId,
+            sort_order: i,
           });
         }
 

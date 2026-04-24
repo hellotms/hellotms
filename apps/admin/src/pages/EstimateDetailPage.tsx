@@ -50,10 +50,21 @@ export default function EstimateDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('invoices')
-        .select('*, companies(*), projects(id, title, advance_received, location), invoice_items(*)')
+        .select('*, companies(*), projects(id, title, advance_received, location), invoice_items(*, ledger_entries(id, category, amount, paid_status, due_amount))')
         .eq('id', id!)
         .single();
       if (error) throw error;
+      // Sort items by sort_order (if available), then by creation time
+      if (data?.invoice_items) {
+        data.invoice_items.sort((a: any, b: any) => {
+          // Primary: sort_order (items created from popup have this)
+          if (a.sort_order != null && b.sort_order != null) {
+            return a.sort_order - b.sort_order;
+          }
+          // Fallback: created_at for individually added items
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
+      }
       return data as InvoiceWithRelations;
     },
     enabled: !!id,
